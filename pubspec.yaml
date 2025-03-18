@@ -1,0 +1,29 @@
+name: whoosh
+description: "A new Flutter project."
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0" # Updated SDK constraint
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  get_storage: ^2.1.1 
+  get: ^4.6.5
+  http: ^0.13.5
+  flutter_svg: ^2.0.5
+  fluttertoast: ^8.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/ # Declare the entire folder
+    - assets/whoosh.png # Declare individual files
