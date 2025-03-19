@@ -15,11 +15,10 @@ class Outlet {
 factory Outlet.fromJson(Map<String, dynamic> json) {
   return Outlet(
     id: json['id'],
-    name: json['name'],
-    address: json['address'],
+    name: json['name'] ?? 'Unknown Outlet', // Default to 'Unknown Outlet' if null
+    address: json['address'] ?? 'Unknown Address', // Default to 'Unknown Address' if null
   );
 }
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,

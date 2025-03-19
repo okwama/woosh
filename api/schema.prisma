@@ -48,13 +48,18 @@ model Order {
 }
 
 model JourneyPlan {
-  id       Int      @id @default(autoincrement())
-  date     DateTime @default(now())
-  time     DateTime @default(now())
-  userId   Int
-  outletId Int
-  outlet   Outlet   @relation(fields: [outletId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
+  id          Int       @id @default(autoincrement())
+  date        DateTime  // No default value
+  time        DateTime  // No default value
+  userId      Int      // Optional
+  outletId    Int     // Optional
+  status      String    @default("pending") // Added status field
+  checkInTime DateTime? // Optional
+  latitude    Float?    // Optional
+  longitude   Float?    // Optional
+  imageUrl    String?   // Optional
+  outlet      Outlet    @relation(fields: [outletId], references: [id]) // Required 
+  user        User?     @relation(fields: [userId], references: [id])
 
   @@index([outletId], map: "JourneyPlan_outletId_fkey")
   @@index([userId], map: "JourneyPlan_userId_fkey")

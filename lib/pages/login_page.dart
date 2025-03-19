@@ -47,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final result = await _apiService.login(
+      final result = await ApiService.login(
         _emailController.text.trim(),
         _passwordController.text,
       );

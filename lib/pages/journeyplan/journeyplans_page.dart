@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
+import 'package:whoosh/pages/journeyplan/journeyview.dart';
 import 'package:whoosh/services/api_service.dart';
 
 class JourneyPlansPage extends StatefulWidget {
@@ -33,7 +34,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       // Load both outlets and journey plans
       final outlets = await ApiService.fetchOutlets();
       final journeyPlans = await ApiService.fetchJourneyPlans();
-      
+
       setState(() {
         _outlets = outlets;
         _journeyPlans = journeyPlans;
@@ -44,6 +45,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
         _errorMessage = 'Failed to load data: ${e.toString()}';
         _isLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $_errorMessage')),
+      );
     }
   }
 
@@ -54,10 +58,10 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       });
 
       await ApiService.createJourneyPlan(outletId);
-      
+
       // Refresh journey plans after creating a new one
       final journeyPlans = await ApiService.fetchJourneyPlans();
-      
+
       setState(() {
         _journeyPlans = journeyPlans;
         _isLoading = false;
@@ -108,6 +112,15 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
             child: const Text('Cancel'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToJourneyView(JourneyPlan journeyPlan) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => JourneyView(journeyPlan: journeyPlan),
       ),
     );
   }
@@ -214,137 +227,137 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   Widget _buildJourneyPlanCard(JourneyPlan journeyPlan) {
     final dateFormatter = DateFormat('MMM dd, yyyy');
     final timeFormatter = DateFormat('hh:mm a');
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16.0),
       ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16.0),
-                topRight: Radius.circular(16.0),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.store,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    journeyPlan.outlet.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Dotted line separator
-          Container(
-            height: 2,
-            margin: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: List.generate(
-                30,
-                (index) => Expanded(
-                  child: Container(
-                    color: index % 2 == 0 ? Colors.grey.shade300 : Colors.white,
-                    height: 2,
-                  ),
+      child: InkWell(
+        onTap: () => _navigateToJourneyView(journeyPlan),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16.0),
+                  topRight: Radius.circular(16.0),
                 ),
               ),
-            ),
-          ),
-          
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Date and time
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildInfoItem(
-                        'Date',
-                        dateFormatter.format(journeyPlan.date),
-                        Icons.calendar_today,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.store,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      journeyPlan.outlet.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
                     ),
-                    Expanded(
-                      child: _buildInfoItem(
-                        'Time',
-                        timeFormatter.format(journeyPlan.time),
-                        Icons.access_time,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Location
-                _buildInfoItem(
-                  'Location',
-                  journeyPlan.outlet.address,
-                  Icons.location_on,
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Journey ID
-                _buildInfoItem(
-                  'Journey ID',
-                  '#${journeyPlan.id}',
-                  Icons.confirmation_number,
-                ),
-              ],
-            ),
-          ),
-          
-          // Footer
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16.0),
-                bottomRight: Radius.circular(16.0),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // Navigate to journey details or start journey
-                    // You can implement this functionality later
-                  },
-                  icon: const Icon(Icons.directions),
-                  label: const Text('Start Journey'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
+
+            // Dotted line separator
+            Container(
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: List.generate(
+                  30,
+                  (index) => Expanded(
+                    child: Container(
+                      color: index % 2 == 0 ? Colors.grey.shade300 : Colors.white,
+                      height: 2,
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // Date and time
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoItem(
+                          'Date',
+                          dateFormatter.format(journeyPlan.date),
+                          Icons.calendar_today,
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildInfoItem(
+                          'Time',
+                          timeFormatter.format(journeyPlan.time),
+                          Icons.access_time,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Location
+                  _buildInfoItem(
+                    'Location',
+                    journeyPlan.outlet.address,
+                    Icons.location_on,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Journey ID
+                  _buildInfoItem(
+                    'Status',
+                    journeyPlan.status,
+                    Icons.confirmation_number,
+                  ),
+                ],
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16.0),
+                  bottomRight: Radius.circular(16.0),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _navigateToJourneyView(journeyPlan),
+                    icon: const Icon(Icons.directions),
+                    label: const Text('Start Journey'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

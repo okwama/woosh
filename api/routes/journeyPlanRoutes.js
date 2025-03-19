@@ -1,6 +1,6 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
-const { createJourneyPlan, getJourneyPlans } = require('../controllers/journeyPlanController');
+const { createJourneyPlan, updateJourneyPlan, getJourneyPlans } = require('../controllers/journeyPlanController');
 
 const router = express.Router();
 
@@ -9,6 +9,9 @@ router.use(authMiddleware);
 
 // Create a journey plan
 router.post('/', createJourneyPlan);
+
+// Update a journey plan
+router.put('/:id', updateJourneyPlan);
 
 // Get all journey plans for the authenticated user
 router.get('/', getJourneyPlans);
