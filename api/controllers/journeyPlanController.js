@@ -3,10 +3,9 @@ const prisma = new PrismaClient();
 
 // Create a new journey plan
 const createJourneyPlan = async (req, res) => {
-  const { outletId } = req.body; // Only outletId is required in the request body
-  const userId = req.user.id; // Get the authenticated user's ID from the request
+  const { outletId } = req.body;
+  const userId = req.user.id;
 
-  // Validate required fields
   if (!outletId) {
     return res.status(400).json({ error: 'Missing required field: outletId' });
   }
@@ -21,13 +20,16 @@ const createJourneyPlan = async (req, res) => {
       return res.status(404).json({ error: 'Outlet not found' });
     }
 
-    // Create the journey plan with auto-generated date and time
+    // Create the journey plan
     const journeyPlan = await prisma.journeyPlan.create({
       data: {
-        date: new Date(), // Auto-generate the current date
-        time: new Date(), // Auto-generate the current time
+        date: new Date(),
+        time: new Date(),
         userId,
         outletId,
+      },
+      include: {
+        outlet: true, // Include the outlet data in the response
       },
     });
 

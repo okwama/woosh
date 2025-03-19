@@ -8,9 +8,8 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Create a journey plan
-router.post('/journey-plans', createJourneyPlan);
+router.post('/', createJourneyPlan);
 
 // Get all journey plans for the authenticated user
-router.get('/journey-plans', getJourneyPlans);
-
+router.get('/', getJourneyPlans);
 module.exports = router;

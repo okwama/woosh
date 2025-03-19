@@ -1,17 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:whoosh/pages/viewclient_page.dart';
 import 'package:whoosh/pages/vieworder_page.dart';
 
 import '../components/menu_tile.dart';
 import 'editorder_page.dart';
-import 'journeyplans_page.dart';
+import 'journeyplan/journeyplans_page.dart';
 import 'noticeboard_page.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  // This would typically come from a user service or state management
-  final String userName = "John Doe"; // Example user name
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late String userName;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+  
+  void _loadUserData() {
+    final box = GetStorage();
+    final user = box.read('user');
+    
+    setState(() {
+      if (user != null && user is Map<String, dynamic>) {
+        userName = user['name'] ?? 'User';
+      } else {
+        userName = 'User';
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

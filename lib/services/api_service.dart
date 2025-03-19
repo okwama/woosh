@@ -19,117 +19,123 @@ class ApiService {
   }
 
   // Helper to get user ID from token
-  static String? getUserIdFromToken(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length > 1) {
-        final payload = parts[1];
-        final normalized = base64Url.normalize(payload);
-        final decoded = utf8.decode(base64Url.decode(normalized));
-        final Map<String, dynamic> decodedMap = json.decode(decoded);
-        return decodedMap['userId'];
-      }
-    } catch (e) {
-      print('Error extracting userId from token: $e');
+static dynamic getUserIdFromToken(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length > 1) {
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> decodedMap = json.decode(decoded);
+      return decodedMap['userId']; // Return as dynamic to handle both int and String
     }
-    return null;
+  } catch (e) {
+    print('Error extracting userId from token: $e');
   }
+  return null;
+}
 
   // Fetch Outlets
-  static Future<List<Outlet>> fetchOutlets() async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/outlets'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> outletsJson = jsonDecode(response.body);
-        return outletsJson.map((json) => Outlet.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to load outlets: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error in fetchOutlets: $e');
-      throw Exception('An error occurred while fetching outlets: $e');
+static Future<List<Outlet>> fetchOutlets() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/outlets'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => Outlet.fromJson(json)).toList();
+    } else {
+      print('Failed with status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+      throw Exception('Failed to load outlets: ${response.statusCode}');
     }
+  } catch (e) {
+    print('Exception in fetchOutlets: $e');
+    throw Exception('Failed to load outlets: $e');
   }
-
+}
   // Create a Journey Plan
-  static Future<JourneyPlan> createJourneyPlan(int outletId) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final userId = getUserIdFromToken(token);
-      if (userId == null) {
-        throw Exception("User ID could not be determined");
-      }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/journey-plans'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'outletId': outletId,
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        return JourneyPlan.fromJson(jsonDecode(response.body));
-      } else {
-        throw Exception('Failed to create journey plan: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error in createJourneyPlan: $e');
-      throw Exception('An error occurred while creating the journey plan: $e');
+static Future<JourneyPlan> createJourneyPlan(int outletId) async {
+  try {
+    final token = _getAuthToken();
+    if (token == null) {
+      throw Exception("Authentication token is missing");
     }
-  }
 
-  // Fetch Journey Plans
-  static Future<List<JourneyPlan>> fetchJourneyPlans() async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
+    print('Creating journey plan for outlet ID: $outletId');
+    
+    final response = await http.post(
+      Uri.parse('$baseUrl/journey-plans'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'outletId': outletId,
+      }),
+    );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode == 201) {
+      if (response.body == null || response.body.isEmpty) {
+        throw Exception('Empty response body');
       }
-
-      final userId = getUserIdFromToken(token);
-      if (userId == null) {
-        throw Exception("User ID could not be determined");
+      
+      final decodedJson = jsonDecode(response.body);
+      if (decodedJson == null) {
+        throw Exception('Failed to decode JSON response');
       }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/journey-plans'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> journeyPlansJson = jsonDecode(response.body);
-        return journeyPlansJson.map((json) => JourneyPlan.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to load journey plans: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error in fetchJourneyPlans: $e');
-      throw Exception('An error occurred while fetching journey plans: $e');
+      
+      return JourneyPlan.fromJson(decodedJson);
+    } else {
+      throw Exception('Failed to create journey plan: ${response.statusCode}');
     }
+  } catch (e) {
+    print('Error in createJourneyPlan: $e');
+    throw Exception('An error occurred while creating the journey plan: $e');
   }
+}
+// Fetch Journey Plans
+static Future<List<JourneyPlan>> fetchJourneyPlans() async {
+  try {
+    final token = _getAuthToken();
+    if (token == null) {
+      throw Exception("Authentication token is missing");
+    }
+
+    final userId = getUserIdFromToken(token);
+    if (userId == null) {
+      throw Exception("User ID could not be determined");
+    }
+
+    // No need to check userId type since we're just using it for authentication
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/journey-plans'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> journeyPlansJson = jsonDecode(response.body);
+      return journeyPlansJson.map((json) => JourneyPlan.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load journey plans: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error in fetchJourneyPlans: $e');
+    throw Exception('An error occurred while fetching journey plans: $e');
+  }
+}
 
   // User Login
 Future<Map<String, dynamic>> login(String email, String password) async {

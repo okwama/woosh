@@ -1,16 +1,20 @@
 const express = require('express');
-const { getOutlets, createOutlet, updateOutlet } = require('../controllers/outletController');
+const {
+  getOutlets,
+  createOutlet,
+  updateOutlet,
+} = require('../controllers/outletController');
 
 const router = express.Router();
 
+// ✅ Fix: Remove the extra "/outlets"
+router
+  .route('/')
+  .get(getOutlets) // GET /api/outlets
+  .post(createOutlet); // POST /api/outlets
 
-// Get all outlets
-router.get('/outlets', getOutlets);
-
-// Create a new outlet
-router.post('/outlets', createOutlet);
-
-// Update an outlet
-router.put('/outlets/:id', updateOutlet);
+router
+  .route('/:id')
+  .put(updateOutlet); // PUT /api/outlets/:id
 
 module.exports = router;
