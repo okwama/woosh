@@ -51,8 +51,12 @@
     <true/>
 </dict>
 <key>NSCameraUsageDescription</key>
-<string>Explanation on why the camera access is needed.</string>
+<string>Camera access is required to capture photos for check-in verification at outlets.</string>
 <key>NSMicrophoneUsageDescription</key>
-<string>Explanation on why the microphone access is needed.</string>
+<string>Microphone access is required for video recording during check-in if needed.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Location access is required to verify your position when checking in at outlets.</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>Location access is required to verify your position when checking in at outlets.</string>
 </dict>
 </plist>

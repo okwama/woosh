@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +8,7 @@ import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/noticeboard_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
 import 'package:whoosh/utils/auth_config.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   static String get baseUrl => '${ApiConfig.baseUrl}/api';
@@ -236,32 +238,74 @@ class ApiService {
   }
 
   // Upload Image
-  static Future<String> uploadImage(File imageFile) async {
+  static Future<String> uploadImage(dynamic imageData) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
       }
 
+      print('Starting image upload...');
       final url = Uri.parse('$baseUrl/upload-image');
 
+      // Create multipart request
       final request = http.MultipartRequest('POST', url)
         ..headers.addAll({
           'Authorization': 'Bearer $token',
-        })
-        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+          'Accept': 'application/json',
+        });
 
+      // Add the file to the request
+      try {
+        if (imageData is Uint8List) {
+          // For web platforms (using bytes)
+          print('Processing web image upload...');
+          print('Image bytes length: ${imageData.length}');
+          request.files.add(http.MultipartFile.fromBytes(
+            'file',
+            imageData,
+            filename: 'image.jpg',
+          ));
+        } else if (imageData is File) {
+          // For mobile platforms (using File)
+          print('Processing mobile image upload...');
+          if (!imageData.existsSync()) {
+            throw Exception('Image file does not exist: ${imageData.path}');
+          }
+          request.files
+              .add(await http.MultipartFile.fromPath('file', imageData.path));
+        } else {
+          throw Exception(
+              'Unsupported image data type: ${imageData.runtimeType}');
+        }
+      } catch (e) {
+        print('Error preparing image for upload: $e');
+        throw Exception('Failed to prepare image for upload: $e');
+      }
+
+      print('Sending upload request...');
       final response = await request.send();
+      print('Upload response status: ${response.statusCode}');
+
+      final responseData = await response.stream.bytesToString();
+      print('Upload response data: $responseData');
+
+      final decodedJson = jsonDecode(responseData);
 
       if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final decodedJson = jsonDecode(responseData);
-        return decodedJson[
-            'imageUrl']; // Assuming the API returns the image URL
+        final imageUrl = decodedJson['imageUrl'];
+        if (imageUrl == null) {
+          throw Exception('No image URL in response');
+        }
+        print('Image uploaded successfully: $imageUrl');
+        return imageUrl;
       } else {
-        throw Exception('Failed to upload image: ${response.statusCode}');
+        final errorMessage = decodedJson['error'] ?? 'Unknown error';
+        throw Exception(
+            'Failed to upload image: ${response.statusCode} - $errorMessage');
       }
     } catch (e) {
+      print('Error in uploadImage: $e');
       throw Exception('An error occurred while uploading the image: $e');
     }
   }

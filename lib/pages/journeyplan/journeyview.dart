@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +8,9 @@ import 'package:whoosh/services/api_service.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
 import 'package:whoosh/pages/journeyplan/reports_orders_page.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -22,7 +26,7 @@ class JourneyView extends StatefulWidget {
   _JourneyViewState createState() => _JourneyViewState();
 }
 
-class _JourneyViewState extends State<JourneyView> {
+class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   final ApiService _apiService = ApiService();
   Position? _currentPosition;
   bool _isCheckingIn = false;
@@ -31,26 +35,57 @@ class _JourneyViewState extends State<JourneyView> {
   // Camera-related variables
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
+  bool _isCameraVisible = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _getCurrentPosition();
     _initializeCamera();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _cameraController;
+
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
   Future<void> _initializeCamera() async {
     try {
+      // Request camera permission first
+      final status = await Permission.camera.request();
+      if (status.isDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Camera permission is required for check-in. Please grant permission in settings.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
         _cameraController = CameraController(
-          cameras.first, // Use the first available camera
+          cameras.first,
           ResolutionPreset.high,
         );
         await _cameraController!.initialize();
@@ -62,7 +97,162 @@ class _JourneyViewState extends State<JourneyView> {
       }
     } catch (e) {
       print('Failed to initialize camera: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to initialize camera: $e'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
+  }
+
+  Future<void> _showCameraDialog() async {
+    if (!_isCameraInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera is not ready. Please try again.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isCameraVisible = true;
+    });
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 400,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CameraPreview(_cameraController!),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isCameraVisible = false;
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  FloatingActionButton(
+                    onPressed: () async {
+                      try {
+                        final image = await _cameraController!.takePicture();
+                        setState(() {
+                          _isCameraVisible = false;
+                        });
+                        Navigator.pop(context);
+                        await _processImage(File(image.path));
+                      } catch (e) {
+                        print('Error capturing image: $e');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Failed to capture image: $e')),
+                        );
+                      }
+                    },
+                    child: const Icon(Icons.camera),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processImage(File imageFile) async {
+    setState(() {
+      _isCheckingIn = true;
+    });
+
+    try {
+      print('Uploading image...');
+      final imageUrl = await ApiService.uploadImage(imageFile);
+      print('Image uploaded successfully: $imageUrl');
+
+      if (widget.journeyPlan.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Journey ID is required to check in.')),
+        );
+        return;
+      }
+
+      final updatedPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: 'checked_in',
+        checkInTime: DateTime.now(),
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
+        imageUrl: imageUrl,
+      );
+
+      if (widget.onCheckInSuccess != null) {
+        widget.onCheckInSuccess!(updatedPlan);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check-in successful')),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReportsOrdersPage(journeyPlan: updatedPlan),
+        ),
+      );
+    } catch (e) {
+      print('Check-in error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to check-in: $e'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isCheckingIn = false;
+      });
+    }
+  }
+
+  Future<void> _checkIn() async {
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Check-In'),
+        content: const Text(
+            'A picture will be taken to confirm your check-in. Proceed?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await _showCameraDialog();
   }
 
   Future<void> _getCurrentPosition() async {
@@ -115,93 +305,6 @@ class _JourneyViewState extends State<JourneyView> {
       _currentPosition = position;
       _isFetchingLocation = false;
     });
-  }
-
-  Future<void> _checkIn() async {
-    // Show confirmation dialog
-    bool confirm = await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirm Check-In'),
-        content:
-            Text('A picture will be taken to confirm your check-in. Proceed?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Proceed'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    if (!_isCameraInitialized || _cameraController == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Camera is not ready. Please try again.')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isCheckingIn = true;
-    });
-
-    try {
-      // Capture a photo
-      final imageFile = await _cameraController!.takePicture();
-
-      // Upload image
-      final imageUrl = await ApiService.uploadImage(File(imageFile.path));
-
-      // Check if journeyPlan.id is not null before updating
-      if (widget.journeyPlan.id == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Journey ID is required to check in.')),
-        );
-        return;
-      }
-
-      // Update journey plan
-      final updatedPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: 'checked_in',
-        checkInTime: DateTime.now(),
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
-        imageUrl: imageUrl,
-      );
-
-      // Notify parent page of successful check-in
-      if (widget.onCheckInSuccess != null) {
-        widget.onCheckInSuccess!(updatedPlan);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Check-in successful')),
-      );
-
-      // Navigate to Reports & Orders page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(journeyPlan: updatedPlan),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to check-in: $e')),
-      );
-    } finally {
-      setState(() {
-        _isCheckingIn = false;
-      });
-    }
   }
 
   @override
