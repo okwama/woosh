@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
+import 'package:whoosh/models/noticeboard_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
 import 'package:whoosh/utils/auth_config.dart';
 
@@ -25,7 +26,8 @@ class ApiService {
         final normalized = base64Url.normalize(payload);
         final decoded = utf8.decode(base64Url.decode(normalized));
         final Map<String, dynamic> decodedMap = json.decode(decoded);
-        return decodedMap['userId']; // Return as dynamic to handle both int and String
+        return decodedMap[
+            'userId']; // Return as dynamic to handle both int and String
       }
     } catch (e) {
       print('Error extracting userId from token: $e');
@@ -56,31 +58,44 @@ class ApiService {
   }
 
   // Create a Journey Plan
-  static Future<JourneyPlan> createJourneyPlan(int outletId) async {
+  static Future<JourneyPlan> createJourneyPlan(
+      int outletId, DateTime dateTime) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
       }
 
+      // Format time as HH:MM:SS
+      final time =
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+
+      print(
+          'Creating journey plan with outletId: $outletId, date: ${dateTime.toIso8601String()}, time: $time');
+
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+        headers: _headers(token),
         body: jsonEncode({
           'outletId': outletId,
+          'date': dateTime.toIso8601String(),
+          'time': time,
         }),
       );
+
+      print('Create journey plan response status: ${response.statusCode}');
+      print('Create journey plan response body: ${response.body}');
 
       if (response.statusCode == 201) {
         final decodedJson = jsonDecode(response.body);
         return JourneyPlan.fromJson(decodedJson);
       } else {
-        throw Exception('Failed to create journey plan: ${response.statusCode}');
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to create journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
+      print('Error in createJourneyPlan: $e');
       throw Exception('An error occurred while creating the journey plan: $e');
     }
   }
@@ -93,6 +108,9 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
+      print(
+          'Fetching journey plans with token: ${token.substring(0, 20)}...'); // Log token prefix
+
       final response = await http.get(
         Uri.parse('$baseUrl/journey-plans'),
         headers: {
@@ -101,19 +119,28 @@ class ApiService {
         },
       );
 
+      print('Journey plans response status: ${response.statusCode}');
+      print('Journey plans response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
         if (responseBody.containsKey('data') && responseBody['data'] is List) {
           final List<dynamic> journeyPlansJson = responseBody['data'];
-          return journeyPlansJson.map((json) => JourneyPlan.fromJson(json)).toList();
+          return journeyPlansJson
+              .map((json) => JourneyPlan.fromJson(json))
+              .toList();
         } else {
-          throw Exception('Unexpected response format: missing data field or not a list');
+          throw Exception(
+              'Unexpected response format: missing data field or not a list');
         }
       } else {
-        throw Exception('Failed to load journey plans: ${response.statusCode}');
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to load journey plans: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
+      print('Error in fetchJourneyPlans: $e');
       throw Exception('An error occurred while fetching journey plans: $e');
     }
   }
@@ -155,10 +182,56 @@ class ApiService {
         final decodedJson = jsonDecode(response.body);
         return JourneyPlan.fromJson(decodedJson);
       } else {
-        throw Exception('Failed to update journey plan: ${response.statusCode}');
+        throw Exception(
+            'Failed to update journey plan: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('An error occurred while updating the journey plan: $e');
+    }
+  }
+
+  static Future<List<NoticeBoard>> getNotice() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      print('Fetching notices from: $baseUrl/notice-board');
+      print(
+          'Using token: ${token.substring(0, 20)}...'); // Only print first 20 chars for security
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/notice-board'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('Notice board response status: ${response.statusCode}');
+      print('Notice board response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty) {
+          return []; // Return empty list instead of throwing an error
+        }
+
+        try {
+          final List<dynamic> data = jsonDecode(response.body);
+          return data.map((json) => NoticeBoard.fromJson(json)).toList();
+        } catch (e) {
+          print('Error parsing notice board response: $e');
+          throw Exception('Failed to parse notice board data: $e');
+        }
+      } else {
+        throw Exception(
+            'Failed to fetch notices. Server responded with ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getNotice: $e');
+      throw Exception('Error fetching notices: ${e.toString()}');
     }
   }
 
@@ -183,7 +256,8 @@ class ApiService {
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
         final decodedJson = jsonDecode(responseData);
-        return decodedJson['imageUrl']; // Assuming the API returns the image URL
+        return decodedJson[
+            'imageUrl']; // Assuming the API returns the image URL
       } else {
         throw Exception('Failed to upload image: ${response.statusCode}');
       }
@@ -193,12 +267,13 @@ class ApiService {
   }
 
   // User Login
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+  static Future<Map<String, dynamic>> login(
+      String phoneNumber, String password) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode({'phoneNumber': phoneNumber, 'password': password}),
       );
 
       print('Login response status: ${response.statusCode}');
@@ -217,16 +292,13 @@ class ApiService {
         final box = GetStorage();
         box.write('token', data['token']);
         box.write('user', data['user']);
-        return {
-          'success': true,
-          'token': data['token'],
-          'user': data['user']
-        };
+        return {'success': true, 'token': data['token'], 'user': data['user']};
       } else {
         // Use data['error'] if available, otherwise use a default message
         return {
           'success': false,
-          'message': data['error'] ?? 'Login failed with status ${response.statusCode}'
+          'message':
+              data['error'] ?? 'Login failed with status ${response.statusCode}'
         };
       }
     } catch (e) {
@@ -234,7 +306,8 @@ class ApiService {
       if (e.toString().contains('XMLHttpRequest error')) {
         return {
           'success': false,
-          'message': "Network error: Please check your internet connection and try again"
+          'message':
+              "Network error: Please check your internet connection and try again"
         };
       }
       return {
@@ -248,5 +321,6 @@ class ApiService {
   static Map<String, String> _headers(String token) => {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       };
 }

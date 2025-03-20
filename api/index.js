@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const journeyPlanRoutes = require('./routes/journeyPlanRoutes');
 const outletRoutes = require('./routes/outletRoutes');
+const noticeBoardRoutes = require('./routes/noticeBoardRoutes');
 
 const app = express();
 app.use(express.json());
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/journey-plans', journeyPlanRoutes);
 app.use('/api/outlets', outletRoutes);
+app.use('/api/notice-board', noticeBoardRoutes);
 
 // Handle 404 Errors
 app.use((req, res, next) => {

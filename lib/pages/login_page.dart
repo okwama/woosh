@@ -6,14 +6,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   _LoginPageState createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
@@ -22,7 +22,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneNumberController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -48,7 +48,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final result = await ApiService.login(
-        _emailController.text.trim(),
+        _phoneNumberController.text.trim(),
         _passwordController.text,
       );
 
@@ -132,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Email Field
-                      _buildEmailField(),
+                      _buildPhoneNumberField(),
                       
                       const SizedBox(height: 20),
                       
@@ -164,14 +164,14 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildEmailField() {
+  Widget _buildPhoneNumberField() {
     return TextFormField(
-      controller: _emailController,
-      keyboardType: TextInputType.emailAddress,
+      controller: _phoneNumberController,
+      keyboardType: TextInputType.phone,
       decoration: InputDecoration(
-        labelText: 'Email',
-        hintText: 'Enter your email',
-        prefixIcon: const Icon(Icons.email_outlined),
+        labelText: 'Phone Number',
+        hintText: 'Enter your phone number',
+        prefixIcon: const Icon(Icons.phone_outlined),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
         ),
@@ -179,10 +179,10 @@ class _LoginPageState extends State<LoginPage> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter your email';
+            return 'Please enter your phone number';
         }
-        if (!GetUtils.isEmail(value)) {
-          return 'Please enter a valid email';
+        if (!GetUtils.isPhoneNumber(value)) {
+          return 'Please enter a valid phone number';
         }
         return null;
       },

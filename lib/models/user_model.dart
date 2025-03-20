@@ -6,6 +6,7 @@ class User {
   final int id;
   final String name;
   final String email;
+  final String phoneNumber;
   final String password; // Hashed password
   final List<Order> orders;
   final List<JourneyPlan> journeyPlans;
@@ -15,6 +16,7 @@ class User {
     required this.id,
     required this.name,
     required this.email,
+    required this.phoneNumber,
     required this.password,
     required this.orders,
     required this.journeyPlans,
@@ -26,6 +28,7 @@ class User {
       id: json['id'],
       name: json['name'],
       email: json['email'],
+      phoneNumber: json['phone_number'],
       password: json['password'],
       orders: (json['orders'] as List).map((order) => Order.fromJson(order)).toList(),
       journeyPlans: (json['journeyPlans'] as List)
@@ -38,8 +41,9 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
+      'name': name,         
       'email': email,
+      'phone_number': phoneNumber,
       'password': password,
       'orders': orders.map((order) => order.toJson()).toList(),
       'journeyPlans': journeyPlans.map((journeyPlan) => journeyPlan.toJson()).toList(),

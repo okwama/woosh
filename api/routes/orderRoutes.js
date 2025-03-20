@@ -1,13 +1,13 @@
 const express = require('express');
-const authMiddleware = require('../middleware/authMiddleware');
+const { authenticateToken } = require('../middleware/authMiddleware');
 const { createOrder, getOrders, updateOrder } = require('../controllers/orderController');
 
 const router = express.Router();
 
-router.use(authMiddleware);
+router.use(authenticateToken);
 
-router.post('/orders', createOrder);
-router.get('/orders', getOrders);
-router.put('/orders/:id', updateOrder);
+router.post('/', createOrder);
+router.get('/', getOrders);
+router.put('/:id', updateOrder);
 
 module.exports = router;

@@ -1,9 +1,5 @@
 const express = require('express');
-const {
-  getOutlets,
-  createOutlet,
-  updateOutlet,
-} = require('../controllers/outletController');
+const {  getOutlets,  createOutlet,  updateOutlet,} = require('../controllers/outletController');
 
 const router = express.Router();
 

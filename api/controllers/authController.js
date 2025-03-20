@@ -4,41 +4,79 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const register = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, phoneNumber } = req.body;
 
   try {
+    // Validate required fields
+    if (!name || !email || !password || !phoneNumber) {
+      return res.status(400).json({ 
+        error: 'Registration failed',
+        details: 'All fields are required: name, email, password, and phoneNumber'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { phoneNumber }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'Registration failed',
+        details: existingUser.email === email 
+          ? 'Email already registered'
+          : 'Phone number already registered'
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
       data: {
         name,
         email,
+        phoneNumber,
         password: hashedPassword,
       },
     });
-    res.status(201).json({ user });
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+    res.status(201).json({ user: userWithoutPassword });
   } catch (error) {
-    res.status(400).json({ error: 'Registration failed' });
+    console.error('Registration error:', error);
+    res.status(400).json({ 
+      error: 'Registration failed',
+      details: error.message
+    });
   }
 };
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { phoneNumber, password } = req.body;
 
   try {
-    console.log(`Login attempt for email: ${email}`);
+    console.log(`Login attempt for phoneNumber: ${phoneNumber}`);
     
-    // Check if email exists
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Check if user exists
+    const user = await prisma.user.findFirst({
+      where: { phoneNumber }
+    });
+    
     if (!user) {
-      console.log(`User not found: ${email}`);
-      return res.status(401).json({ error: 'Invalid email or password' });
+      console.log(`User not found: ${phoneNumber}`);
+      return res.status(401).json({ error: 'Invalid phone number or password' });
     }
     
     // Check if password is correct
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      console.log(`Invalid password for user: ${email}`);
-      return res.status(401).json({ error: 'Invalid email or password' });
+      console.log(`Invalid password for user: ${phoneNumber}`);
+      return res.status(401).json({ error: 'Invalid phone number or password' });
     }
 
     // Generate JWT token
@@ -55,14 +93,14 @@ const login = async (req, res) => {
       },
     });
 
-    console.log(`Login successful for user: ${email}`);
+    console.log(`Login successful for user: ${phoneNumber}`);
     
     // Return user and token
     res.json({ 
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
+        phoneNumber: user.phoneNumber
         // Don't include password in the response
       }, 
       token 

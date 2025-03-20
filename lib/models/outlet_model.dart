@@ -1,4 +1,3 @@
-
 class Outlet {
   final int id;
   final String name;
@@ -8,17 +7,19 @@ class Outlet {
     required this.id,
     required this.name,
     required this.address,
-    
   });
 
-// In outlet_model.dart
-factory Outlet.fromJson(Map<String, dynamic> json) {
-  return Outlet(
-    id: json['id'],
-    name: json['name'] ?? 'Unknown Outlet', // Default to 'Unknown Outlet' if null
-    address: json['address'] ?? 'Unknown Address', // Default to 'Unknown Address' if null
-  );
-}
+  factory Outlet.fromJson(Map<String, dynamic> json) {
+    if (json['id'] == null) {
+      throw FormatException('Outlet ID is required');
+    }
+    return Outlet(
+      id: json['id'],
+      name: json['name'] ?? '',
+      address: json['address'] ?? '',
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

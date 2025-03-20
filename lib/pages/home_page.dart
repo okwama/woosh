@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:whoosh/pages/viewclient_page.dart';
 import 'package:whoosh/pages/vieworder_page.dart';
+import 'package:whoosh/services/api_service.dart';
+import 'package:whoosh/models/journeyplan_model.dart';
 
 import '../components/menu_tile.dart';
 import 'editorder_page.dart';
@@ -17,17 +19,20 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late String userName;
-  
+  int _pendingJourneyPlans = 0;
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadPendingJourneyPlans();
   }
-  
+
   void _loadUserData() {
     final box = GetStorage();
     final user = box.read('user');
-    
+
     setState(() {
       if (user != null && user is Map<String, dynamic>) {
         userName = user['name'] ?? 'User';
@@ -35,6 +40,22 @@ class _HomePageState extends State<HomePage> {
         userName = 'User';
       }
     });
+  }
+
+  Future<void> _loadPendingJourneyPlans() async {
+    try {
+      final journeyPlans = await ApiService.fetchJourneyPlans();
+      setState(() {
+        _pendingJourneyPlans =
+            journeyPlans.where((plan) => plan.status == 'pending').length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading pending journey plans: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -117,9 +138,9 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Menu section title
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -142,10 +163,10 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 10),
-            
-            // Grid menu items - retaining the original grid layout
+
+            // Grid menu items
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -157,12 +178,13 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Journey Plans',
                       icon: Icons.map,
+                      badgeCount: _isLoading ? null : _pendingJourneyPlans,
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (context) => const JourneyPlansPage()),
-                        );
+                        ).then((_) => _loadPendingJourneyPlans());
                       },
                     ),
                     MenuTile(
@@ -171,7 +193,8 @@ class _HomePageState extends State<HomePage> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ViewClientPage()),
+                          MaterialPageRoute(
+                              builder: (context) => const ViewClientPage()),
                         );
                       },
                     ),
@@ -203,7 +226,8 @@ class _HomePageState extends State<HomePage> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ViewOrderPage()),
+                          MaterialPageRoute(
+                              builder: (context) => const ViewOrderPage()),
                         );
                       },
                     ),
