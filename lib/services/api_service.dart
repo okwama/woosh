@@ -110,8 +110,7 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      print(
-          'Fetching journey plans with token: ${token.substring(0, 20)}...'); // Log token prefix
+      print('Fetching journey plans with token: ${token.substring(0, 20)}...');
 
       final response = await http.get(
         Uri.parse('$baseUrl/journey-plans'),
@@ -147,11 +146,40 @@ class ApiService {
     }
   }
 
+  // Check Journey Plan Status
+  static Future<bool> isJourneyPlanCheckedIn(int journeyId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/journey-plans/$journeyId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final journeyPlan = JourneyPlan.fromJson(jsonDecode(response.body));
+        return journeyPlan.status == JourneyPlan.STATUS_CHECKED_IN;
+      } else {
+        throw Exception(
+            'Failed to check journey plan status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error checking journey plan status: $e');
+      throw Exception('Failed to check journey plan status: $e');
+    }
+  }
+
   // Update Journey Plan
   static Future<JourneyPlan> updateJourneyPlan({
     required int journeyId,
     required int outletId,
-    String? status,
+    int? status,
     DateTime? checkInTime,
     double? latitude,
     double? longitude,
@@ -165,6 +193,13 @@ class ApiService {
 
       final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
 
+      // Validate status value if provided
+      if (status != null &&
+          status != JourneyPlan.STATUS_PENDING &&
+          status != JourneyPlan.STATUS_CHECKED_IN) {
+        throw Exception('Invalid status value: $status');
+      }
+
       final body = {
         'outletId': outletId,
         if (status != null) 'status': status,
@@ -173,6 +208,8 @@ class ApiService {
         if (longitude != null) 'longitude': longitude,
         if (imageUrl != null) 'imageUrl': imageUrl,
       };
+
+      print('Updating journey plan with body: $body');
 
       final response = await http.put(
         url,

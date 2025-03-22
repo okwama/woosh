@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:whoosh/pages/viewclient_page.dart';
-import 'package:whoosh/pages/vieworder_page.dart';
+import 'package:whoosh/pages/client/viewclient_page.dart';
+import 'package:whoosh/pages/login/login_page.dart';
+import 'package:whoosh/pages/order/vieworder_page.dart';
 import 'package:whoosh/services/api_service.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 
-import '../components/menu_tile.dart';
-import 'editorder_page.dart';
-import 'journeyplan/journeyplans_page.dart';
-import 'noticeboard_page.dart';
+import '../../components/menu_tile.dart';
+import '../order/editorder_page.dart';
+import '../journeyplan/journeyplans_page.dart';
+import '../notice/noticeboard_page.dart';
+import '../targets/targets_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +21,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late String userName;
+  late String userPhone;
   int _pendingJourneyPlans = 0;
   bool _isLoading = true;
 
@@ -36,8 +39,10 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       if (user != null && user is Map<String, dynamic>) {
         userName = user['name'] ?? 'User';
+        userPhone = user['phoneNumber'] ?? 'No phone number';
       } else {
         userName = 'User';
+        userPhone = 'No phone number';
       }
     });
   }
@@ -58,92 +63,107 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _logout() async {
+    try {
+      // Show confirmation dialog
+      final shouldLogout = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldLogout != true) return;
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Clear all stored data
+      final box = GetStorage();
+      await box.erase();
+
+      // Close loading indicator
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      // Navigate to login page and clear all previous routes
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false,
+      );
+    } catch (e) {
+      print('Error during logout: $e');
+      if (!mounted) return;
+
+      // Close loading indicator if it's showing
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to logout: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Moonsun Ltd'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'logout') {
+                _logout();
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout),
+                    SizedBox(width: 8),
+                    Text('Logout'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // Ticket-like header with user info
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Whoosh',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      CircleAvatar(
-                        backgroundColor: Colors.white.withOpacity(0.3),
-                        child: Icon(
-                          Icons.person,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Welcome back,',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
-                  Text(
-                    userName,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // Ticket-like notch effect
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(
-                      40,
-                      (index) => Container(
-                        width: 6,
-                        height: 2,
-                        color: Colors.white.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
             // Menu section title
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
                   Icon(
@@ -164,8 +184,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            const SizedBox(height: 10),
-
             // Grid menu items
             Expanded(
               child: Padding(
@@ -175,6 +193,15 @@ class _HomePageState extends State<HomePage> {
                   crossAxisSpacing: 1.0,
                   mainAxisSpacing: 1.0,
                   children: [
+                    // User Profile Tile
+                    MenuTile(
+                      title: 'Mechandiser',
+                      subtitle: '$userName\n$userPhone',
+                      icon: Icons.person,
+                      onTap: () {
+                        // TODO: Navigate to profile page
+                      },
+                    ),
                     MenuTile(
                       title: 'Journey Plans',
                       icon: Icons.map,
@@ -189,7 +216,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     MenuTile(
                       title: 'View Client',
-                      icon: Icons.person,
+                      icon: Icons.storefront,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -228,6 +255,17 @@ class _HomePageState extends State<HomePage> {
                           context,
                           MaterialPageRoute(
                               builder: (context) => const ViewOrderPage()),
+                        );
+                      },
+                    ),
+                    MenuTile(
+                      title: 'View Targets',
+                      icon: Icons.view_timeline_sharp,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const TargetsPage()),
                         );
                       },
                     ),

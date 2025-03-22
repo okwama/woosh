@@ -1,6 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Status constants
+const STATUS_PENDING = 0;
+const STATUS_CHECKED_IN = 1;
+
 // Ensure userId is not null
 const getUserId = (req) => {
   if (!req.user || !req.user.id) {
@@ -68,7 +72,7 @@ const createJourneyPlan = async (req, res) => {
         time: time,
         userId: userId,
         outletId: parseInt(outletId),
-        status: 'pending',
+        status: STATUS_PENDING,
       },
       include: {
         outlet: true,
@@ -92,6 +96,8 @@ const getJourneyPlans = async (req, res) => {
     const userId = getUserId(req);
     const { page = 1, limit = 10 } = req.query;
 
+    console.log('Fetching journey plans for user:', userId);
+
     const journeyPlans = await prisma.journeyPlan.findMany({
       where: { userId },
       include: {
@@ -107,6 +113,8 @@ const getJourneyPlans = async (req, res) => {
     const totalJourneyPlans = await prisma.journeyPlan.count({
       where: { userId },
     });
+
+    console.log('Found journey plans:', journeyPlans.length);
 
     res.status(200).json({
       success: true,
@@ -144,8 +152,7 @@ const updateJourneyPlan = async (req, res) => {
   }
 
   // Validate status
-  const validStatuses = ['pending', 'checked_in', 'completed'];
-  if (status && !validStatuses.includes(status)) {
+  if (status !== undefined && ![STATUS_PENDING, STATUS_CHECKED_IN].includes(parseInt(status))) {
     return res.status(400).json({ error: 'Invalid status value' });
   }
 
@@ -167,21 +174,24 @@ const updateJourneyPlan = async (req, res) => {
     const updatedJourneyPlan = await prisma.journeyPlan.update({
       where: { id: parseInt(journeyId) },
       data: {
-        status: status || existingJourneyPlan.status,
+        status: status !== undefined ? parseInt(status) : existingJourneyPlan.status,
         checkInTime: checkInTime ? new Date(checkInTime) : existingJourneyPlan.checkInTime,
-        latitude: latitude || existingJourneyPlan.latitude,
-        longitude: longitude || existingJourneyPlan.longitude,
+        latitude: latitude ? parseFloat(latitude) : existingJourneyPlan.latitude,
+        longitude: longitude ? parseFloat(longitude) : existingJourneyPlan.longitude,
         imageUrl: imageUrl || existingJourneyPlan.imageUrl,
       },
       include: {
-        outlet: true, // Include the outlet data in the response
+        outlet: true,
       },
     });
 
     res.json(updatedJourneyPlan);
   } catch (error) {
     console.error('Error updating journey plan:', error);
-    res.status(500).json({ error: 'Failed to update journey plan' });
+    res.status(500).json({ 
+      error: 'Failed to update journey plan',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

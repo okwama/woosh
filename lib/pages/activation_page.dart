@@ -1,6 +1,6 @@
 // Activation Page
 import 'package:flutter/material.dart';
-import 'package:whoosh/pages/login_page.dart';
+import 'package:whoosh/pages/login/login_page.dart';
 
 class ActivationPage extends StatelessWidget {
   @override

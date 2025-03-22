@@ -107,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: Color(0xFFC69C6D),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -234,7 +234,7 @@ class _LoginPageState extends State<LoginPage> {
         child: const Text(
           'Forgot Password?',
           style: TextStyle(
-            color: Color(0xFF4285F4),
+            color: Color(0xFFC69C6D),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -248,7 +248,7 @@ class _LoginPageState extends State<LoginPage> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _login,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4285F4),
+          backgroundColor: const Color(0xFFC69C6D),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -292,7 +292,7 @@ class _LoginPageState extends State<LoginPage> {
           child: const Text(
             'Sign Up',
             style: TextStyle(
-              color: Color(0xFF4285F4),
+              color: Color(0xFFC69C6D),
               fontWeight: FontWeight.bold,
             ),
           ),

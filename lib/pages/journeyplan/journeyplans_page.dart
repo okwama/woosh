@@ -397,7 +397,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                     // Status
                     _buildInfoItem(
                       'Status',
-                      journeyPlan.status,
+                      journeyPlan.status == 1 ? 'Checked In' : 'Pending',
                       Icons.confirmation_number,
                     ),
                   ],

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:whoosh/pages/404/noConnection_page.dart';
-import 'package:whoosh/pages/home_page.dart';
-import 'package:whoosh/pages/login_page.dart';
+import 'package:whoosh/pages/home/home_page.dart';
+import 'package:whoosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
 
 // Custom color scheme
-const Color primaryBlack = Color(0xFF1A1A1A);
+const Color primaryBlack = Color(0xFFC69C6D);
 const Color secondaryGrey = Color(0xFF333333);
 const Color accentGrey = Color(0xFF666666);
 const Color lightGrey = Color(0xFFE0E0E0);
