@@ -1,22 +1,30 @@
+import 'package:whoosh/models/outlet_model.dart';
+
 class Product {
   final int id;
   final String name;
   final String? description;
   final double price;
-  final int stockLevel;
-  final int reorderLevel;
+  final int currentStock;
+  final int reorderPoint;
+  final int orderQuantity;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int outletId;
+  final Outlet? outlet;
 
   Product({
     required this.id,
     required this.name,
     this.description,
     required this.price,
-    required this.stockLevel,
-    required this.reorderLevel,
+    required this.currentStock,
+    required this.reorderPoint,
+    required this.orderQuantity,
     required this.createdAt,
     required this.updatedAt,
+    required this.outletId,
+    this.outlet,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -25,10 +33,13 @@ class Product {
       name: json['name'],
       description: json['description'],
       price: json['price'].toDouble(),
-      stockLevel: json['stockLevel'],
-      reorderLevel: json['reorderLevel'],
+      currentStock: json['currentStock'],
+      reorderPoint: json['reorderPoint'],
+      orderQuantity: json['orderQuantity'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      outletId: json['outletId'],
+      outlet: json['outlet'] != null ? Outlet.fromJson(json['outlet']) : null,
     );
   }
 
@@ -38,10 +49,13 @@ class Product {
       'name': name,
       'description': description,
       'price': price,
-      'stockLevel': stockLevel,
-      'reorderLevel': reorderLevel,
+      'currentStock': currentStock,
+      'reorderPoint': reorderPoint,
+      'orderQuantity': orderQuantity,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'outletId': outletId,
+      'outlet': outlet?.toJson(),
     };
   }
 }

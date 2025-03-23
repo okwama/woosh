@@ -1,9 +1,13 @@
 import 'package:whoosh/models/outlet_model.dart';
+import 'package:flutter/material.dart';
 
 class JourneyPlan {
   // Status constants
-  static const int STATUS_PENDING = 0;
-  static const int STATUS_CHECKED_IN = 1;
+  static const int statusPending = 0;
+  static const int statusCheckedIn = 1;
+  static const int statusInProgress = 2;
+  static const int statusCompleted = 3;
+  static const int statusCancelled = 4;
 
   final int? id;
   final DateTime date;
@@ -30,10 +34,49 @@ class JourneyPlan {
   });
 
   // Helper getters for status
-  String get statusText =>
-      status == STATUS_CHECKED_IN ? 'Checked In' : 'Pending';
-  bool get isCheckedIn => status == STATUS_CHECKED_IN;
-  bool get isPending => status == STATUS_PENDING;
+  String get statusText {
+    switch (status) {
+      case statusPending:
+        return 'Pending';
+      case statusCheckedIn:
+        return 'Checked In';
+      case statusInProgress:
+        return 'In Transit';
+      case statusCompleted:
+        return 'Completed';
+      case statusCancelled:
+        return 'Cancelled';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  bool get isCheckedIn => status == statusCheckedIn;
+  bool get isPending => status == statusPending;
+  bool get isInTransit => status == statusInProgress;
+  bool get isCompleted => status == statusCompleted;
+  bool get isCancelled => status == statusCancelled;
+
+  // Helper getter for outletId
+  int get outletId => outlet.id;
+
+  // Helper method to get status color
+  Color get statusColor {
+    switch (status) {
+      case statusPending:
+        return Colors.orange;
+      case statusCheckedIn:
+        return Colors.blue;
+      case statusInProgress:
+        return Colors.purple;
+      case statusCompleted:
+        return Colors.green;
+      case statusCancelled:
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
 
   // Helper method to create a copy with updated status
   JourneyPlan copyWith({
@@ -90,8 +133,8 @@ class JourneyPlan {
     final status = json['status'] != null
         ? (json['status'] is int
             ? json['status']
-            : int.tryParse(json['status'].toString()) ?? STATUS_PENDING)
-        : STATUS_PENDING;
+            : int.tryParse(json['status'].toString()) ?? statusPending)
+        : statusPending;
 
     return JourneyPlan(
       id: json['id'],

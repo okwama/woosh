@@ -16,8 +16,7 @@ model User {
   journeyPlans JourneyPlan[]
   orders       Order[]
   tokens       Token[]
-
-  Report Report[]
+  reports      Report[]
 }
 
 model Token {
@@ -40,8 +39,7 @@ model Outlet {
   journeyPlans JourneyPlan[]
   orders       Order[]
   products     Product[]
-
-  Report Report[]
+  reports      Report[]
 }
 
 model Order {
@@ -55,10 +53,10 @@ model Order {
   user      User     @relation(fields: [userId], references: [id])
   outlet    Outlet   @relation(fields: [outletId], references: [id])
   product   Product? @relation(fields: [productId], references: [id])
+  reports   Report[]
 
   @@index([userId], map: "Order_userId_fkey")
   @@index([productId], map: "Order_productId_fkey")
-  Report    Report[]
 }
 
 model JourneyPlan {
@@ -86,39 +84,70 @@ model NoticeBoard {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
+enum ReportType {
+  PRODUCT_AVAILABILITY
+  VISIBILITY_ACTIVITY
+  FEEDBACK
 }
 model Report {
-  id               Int          @id @default(autoincrement())
-  orderId         Int
-  product         String
-  quantity        Int
-  outletId        Int
-  outletName      String
-  outletAddress   String
-  createdAt       DateTime     @default(now())
-  totalSalesValue Float
-  stockLevel      Int
-  reorderLevel    Int
-  salesDate       DateTime
-  userId          Int
-  inventoryStatus String
-  journeyPlanId   Int?
+  id             Int          @id @default(autoincrement())
+  type           ReportType
+  journeyPlanId  Int?
+  userId         Int
+  orderId        Int?
+  outletId       Int
+  createdAt      DateTime     @default(now())
 
-  order       Order       @relation(fields: [orderId], references: [id])
-  outlet      Outlet      @relation(fields: [outletId], references: [id])
   user        User        @relation(fields: [userId], references: [id])
+  order       Order?      @relation(fields: [orderId], references: [id])
+  outlet      Outlet      @relation(fields: [outletId], references: [id])
   journeyPlan JourneyPlan? @relation(fields: [journeyPlanId], references: [id])
 
-  @@index([orderId], map: "Report_orderId_fkey")
+  feedbackReport    FeedbackReport?
+  productReport     ProductReport?
+  visibilityReport  VisibilityReport?
+
   @@index([userId], map: "Report_userId_fkey")
+  @@index([orderId], map: "Report_orderId_fkey")
   @@index([outletId], map: "Report_outletId_fkey")
   @@index([journeyPlanId], map: "Report_journeyPlanId_fkey")
 }
 
+model FeedbackReport {
+  reportId     Int        @id
+  comment      String?
+  createdAt    DateTime   @default(now())
+
+  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model ProductReport {
+  reportId     Int        @id
+  productName  String?
+  quantity     Int?
+  comment      String?
+  createdAt    DateTime   @default(now())
+
+  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+model VisibilityReport {
+  reportId     Int        @id
+  comment      String?
+  imageUrl     String?
+  createdAt    DateTime   @default(now())
+
+  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+
 model Product {
   id            Int       @id @default(autoincrement())
   name          String
+  description   String?
+  price         Float
   currentStock  Int
   reorderPoint  Int
   orderQuantity Int       @default(0)

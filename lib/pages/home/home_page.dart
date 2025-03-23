@@ -4,7 +4,6 @@ import 'package:whoosh/pages/client/viewclient_page.dart';
 import 'package:whoosh/pages/login/login_page.dart';
 import 'package:whoosh/pages/order/vieworder_page.dart';
 import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/editorder_page.dart';

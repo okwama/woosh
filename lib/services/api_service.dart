@@ -1,14 +1,33 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/noticeboard_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
+import 'package:whoosh/models/product_model.dart';
+import 'package:whoosh/models/report/report_model.dart';
+import 'package:whoosh/models/report/productReport_model.dart';
+import 'package:whoosh/models/report/visibilityReport_model.dart';
+import 'package:whoosh/models/report/feedbackReport_model.dart';
 import 'package:whoosh/utils/auth_config.dart';
-import 'package:flutter/foundation.dart';
+
+class PaginatedResponse<T> {
+  final List<T> data;
+  final int total;
+  final int page;
+  final int limit;
+  final int totalPages;
+
+  PaginatedResponse({
+    required this.data,
+    required this.total,
+    required this.page,
+    required this.limit,
+    required this.totalPages,
+  });
+}
 
 class ApiService {
   static String get baseUrl => '${ApiConfig.baseUrl}/api';
@@ -110,7 +129,8 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      print('Fetching journey plans with token: ${token.substring(0, 20)}...');
+      print(
+          'Fetching journey plans with token: ${token.substring(0, 20)}...'); // Log token prefix
 
       final response = await http.get(
         Uri.parse('$baseUrl/journey-plans'),
@@ -146,35 +166,6 @@ class ApiService {
     }
   }
 
-  // Check Journey Plan Status
-  static Future<bool> isJourneyPlanCheckedIn(int journeyId) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/journey-plans/$journeyId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final journeyPlan = JourneyPlan.fromJson(jsonDecode(response.body));
-        return journeyPlan.status == JourneyPlan.STATUS_CHECKED_IN;
-      } else {
-        throw Exception(
-            'Failed to check journey plan status: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error checking journey plan status: $e');
-      throw Exception('Failed to check journey plan status: $e');
-    }
-  }
-
   // Update Journey Plan
   static Future<JourneyPlan> updateJourneyPlan({
     required int journeyId,
@@ -193,13 +184,6 @@ class ApiService {
 
       final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
 
-      // Validate status value if provided
-      if (status != null &&
-          status != JourneyPlan.STATUS_PENDING &&
-          status != JourneyPlan.STATUS_CHECKED_IN) {
-        throw Exception('Invalid status value: $status');
-      }
-
       final body = {
         'outletId': outletId,
         if (status != null) 'status': status,
@@ -208,8 +192,6 @@ class ApiService {
         if (longitude != null) 'longitude': longitude,
         if (imageUrl != null) 'imageUrl': imageUrl,
       };
-
-      print('Updating journey plan with body: $body');
 
       final response = await http.put(
         url,
@@ -275,74 +257,32 @@ class ApiService {
   }
 
   // Upload Image
-  static Future<String> uploadImage(dynamic imageData) async {
+  static Future<String> uploadImage(File imageFile) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
       }
 
-      print('Starting image upload...');
       final url = Uri.parse('$baseUrl/upload-image');
 
-      // Create multipart request
       final request = http.MultipartRequest('POST', url)
         ..headers.addAll({
           'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        });
+        })
+        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
 
-      // Add the file to the request
-      try {
-        if (imageData is Uint8List) {
-          // For web platforms (using bytes)
-          print('Processing web image upload...');
-          print('Image bytes length: ${imageData.length}');
-          request.files.add(http.MultipartFile.fromBytes(
-            'file',
-            imageData,
-            filename: 'image.jpg',
-          ));
-        } else if (imageData is File) {
-          // For mobile platforms (using File)
-          print('Processing mobile image upload...');
-          if (!imageData.existsSync()) {
-            throw Exception('Image file does not exist: ${imageData.path}');
-          }
-          request.files
-              .add(await http.MultipartFile.fromPath('file', imageData.path));
-        } else {
-          throw Exception(
-              'Unsupported image data type: ${imageData.runtimeType}');
-        }
-      } catch (e) {
-        print('Error preparing image for upload: $e');
-        throw Exception('Failed to prepare image for upload: $e');
-      }
-
-      print('Sending upload request...');
       final response = await request.send();
-      print('Upload response status: ${response.statusCode}');
-
-      final responseData = await response.stream.bytesToString();
-      print('Upload response data: $responseData');
-
-      final decodedJson = jsonDecode(responseData);
 
       if (response.statusCode == 200) {
-        final imageUrl = decodedJson['imageUrl'];
-        if (imageUrl == null) {
-          throw Exception('No image URL in response');
-        }
-        print('Image uploaded successfully: $imageUrl');
-        return imageUrl;
+        final responseData = await response.stream.bytesToString();
+        final decodedJson = jsonDecode(responseData);
+        return decodedJson[
+            'imageUrl']; // Assuming the API returns the image URL
       } else {
-        final errorMessage = decodedJson['error'] ?? 'Unknown error';
-        throw Exception(
-            'Failed to upload image: ${response.statusCode} - $errorMessage');
+        throw Exception('Failed to upload image: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in uploadImage: $e');
       throw Exception('An error occurred while uploading the image: $e');
     }
   }
@@ -404,4 +344,112 @@ class ApiService {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
+
+  Future<PaginatedResponse<Product>> getProducts() async {
+    try {
+      final box = GetStorage();
+      final token = box.read('token');
+
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/products'),
+        headers: _headers(token),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final List<dynamic> data = responseData['data'];
+          final pagination =
+              responseData['pagination'] as Map<String, dynamic>?;
+
+          return PaginatedResponse<Product>(
+            data: data.map((json) => Product.fromJson(json)).toList(),
+            total: pagination?['total'] ?? 0,
+            page: pagination?['page'] ?? 1,
+            limit: pagination?['limit'] ?? 10,
+            totalPages: pagination?['totalPages'] ?? 1,
+          );
+        } else {
+          throw Exception('Invalid response format');
+        }
+      } else {
+        throw Exception('Failed to load products: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching products: $e');
+      throw Exception('Failed to load products');
+    }
+  }
+
+  Future<Report> submitReport(Report report) async {
+    try {
+      final box = GetStorage();
+      final token = box.read('token');
+
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/reports'),
+        headers: _headers(token),
+        body: jsonEncode(report.toJson()),
+      );
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return Report.fromJson(data);
+      } else {
+        throw Exception('Failed to submit report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error submitting report: $e');
+      throw Exception('Failed to submit report: $e');
+    }
+  }
+
+  Future<List<Report>> getReports({
+    int? journeyPlanId,
+    int? outletId,
+    int? userId,
+  }) async {
+    try {
+      final box = GetStorage();
+      final token = box.read('token');
+
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      // Build query parameters
+      final queryParams = <String, String>{};
+      if (journeyPlanId != null)
+        queryParams['journeyPlanId'] = journeyPlanId.toString();
+      if (outletId != null) queryParams['outletId'] = outletId.toString();
+      if (userId != null) queryParams['userId'] = userId.toString();
+
+      final uri =
+          Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: _headers(token),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Report.fromJson(json)).toList();
+      } else {
+        throw Exception('Failed to load reports: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching reports: $e');
+      throw Exception('Failed to load reports: $e');
+    }
+  }
 }

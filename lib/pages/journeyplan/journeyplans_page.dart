@@ -25,21 +25,25 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+       if (mounted) {
+           setState(() {
+               _isLoading = true;
+               _errorMessage = null;
+           });
+       }
 
     try {
       // Load both outlets and journey plans
       final outlets = await ApiService.fetchOutlets();
       final journeyPlans = await ApiService.fetchJourneyPlans();
 
-      setState(() {
-        _outlets = outlets;
-        _journeyPlans = journeyPlans;
-        _isLoading = false;
-      });
+       if (mounted) {
+           setState(() {
+               _outlets = outlets;
+               _journeyPlans = journeyPlans;
+               _isLoading = false;
+           });
+       }
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load data: ${e.toString()}';
@@ -397,7 +401,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                     // Status
                     _buildInfoItem(
                       'Status',
-                      journeyPlan.status == 1 ? 'Checked In' : 'Pending',
+                      journeyPlan.statusText,
                       Icons.confirmation_number,
                     ),
                   ],

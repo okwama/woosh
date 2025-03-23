@@ -1,15 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:camera_android_camerax/camera_android_camerax.dart';
 import 'package:whoosh/services/api_service.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/pages/journeyplan/reports_orders_page.dart';
+import 'package:whoosh/pages/journeyplan/reports/reportMain_page.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -21,17 +19,16 @@ class JourneyView extends StatefulWidget {
   final Function(JourneyPlan)? onCheckInSuccess;
 
   const JourneyView({
-    Key? key,
+    super.key,
     required this.journeyPlan,
     this.onCheckInSuccess,
-  }) : super(key: key);
+  });
 
   @override
   _JourneyViewState createState() => _JourneyViewState();
 }
 
 class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
-  final ApiService _apiService = ApiService();
   Position? _currentPosition;
   bool _isCheckingIn = false;
   bool _isFetchingLocation = false;
@@ -218,7 +215,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       final updatedPlan = await ApiService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.STATUS_CHECKED_IN,
+        status: JourneyPlan.statusCheckedIn,
         checkInTime: DateTime.now(),
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
@@ -542,7 +539,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       final updatedPlan = await ApiService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.STATUS_CHECKED_IN,
+        status: JourneyPlan.statusCheckedIn,
         checkInTime: DateTime.now(),
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
@@ -674,15 +671,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.journeyPlan.status == 1
-                            ? Colors.green
-                            : Colors.orange,
+                        color: widget.journeyPlan.statusColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        widget.journeyPlan.status == 1
-                            ? 'Checked In'
-                            : 'Pending',
+                        widget.journeyPlan.statusText,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -810,7 +803,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (widget.journeyPlan.status == 1)
+                    if (widget.journeyPlan.isCheckedIn ||
+                        widget.journeyPlan.isCompleted)
                       ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pushReplacement(
@@ -830,7 +824,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                               horizontal: 16, vertical: 8),
                         ),
                       )
-                    else
+                    else if (widget.journeyPlan.isPending)
                       ElevatedButton.icon(
                         onPressed: (_isCheckingIn || !_isWithinGeofence)
                             ? null

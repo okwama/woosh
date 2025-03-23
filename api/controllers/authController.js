@@ -81,7 +81,7 @@ const login = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
+      expiresIn: '5h',
     });
 
     // Store token in database
@@ -89,7 +89,7 @@ const login = async (req, res) => {
       data: {
         token,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour
+        expiresAt: new Date(Date.now() + 3600 * 5000), // 1 hour
       },
     });
 
