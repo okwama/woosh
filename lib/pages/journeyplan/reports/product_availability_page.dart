@@ -24,7 +24,6 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
   final _quantityController = TextEditingController();
   List<Product> _products = [];
   bool _isLoading = true;
-  final _apiService = ApiService();
 
   @override
   void initState() {
@@ -34,9 +33,9 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
 
   Future<void> _loadProducts() async {
     try {
-      final response = await _apiService.getProducts();
+      final products = await ApiService.getProducts();
       setState(() {
-        _products = response.data;
+        _products = products;
         _isLoading = false;
       });
     } catch (e) {

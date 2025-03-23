@@ -8,7 +8,6 @@
     "dev": "nodemon index.js",
     "vercel-build": "npx prisma generate",
     "postinstall": "npx prisma generate"
-
   },
   "prisma": {
     "schema": "prisma/schema.prisma"

@@ -28,6 +28,18 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
     }
   }
 
+  Future<void> _refreshNotices() async {
+    setState(() {
+      _noticesFuture = _loadNotices();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Refreshing notices...'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -196,6 +208,18 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notice Board'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: _refreshNotices,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -235,14 +259,6 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.white),
-                        onPressed: () {
-                          setState(() {
-                            _noticesFuture = _loadNotices();
-                          });
-                        },
                       ),
                     ],
                   ),

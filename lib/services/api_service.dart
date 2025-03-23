@@ -12,6 +12,7 @@ import 'package:whoosh/models/report/productReport_model.dart';
 import 'package:whoosh/models/report/visibilityReport_model.dart';
 import 'package:whoosh/models/report/feedbackReport_model.dart';
 import 'package:whoosh/utils/auth_config.dart';
+import 'package:whoosh/models/order_model.dart';
 
 class PaginatedResponse<T> {
   final List<T> data;
@@ -30,12 +31,27 @@ class PaginatedResponse<T> {
 }
 
 class ApiService {
-  static String get baseUrl => '${ApiConfig.baseUrl}/api';
+  static const String baseUrl = '${ApiConfig.baseUrl}/api';
 
-  // Helper to get auth token
   static String? _getAuthToken() {
     final box = GetStorage();
-    return box.read("token");
+    final token = box.read('token');
+    if (token != null) {
+      print(
+          'Token exists: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
+    } else {
+      print('No authentication token found');
+    }
+    return token;
+  }
+
+  static Map<String, String> _headers([String? additionalContentType]) {
+    final token = _getAuthToken();
+    return {
+      'Content-Type': additionalContentType ?? 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
   }
 
   // Helper to get user ID from token
@@ -59,20 +75,36 @@ class ApiService {
   // Fetch Outlets
   static Future<List<Outlet>> fetchOutlets() async {
     try {
-      final response = await http.get(
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http
+          .get(
         Uri.parse('$baseUrl/outlets'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+        headers: _headers(),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception(
+              "Connection timeout. Check your internet connection and server availability.");
         },
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => Outlet.fromJson(json)).toList();
+      } else if (response.statusCode == 401) {
+        throw Exception("Unauthorized: Please log in again");
       } else {
         throw Exception('Failed to load outlets: ${response.statusCode}');
       }
+    } on SocketException catch (e) {
+      print('Network error in fetchOutlets: $e');
+      throw Exception(
+          "Network error: Could not connect to the server. Please check your internet connection and ensure the server is running.");
     } catch (e) {
       throw Exception('Failed to load outlets: $e');
     }
@@ -96,7 +128,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: _headers(token),
+        headers: _headers(),
         body: jsonEncode({
           'outletId': outletId,
           'date': dateTime.toIso8601String(),
@@ -130,13 +162,18 @@ class ApiService {
       }
 
       print(
-          'Fetching journey plans with token: ${token.substring(0, 20)}...'); // Log token prefix
+          'Fetching journey plans with token: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
 
-      final response = await http.get(
+      final response = await http
+          .get(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
+        headers: _headers(),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception(
+              "Connection timeout. Check your internet connection and server availability.");
         },
       );
 
@@ -155,11 +192,17 @@ class ApiService {
           throw Exception(
               'Unexpected response format: missing data field or not a list');
         }
+      } else if (response.statusCode == 401) {
+        throw Exception("Unauthorized: Please log in again");
       } else {
         final errorBody = jsonDecode(response.body);
         throw Exception(
             'Failed to load journey plans: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
+    } on SocketException catch (e) {
+      print('Network error in fetchJourneyPlans: $e');
+      throw Exception(
+          "Network error: Could not connect to the server. Please check your internet connection and ensure the server is running.");
     } catch (e) {
       print('Error in fetchJourneyPlans: $e');
       throw Exception('An error occurred while fetching journey plans: $e');
@@ -184,9 +227,33 @@ class ApiService {
 
       final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
 
+      // Convert numeric status to string status for the API
+      String? statusString;
+      if (status != null) {
+        switch (status) {
+          case JourneyPlan.statusPending:
+            statusString = 'pending';
+            break;
+          case JourneyPlan.statusCheckedIn:
+            statusString = 'checked_in';
+            break;
+          case JourneyPlan.statusInProgress:
+            statusString = 'in_progress';
+            break;
+          case JourneyPlan.statusCompleted:
+            statusString = 'completed';
+            break;
+          case JourneyPlan.statusCancelled:
+            statusString = 'cancelled';
+            break;
+          default:
+            throw Exception('Invalid status value: $status');
+        }
+      }
+
       final body = {
         'outletId': outletId,
-        if (status != null) 'status': status,
+        if (statusString != null) 'status': statusString,
         if (checkInTime != null) 'checkInTime': checkInTime.toIso8601String(),
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
@@ -195,7 +262,7 @@ class ApiService {
 
       final response = await http.put(
         url,
-        headers: _headers(token),
+        headers: _headers(),
         body: jsonEncode(body),
       );
 
@@ -203,11 +270,41 @@ class ApiService {
         final decodedJson = jsonDecode(response.body);
         return JourneyPlan.fromJson(decodedJson);
       } else {
+        final errorBody = jsonDecode(response.body);
         throw Exception(
-            'Failed to update journey plan: ${response.statusCode}');
+            'Failed to update journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
       throw Exception('An error occurred while updating the journey plan: $e');
+    }
+  }
+
+  // Get Journey Plan by ID
+  static Future<JourneyPlan?> getJourneyPlanById(int journeyId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+
+      final response = await http.get(
+        url,
+        headers: _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final decodedJson = jsonDecode(response.body);
+        return JourneyPlan.fromJson(decodedJson);
+      } else if (response.statusCode == 404) {
+        return null; // Journey plan not found
+      } else {
+        throw Exception('Failed to fetch journey plan: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getJourneyPlanById: $e');
+      throw Exception('An error occurred while fetching the journey plan: $e');
     }
   }
 
@@ -220,15 +317,11 @@ class ApiService {
 
       print('Fetching notices from: $baseUrl/notice-board');
       print(
-          'Using token: ${token.substring(0, 20)}...'); // Only print first 20 chars for security
+          'Using token: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
 
       final response = await http.get(
         Uri.parse('$baseUrl/notice-board'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: _headers(),
       );
 
       print('Notice board response status: ${response.statusCode}');
@@ -266,10 +359,11 @@ class ApiService {
 
       final url = Uri.parse('$baseUrl/upload-image');
 
+      // Since we're uploading files, we need to set a specific content type
+      final authHeaders = _headers('multipart/form-data');
+
       final request = http.MultipartRequest('POST', url)
-        ..headers.addAll({
-          'Authorization': 'Bearer $token',
-        })
+        ..headers.addAll(authHeaders)
         ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
 
       final response = await request.send();
@@ -338,66 +432,46 @@ class ApiService {
     }
   }
 
-  // Helper Method: Common Headers
-  static Map<String, String> _headers(String token) => {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-
-  Future<PaginatedResponse<Product>> getProducts() async {
+  // Get products (independent of outlets)
+  static Future<List<Product>> getProducts() async {
     try {
-      final box = GetStorage();
-      final token = box.read('token');
-
+      final token = _getAuthToken();
       if (token == null) {
         throw Exception('User is not authenticated');
       }
 
       final response = await http.get(
         Uri.parse('$baseUrl/products'),
-        headers: _headers(token),
+        headers: _headers(),
       );
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-
         if (responseData['success'] == true && responseData['data'] != null) {
           final List<dynamic> data = responseData['data'];
-          final pagination =
-              responseData['pagination'] as Map<String, dynamic>?;
-
-          return PaginatedResponse<Product>(
-            data: data.map((json) => Product.fromJson(json)).toList(),
-            total: pagination?['total'] ?? 0,
-            page: pagination?['page'] ?? 1,
-            limit: pagination?['limit'] ?? 10,
-            totalPages: pagination?['totalPages'] ?? 1,
-          );
+          return data.map((json) => Product.fromJson(json)).toList();
         } else {
           throw Exception('Invalid response format');
         }
       } else {
-        throw Exception('Failed to load products: ${response.body}');
+        throw Exception('Failed to load products: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Error fetching products: $e');
+      print('Error fetching products: $e');
       throw Exception('Failed to load products');
     }
   }
 
   Future<Report> submitReport(Report report) async {
     try {
-      final box = GetStorage();
-      final token = box.read('token');
-
+      final token = _getAuthToken();
       if (token == null) {
         throw Exception('User is not authenticated');
       }
 
       final response = await http.post(
         Uri.parse('$baseUrl/reports'),
-        headers: _headers(token),
+        headers: _headers(),
         body: jsonEncode(report.toJson()),
       );
 
@@ -419,9 +493,7 @@ class ApiService {
     int? userId,
   }) async {
     try {
-      final box = GetStorage();
-      final token = box.read('token');
-
+      final token = _getAuthToken();
       if (token == null) {
         throw Exception('User is not authenticated');
       }
@@ -438,7 +510,7 @@ class ApiService {
 
       final response = await http.get(
         uri,
-        headers: _headers(token),
+        headers: _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -451,5 +523,125 @@ class ApiService {
       print('Error fetching reports: $e');
       throw Exception('Failed to load reports: $e');
     }
+  }
+
+  // Get orders with pagination
+  static Future<PaginatedResponse<Order>> getOrders({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders?page=$page&limit=$limit'),
+        headers: _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          final List<dynamic> data = responseData['data'];
+          return PaginatedResponse<Order>(
+            data: data.map((json) => Order.fromJson(json)).toList(),
+            total: responseData['total'],
+            page: responseData['page'],
+            limit: responseData['limit'],
+            totalPages: responseData['totalPages'],
+          );
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to load orders');
+        }
+      } else {
+        throw Exception('Failed to load orders: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching orders: $e');
+      throw Exception('Failed to load orders');
+    }
+  }
+
+  // Create a new order
+  static Future<Order> createOrder({
+    required int outletId,
+    required int productId,
+    required int quantity,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: _headers(),
+        body: jsonEncode({
+          'outletId': outletId,
+          'productId': productId,
+          'quantity': quantity,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return Order.fromJson(responseData['data']);
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to create order');
+        }
+      } else {
+        throw Exception('Failed to create order: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error creating order: $e');
+      throw Exception('Failed to create order');
+    }
+  }
+
+  // Update an existing order
+  static Future<Order> updateOrder({
+    required int orderId,
+    required int productId,
+    required int quantity,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/orders/$orderId'),
+        headers: _headers(),
+        body: jsonEncode({
+          'productId': productId,
+          'quantity': quantity,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return Order.fromJson(responseData['data']);
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to update order');
+        }
+      } else {
+        throw Exception('Failed to update order: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error updating order: $e');
+      throw Exception('Failed to update order');
+    }
+  }
+
+  // Check if the user is authenticated
+  static bool isAuthenticated() {
+    final token = _getAuthToken();
+    return token != null;
   }
 }

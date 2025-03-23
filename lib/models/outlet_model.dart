@@ -14,13 +14,10 @@ class Outlet {
   });
 
   factory Outlet.fromJson(Map<String, dynamic> json) {
-    if (json['id'] == null) {
-      throw FormatException('Outlet ID is required');
-    }
     return Outlet(
       id: json['id'],
-      name: json['name'] ?? '',
-      address: json['address'] ?? '',
+      name: json['name'],
+      address: json['address'],
       latitude: json['latitude']?.toDouble(),
       longitude: json['longitude']?.toDouble(),
     );

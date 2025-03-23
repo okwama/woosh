@@ -68,7 +68,7 @@ const createJourneyPlan = async (req, res) => {
         time: time,
         userId: userId,
         outletId: parseInt(outletId),
-        status: 'pending',
+        status: 0, // 0 for pending
       },
       include: {
         outlet: true,
@@ -144,8 +144,23 @@ const updateJourneyPlan = async (req, res) => {
   }
 
   // Validate status
-  const validStatuses = ['pending', 'checked_in', 'in_transit', 'completed', 'cancelled'];
-  if (status && !validStatuses.includes(status)) {
+  const STATUS_MAP = {
+    'pending': 0,
+    'checked_in': 1,
+    'in_progress': 2,
+    'completed': 3,
+    'cancelled': 4
+  };
+
+  const REVERSE_STATUS_MAP = {
+    0: 'pending',
+    1: 'checked_in',
+    2: 'in_progress',
+    3: 'completed',
+    4: 'cancelled'
+  };
+
+  if (status && !Object.keys(STATUS_MAP).includes(status)) {
     return res.status(400).json({ error: 'Invalid status value' });
   }
 
@@ -165,16 +180,16 @@ const updateJourneyPlan = async (req, res) => {
 
     // Validate status transitions
     if (status) {
-      const currentStatus = existingJourneyPlan.status;
+      const currentStatus = REVERSE_STATUS_MAP[existingJourneyPlan.status];
       const validTransitions = {
         'pending': ['checked_in', 'cancelled'],
-        'checked_in': ['in_transit', 'completed', 'cancelled'],
-        'in_transit': ['completed', 'cancelled'],
+        'checked_in': ['in_progress', 'completed', 'cancelled'],
+        'in_progress': ['completed', 'cancelled'],
         'completed': [],
         'cancelled': []
       };
 
-      if (!validTransitions[currentStatus].includes(status)) {
+      if (!validTransitions[currentStatus]?.includes(status)) {
         return res.status(400).json({ 
           error: `Invalid status transition from ${currentStatus} to ${status}` 
         });
@@ -185,7 +200,7 @@ const updateJourneyPlan = async (req, res) => {
     const updatedJourneyPlan = await prisma.journeyPlan.update({
       where: { id: parseInt(journeyId) },
       data: {
-        status: status || existingJourneyPlan.status,
+        status: status ? STATUS_MAP[status] : existingJourneyPlan.status,
         checkInTime: checkInTime ? new Date(checkInTime) : existingJourneyPlan.checkInTime,
         latitude: latitude || existingJourneyPlan.latitude,
         longitude: longitude || existingJourneyPlan.longitude,
@@ -196,7 +211,13 @@ const updateJourneyPlan = async (req, res) => {
       },
     });
 
-    res.json(updatedJourneyPlan);
+    // Convert numeric status to string in response
+    const response = {
+      ...updatedJourneyPlan,
+      status: REVERSE_STATUS_MAP[updatedJourneyPlan.status]
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('Error updating journey plan:', error);
     res.status(500).json({ error: 'Failed to update journey plan' });

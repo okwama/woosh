@@ -36,41 +36,74 @@ class Report {
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
+    Map<String, dynamic> details;
+    switch (type) {
+      case ReportType.PRODUCT_AVAILABILITY:
+        details = productReport?.toJson() ?? {};
+        break;
+      case ReportType.VISIBILITY_ACTIVITY:
+        details = visibilityReport?.toJson() ?? {};
+        break;
+      case ReportType.FEEDBACK:
+        details = feedbackReport?.toJson() ?? {};
+        break;
+    }
+
     return {
-      'id': id,
       'type': type.toString().split('.').last,
       'journeyPlanId': journeyPlanId,
       'userId': userId,
-      'orderId': orderId,
       'outletId': outletId,
-      'createdAt': createdAt.toIso8601String(),
-      if (productReport != null) 'productReport': productReport!.toJson(),
-      if (visibilityReport != null)
-        'visibilityReport': visibilityReport!.toJson(),
-      if (feedbackReport != null) 'feedbackReport': feedbackReport!.toJson(),
+      'details': details,
     };
   }
 
   factory Report.fromJson(Map<String, dynamic> json) {
+    // If the response contains a nested report structure, use the report object
+    final reportData = json.containsKey('report') ? json['report'] : json;
+
+    print('Processing report data: $reportData');
+    print('Received type from server: ${reportData['type']}');
+    print(
+        'Available enum values: ${ReportType.values.map((e) => e.toString().split('.').last)}');
+
+    final reportType = ReportType.values.firstWhere(
+      (e) {
+        final enumString = e.toString().split('.').last;
+        print('Comparing $enumString with ${reportData['type']}');
+        return enumString == reportData['type'];
+      },
+      orElse: () {
+        print('No matching type found for ${reportData['type']}');
+        throw Exception('Invalid report type: ${reportData['type']}');
+      },
+    );
+
+    // Handle specific report data based on type
+    Map<String, dynamic>? specificReportData;
+    if (json.containsKey('specificReport')) {
+      specificReportData = json['specificReport'];
+    }
+
     return Report(
-      id: json['id'],
-      type: ReportType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
-      ),
-      journeyPlanId: json['journeyPlanId'],
-      userId: json['userId'],
-      orderId: json['orderId'],
-      outletId: json['outletId'],
-      createdAt: DateTime.parse(json['createdAt']),
-      productReport: json['productReport'] != null
-          ? ProductReport.fromJson(json['productReport'])
+      id: reportData['id'],
+      type: reportType,
+      journeyPlanId: reportData['journeyPlanId'],
+      userId: reportData['userId'],
+      outletId: reportData['outletId'],
+      createdAt: DateTime.parse(reportData['createdAt']),
+      productReport: reportType == ReportType.PRODUCT_AVAILABILITY &&
+              specificReportData != null
+          ? ProductReport.fromJson(specificReportData)
           : null,
-      visibilityReport: json['visibilityReport'] != null
-          ? VisibilityReport.fromJson(json['visibilityReport'])
+      visibilityReport: reportType == ReportType.VISIBILITY_ACTIVITY &&
+              specificReportData != null
+          ? VisibilityReport.fromJson(specificReportData)
           : null,
-      feedbackReport: json['feedbackReport'] != null
-          ? FeedbackReport.fromJson(json['feedbackReport'])
-          : null,
+      feedbackReport:
+          reportType == ReportType.FEEDBACK && specificReportData != null
+              ? FeedbackReport.fromJson(specificReportData)
+              : null,
     );
   }
 }

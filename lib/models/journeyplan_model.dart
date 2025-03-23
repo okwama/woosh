@@ -41,7 +41,7 @@ class JourneyPlan {
       case statusCheckedIn:
         return 'Checked In';
       case statusInProgress:
-        return 'In Transit';
+        return 'In progress';
       case statusCompleted:
         return 'Completed';
       case statusCancelled:

@@ -25,25 +25,25 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   }
 
   Future<void> _loadData() async {
-       if (mounted) {
-           setState(() {
-               _isLoading = true;
-               _errorMessage = null;
-           });
-       }
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       // Load both outlets and journey plans
       final outlets = await ApiService.fetchOutlets();
       final journeyPlans = await ApiService.fetchJourneyPlans();
 
-       if (mounted) {
-           setState(() {
-               _outlets = outlets;
-               _journeyPlans = journeyPlans;
-               _isLoading = false;
-           });
-       }
+      if (mounted) {
+        setState(() {
+          _outlets = outlets;
+          _journeyPlans = journeyPlans;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load data: ${e.toString()}';
@@ -219,259 +219,125 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
             tooltip: 'Refresh',
+            onPressed: () {
+              _loadData();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing journey plans...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showOutletSelectionDialog,
-        backgroundColor: Theme.of(context).primaryColor,
-        child: const Icon(Icons.add),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorView()
-              : _buildJourneyPlansView(),
-    );
-  }
-
-  Widget _buildErrorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              color: Colors.red,
-              size: 60,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Error',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadData,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildJourneyPlansView() {
-    if (_journeyPlans.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.map_outlined,
-              size: 80,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No Journey Plans',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap the "+" button to create a new journey plan.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _journeyPlans.length,
-        itemBuilder: (context, index) {
-          return _buildJourneyPlanCard(_journeyPlans[index]);
-        },
-      ),
-    );
-  }
-
-  Widget _buildJourneyPlanCard(JourneyPlan journeyPlan) {
-    final dateFormatter = DateFormat('MMM dd, yyyy');
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16.0),
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
-      child: InkWell(
-        onTap: () => _navigateToJourneyView(journeyPlan),
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16.0),
-                    topRight: Radius.circular(16.0),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.store,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        journeyPlan.outlet.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+              ? Center(child: Text(_errorMessage!))
+              : RefreshIndicator(
+                  onRefresh: _loadData,
+                  child: _journeyPlans.isEmpty
+                      ? const Center(child: Text('No journey plans found'))
+                      : ListView.builder(
+                          itemCount: _journeyPlans.length,
+                          itemBuilder: (context, index) {
+                            final journeyPlan = _journeyPlans[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 8.0,
+                                vertical: 4.0,
+                              ),
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                              child: InkWell(
+                                onTap: () =>
+                                    _navigateToJourneyView(journeyPlan),
+                                borderRadius: BorderRadius.circular(8.0),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Row(
+                                    children: [
+                                      // Left side - Date and Outlet info
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.store,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    journeyPlan.outlet.name,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    DateFormat('MMM dd, yyyy')
+                                                        .format(
+                                                            journeyPlan.date),
+                                                    style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Right side - Status
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: journeyPlan.statusColor,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          journeyPlan.statusText,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        color: Colors.grey[400],
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ),
-                    ),
-                  ],
                 ),
-              ),
-
-              // Dotted line separator
-              Container(
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: List.generate(
-                    30,
-                    (index) => Expanded(
-                      child: Container(
-                        color: index % 2 == 0
-                            ? Colors.grey.shade300
-                            : Colors.white,
-                        height: 2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Content
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Date
-                    _buildInfoItem(
-                      'Date',
-                      dateFormatter.format(journeyPlan.date),
-                      Icons.calendar_today,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Location
-                    _buildInfoItem(
-                      'Location',
-                      journeyPlan.outlet.address,
-                      Icons.location_on,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Status
-                    _buildInfoItem(
-                      'Status',
-                      journeyPlan.statusText,
-                      Icons.confirmation_number,
-                    ),
-                  ],
-                ),
-              ),
-
-              // Footer
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(16.0),
-                    bottomRight: Radius.circular(16.0),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () => _navigateToJourneyView(journeyPlan),
-                      icon: const Icon(Icons.directions),
-                      label: const Text('Start Journey'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showOutletSelectionDialog,
+        child: const Icon(Icons.add),
       ),
-    );
-  }
-
-  Widget _buildInfoItem(String label, String value, IconData icon) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: Colors.grey.shade600,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

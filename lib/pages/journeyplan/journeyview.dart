@@ -45,22 +45,48 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   static const double GEOFENCE_RADIUS_METERS = 5.0; // 5 meters radius
   static const Duration LOCATION_UPDATE_INTERVAL = Duration(seconds: 5);
 
-  String _currentAddress = 'Fetching address...';
+  String _currentAddress = 'Fetching location...';
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _getCurrentPosition();
+
+    // If the journey plan is already checked in or in progress, use the stored location
+    if (widget.journeyPlan.isCheckedIn || widget.journeyPlan.isInTransit) {
+      _useCheckInLocation();
+    } else {
+      // Only get current position if journey is pending
+      _getCurrentPosition();
+    }
+
     _initializeCamera();
-    _startLocationUpdates();
+
+    // Determine journey state and handle accordingly
+    if (widget.journeyPlan.isPending) {
+      // Only start location updates for pending journeys
+      _startLocationUpdates();
+    } else if (widget.journeyPlan.isCheckedIn) {
+      // If journey is checked in but not in progress, try to update status
+      print(
+          'Found journey in checked-in status, attempting to update to in-progress');
+      _fixJourneyStatus();
+    }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _cameraController?.dispose();
+    // Cancel location updates
     _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+
+    // Cancel camera controller
+    _cameraController?.dispose();
+    _cameraController = null;
+
+    // Remove observer
+    WidgetsBinding.instance.removeObserver(this);
+
     super.dispose();
   }
 
@@ -79,21 +105,17 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
+  @override
+  void didUpdateWidget(JourneyView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If journey plan status changes to checked in, stop location updates
+    if (!oldWidget.journeyPlan.isCheckedIn && widget.journeyPlan.isCheckedIn) {
+      _positionStreamSubscription?.cancel();
+    }
+  }
+
   Future<void> _initializeCamera() async {
     try {
-      // Request camera permission first
-      final status = await Permission.camera.request();
-      if (status.isDenied) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Camera permission is required for check-in. Please grant permission in settings.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
-      }
-
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
         _cameraController = CameraController(
@@ -101,34 +123,43 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           ResolutionPreset.high,
         );
         await _cameraController!.initialize();
-        setState(() {
-          _isCameraInitialized = true;
-        });
+        if (mounted) {
+          setState(() {
+            _isCameraInitialized = true;
+          });
+        }
       } else {
         throw Exception('No cameras available');
       }
     } catch (e) {
       print('Failed to initialize camera: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to initialize camera: $e'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to initialize camera: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _showCameraDialog() async {
     if (!_isCameraInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera is not ready. Please try again.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Camera is not ready. Please try again.')),
+        );
+      }
       return;
     }
 
-    setState(() {
-      _isCameraVisible = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isCameraVisible = true;
+      });
+    }
 
     await showDialog(
       context: context,
@@ -162,17 +193,21 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                     onPressed: () async {
                       try {
                         final image = await _cameraController!.takePicture();
-                        setState(() {
-                          _isCameraVisible = false;
-                        });
-                        Navigator.pop(context);
-                        await _processImage(File(image.path));
+                        if (mounted) {
+                          setState(() {
+                            _isCameraVisible = false;
+                          });
+                          Navigator.pop(context);
+                          await _processImage(File(image.path));
+                        }
                       } catch (e) {
                         print('Error capturing image: $e');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Failed to capture image: $e')),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Failed to capture image: $e')),
+                          );
+                        }
                       }
                     },
                     child: const Icon(Icons.camera),
@@ -187,9 +222,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   }
 
   Future<void> _processImage(File imageFile) async {
-    setState(() {
-      _isCheckingIn = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isCheckingIn = true;
+      });
+    }
 
     try {
       print('Uploading image...');
@@ -197,20 +234,25 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       print('Image uploaded successfully: $imageUrl');
 
       if (widget.journeyPlan.id == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Journey ID is required to check in.')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Journey ID is required to check in.')),
+          );
+        }
         return;
       }
 
       // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
 
       final updatedPlan = await ApiService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
@@ -222,11 +264,20 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         imageUrl: imageUrl,
       );
 
-      // Close loading indicator
-      Navigator.pop(context);
+      // Immediately update to In Progress status
+      final inProgressPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusInProgress,
+      );
 
-      if (widget.onCheckInSuccess != null) {
-        widget.onCheckInSuccess!(updatedPlan);
+      // Close loading indicator
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      if (widget.onCheckInSuccess != null && mounted) {
+        widget.onCheckInSuccess!(inProgressPlan);
       }
 
       // Show success dialog with details
@@ -244,11 +295,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Outlet: ${updatedPlan.outlet.name}'),
+              Text('Outlet: ${inProgressPlan.outlet.name}'),
               const SizedBox(height: 8),
               Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
               const SizedBox(height: 8),
               Text('Location: $_currentAddress'),
+              const SizedBox(height: 8),
+              const Text('Status: In Progress'),
             ],
           ),
           actions: [
@@ -265,27 +318,21 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(journeyPlan: updatedPlan),
+          builder: (context) => ReportsOrdersPage(journeyPlan: inProgressPlan),
         ),
       );
     } catch (e) {
-      print('Check-in error: $e');
-      // Close loading indicator if it's showing
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
+      print('Error checking in: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking in: $e')),
+        );
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to check-in: $e'),
-          duration: const Duration(seconds: 5),
-          backgroundColor: Colors.red,
-        ),
-      );
     } finally {
       if (mounted) {
         setState(() {
           _isCheckingIn = false;
+          _isCameraVisible = false;
         });
       }
     }
@@ -300,6 +347,14 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   // Check if user is within geofence
   Future<bool> _checkGeofence() async {
     try {
+      // If journey is already checked in or in progress, we don't need geofence check
+      if (widget.journeyPlan.isCheckedIn ||
+          widget.journeyPlan.isInTransit ||
+          widget.journeyPlan.isCompleted) {
+        _isWithinGeofence = true;
+        return true;
+      }
+
       if (_currentPosition == null) {
         print('Current position is null');
         return false;
@@ -358,50 +413,81 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   }
 
   Future<void> _getCurrentPosition() async {
+    if (!mounted) return;
+
     setState(() {
       _isFetchingLocation = true;
-      _currentAddress = 'Fetching address...';
+      _currentAddress = 'Fetching location...';
     });
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
+
       if (!serviceEnabled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Location services are disabled. Please enable them.'),
-          ),
-        );
+        setState(() {
+          _currentAddress = 'Location services disabled';
+          _isFetchingLocation = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text('Location services are disabled. Please enable them.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
         return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
+      if (!mounted) return;
+
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+        if (!mounted) return;
+
         if (permission == LocationPermission.denied) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permissions are denied.'),
-            ),
-          );
+          setState(() {
+            _currentAddress = 'Location permission denied';
+            _isFetchingLocation = false;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permissions are denied.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location permissions are permanently denied. Please enable them in settings.',
+        if (!mounted) return;
+        setState(() {
+          _currentAddress = 'Location permission permanently denied';
+          _isFetchingLocation = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Location permissions are permanently denied. Please enable them in settings.',
+              ),
+              backgroundColor: Colors.red,
             ),
-          ),
-        );
+          );
+        }
         return;
       }
 
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+      if (!mounted) return;
 
       // Get address from coordinates
       try {
@@ -409,25 +495,77 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           position.latitude,
           position.longitude,
         );
+        if (!mounted) return;
 
         if (placemarks.isNotEmpty) {
           Placemark place = placemarks[0];
+
+          // Create a more structured address with null checks
+          final List<String> addressComponents = [];
+
+          // Add street address if available
+          if (place.street != null && place.street!.isNotEmpty) {
+            addressComponents.add(place.street!);
+          }
+
+          // Add area/locality information
+          final List<String> areaComponents = [];
+          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+            areaComponents.add(place.subLocality!);
+          }
+          if (place.locality != null && place.locality!.isNotEmpty) {
+            areaComponents.add(place.locality!);
+          }
+          if (areaComponents.isNotEmpty) {
+            addressComponents.add(areaComponents.join(', '));
+          }
+
+          // Add region/country
+          final List<String> regionComponents = [];
+          if (place.administrativeArea != null &&
+              place.administrativeArea!.isNotEmpty) {
+            regionComponents.add(place.administrativeArea!);
+          }
+          if (place.country != null && place.country!.isNotEmpty) {
+            regionComponents.add(place.country!);
+          }
+          if (regionComponents.isNotEmpty) {
+            addressComponents.add(regionComponents.join(', '));
+          }
+
+          // Join all components with appropriate separators
+          final formattedAddress = addressComponents.join('\n');
+
+          if (!mounted) return;
           setState(() {
-            _currentAddress =
-                '${place.street ?? ''}, ${place.locality ?? ''}, ${place.country ?? ''}';
+            _currentAddress = formattedAddress.isEmpty
+                ? 'Address not available'
+                : formattedAddress;
           });
         } else {
+          if (!mounted) return;
           setState(() {
             _currentAddress = 'Address not available';
           });
         }
       } catch (e) {
         print('Error getting address: $e');
+        if (!mounted) return;
         setState(() {
-          _currentAddress = 'Address not available';
+          _currentAddress = 'Location found, address unavailable';
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Issue resolving address: $e'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
 
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _isFetchingLocation = false;
@@ -435,42 +573,62 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       // Check geofence after getting position
       _isWithinGeofence = await _checkGeofence();
+      if (!mounted) return;
       setState(() {}); // Update UI to reflect geofence status
     } catch (e) {
       print('Error getting location: $e');
+      if (!mounted) return;
       setState(() {
         _isFetchingLocation = false;
-        _currentAddress = 'Location not available';
+        _currentAddress = 'Error getting location';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error getting location: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error getting location: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   void _startLocationUpdates() {
-    _positionStreamSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5, // Update if moved more than 5 meters
-      ),
-    ).listen((Position position) {
-      setState(() {
-        _currentPosition = position;
-      });
-      _checkGeofence();
-    }, onError: (error) {
-      print('Error in location stream: $error');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating location: $error'),
-          backgroundColor: Colors.red,
+    // Cancel any existing subscription
+    _positionStreamSubscription?.cancel();
+
+    // Only start updates if journey is pending
+    if (widget.journeyPlan.isPending) {
+      print('Starting location updates for pending journey');
+      _positionStreamSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5, // Update if moved more than 5 meters
         ),
+      ).listen(
+        (Position position) {
+          // Only update position if widget is still mounted and journey is still pending
+          if (mounted && widget.journeyPlan.isPending) {
+            setState(() {
+              _currentPosition = position;
+            });
+            _checkGeofence();
+          }
+        },
+        onError: (error) {
+          print('Error in location stream: $error');
+          if (mounted && widget.journeyPlan.isPending) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error updating location: $error'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        cancelOnError: false, // Don't cancel the stream on error
       );
-    });
+    }
   }
 
   Future<void> _checkIn() async {
@@ -546,6 +704,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         imageUrl: imageUrl,
       );
 
+      // Immediately update to In Progress status
+      final inProgressPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusInProgress,
+      );
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -555,11 +720,44 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         ),
       );
 
+      // Show success dialog with details
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Check-in Successful!'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Outlet: ${inProgressPlan.outlet.name}'),
+              const SizedBox(height: 8),
+              Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
+              const SizedBox(height: 8),
+              Text('Location: $_currentAddress'),
+              const SizedBox(height: 8),
+              const Text('Status: In Progress'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
       // Navigate to reports page
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(journeyPlan: updatedPlan),
+          builder: (context) => ReportsOrdersPage(journeyPlan: inProgressPlan),
         ),
       );
     } catch (e) {
@@ -616,6 +814,308 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handleCheckIn(String? imageUrl) async {
+    try {
+      if (widget.journeyPlan.id == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Journey ID is required to check in.')),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _isCheckingIn = true;
+      });
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // First update to Checked In status
+      final checkedInPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusCheckedIn,
+        checkInTime: DateTime.now(),
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
+        imageUrl: imageUrl,
+      );
+
+      // Immediately update to In Progress status
+      final updatedPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusInProgress,
+      );
+
+      // Close loading indicator
+      Navigator.pop(context);
+
+      if (widget.onCheckInSuccess != null) {
+        widget.onCheckInSuccess!(updatedPlan);
+      }
+
+      // Show success dialog with details
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Check-in Successful!'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Outlet: ${updatedPlan.outlet.name}'),
+              const SizedBox(height: 8),
+              Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
+              const SizedBox(height: 8),
+              Text('Location: $_currentAddress'),
+              const SizedBox(height: 8),
+              const Text('Status: In Progress'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('View Reports'),
+            ),
+          ],
+        ),
+      );
+
+      // Navigate to reports page
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReportsOrdersPage(
+            journeyPlan: updatedPlan,
+            onAllReportsSubmitted: _handleAllReportsSubmitted,
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Check-in error: $e');
+      // Close loading indicator if it's showing
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to check-in: $e'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingIn = false;
+        });
+      }
+    }
+  }
+
+  // Handle completion when all reports are submitted
+  Future<void> _handleAllReportsSubmitted() async {
+    try {
+      // Update journey status to completed
+      final completedPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusCompleted,
+      );
+
+      if (!mounted) return;
+
+      // Show completion dialog
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.task_alt, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Journey Completed!'),
+            ],
+          ),
+          content: const Text(
+              'All reports have been submitted successfully. The journey plan is now complete.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // Update parent if callback exists
+      if (widget.onCheckInSuccess != null) {
+        widget.onCheckInSuccess!(completedPlan);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to complete journey: $e'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Fix journey status if it's stuck in checked in instead of in progress
+  Future<void> _fixJourneyStatus() async {
+    try {
+      if (widget.journeyPlan.id == null) return;
+
+      // Only update if the journey is actually in checked-in status
+      if (!widget.journeyPlan.isCheckedIn) {
+        print('Journey not in checked-in status, no need to fix status');
+        return;
+      }
+
+      print('Fixing journey status: changing from checked-in to in-progress');
+
+      // Update to In Progress status
+      final inProgressPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusInProgress,
+      );
+
+      if (widget.onCheckInSuccess != null && mounted) {
+        widget.onCheckInSuccess!(inProgressPlan);
+      }
+    } catch (e) {
+      print('Error fixing journey status: $e');
+      // Don't show an error to the user as this is a background fix
+    }
+  }
+
+  // Use the check-in location from the journey plan
+  void _useCheckInLocation() {
+    if (widget.journeyPlan.latitude != null &&
+        widget.journeyPlan.longitude != null) {
+      // Create a position from the stored coordinates
+      _currentPosition = Position(
+        latitude: widget.journeyPlan.latitude!,
+        longitude: widget.journeyPlan.longitude!,
+        timestamp: DateTime.now(),
+        accuracy: 0,
+        altitude: 0,
+        heading: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        floor: null,
+        isMocked: false,
+        altitudeAccuracy: 0,
+        headingAccuracy: 0,
+      );
+
+      // Get address for the stored coordinates
+      _getAddressFromLatLng(
+          widget.journeyPlan.latitude!, widget.journeyPlan.longitude!);
+
+      print(
+          'Using check-in location: Lat ${widget.journeyPlan.latitude}, Lng ${widget.journeyPlan.longitude}');
+    } else {
+      print(
+          'No check-in location found in journey plan, getting current position instead');
+      _getCurrentPosition();
+    }
+  }
+
+  // Get address from latitude and longitude
+  Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
+    setState(() {
+      _isFetchingLocation = true;
+    });
+
+    try {
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(latitude, longitude);
+      if (!mounted) return;
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+
+        // Create a more structured address with null checks
+        final List<String> addressComponents = [];
+
+        // Add street address if available
+        if (place.street != null && place.street!.isNotEmpty) {
+          addressComponents.add(place.street!);
+        }
+
+        // Add area/locality information
+        final List<String> areaComponents = [];
+        if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+          areaComponents.add(place.subLocality!);
+        }
+        if (place.locality != null && place.locality!.isNotEmpty) {
+          areaComponents.add(place.locality!);
+        }
+        if (areaComponents.isNotEmpty) {
+          addressComponents.add(areaComponents.join(', '));
+        }
+
+        // Add region/country
+        final List<String> regionComponents = [];
+        if (place.administrativeArea != null &&
+            place.administrativeArea!.isNotEmpty) {
+          regionComponents.add(place.administrativeArea!);
+        }
+        if (place.country != null && place.country!.isNotEmpty) {
+          regionComponents.add(place.country!);
+        }
+        if (regionComponents.isNotEmpty) {
+          addressComponents.add(regionComponents.join(', '));
+        }
+
+        // Join all components with appropriate separators
+        final formattedAddress = addressComponents.join('\n');
+
+        if (!mounted) return;
+        setState(() {
+          _currentAddress =
+              formattedAddress.isEmpty ? 'Check-in location' : formattedAddress;
+          _isFetchingLocation = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _currentAddress = 'Check-in location';
+          _isFetchingLocation = false;
+        });
+      }
+    } catch (e) {
+      print('Error getting address from check-in coordinates: $e');
+      if (!mounted) return;
+      setState(() {
+        _currentAddress = 'Check-in location';
+        _isFetchingLocation = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormatter = DateFormat('MMM dd, yyyy');
@@ -625,57 +1125,75 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         title: const Text('Journey Check-In'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {
+              // Show loading indicator
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+
+              // Refresh location if journey is pending
+              if (widget.journeyPlan.isPending) {
+                _getCurrentPosition();
+              } else {
+                // Refresh journey status from the API
+                _refreshJourneyStatus();
+              }
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Card(
-          margin: const EdgeInsets.only(bottom: 12.0),
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
+        child: Column(
+          children: [
+            // Status Card
+            Card(
+              margin: const EdgeInsets.only(bottom: 8.0),
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+              child: Container(
+                width: double.infinity,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12.0),
-                    topRight: Radius.circular(12.0),
+                  color: widget.journeyPlan.statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(
+                    color: widget.journeyPlan.statusColor,
+                    width: 1.0,
                   ),
                 ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(
-                      Icons.store,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.journeyPlan.outlet.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                    Text(
+                      'Journey Status:',
+                      style: TextStyle(
+                        color: widget.journeyPlan.statusColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    // Status indicator
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: widget.journeyPlan.statusColor,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        widget.journeyPlan.statusText,
+                        widget.journeyPlan.statusText.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -686,163 +1204,227 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   ],
                 ),
               ),
-
-              // Dotted line separator
-              Container(
-                height: 1,
-                margin: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: Row(
-                  children: List.generate(
-                    20,
-                    (index) => Expanded(
-                      child: Container(
-                        color: index % 2 == 0
-                            ? Colors.grey.shade300
-                            : Colors.white,
-                        height: 1,
+            ),
+            // Journey Details Card
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 8.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(8.0),
+                        topRight: Radius.circular(8.0),
                       ),
                     ),
-                  ),
-                ),
-              ),
-
-              // Content
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Date
-                    _buildInfoItem(
-                      'Date',
-                      dateFormatter.format(widget.journeyPlan.date),
-                      Icons.calendar_today,
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Location
-                    _buildInfoItem(
-                      'Location',
-                      widget.journeyPlan.outlet.address,
-                      Icons.location_on,
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Current Location with Geofence Status
-                    _buildInfoItem(
-                      'Current Location',
-                      _isFetchingLocation
-                          ? 'Fetching location...'
-                          : _currentAddress,
-                      Icons.my_location,
-                    ),
-                    if (_currentPosition != null) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.store,
+                          color: Colors.white,
+                          size: 16,
                         ),
-                        decoration: BoxDecoration(
-                          color: _isWithinGeofence
-                              ? Colors.green.withOpacity(0.2)
-                              : Colors.red.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _isWithinGeofence
-                                  ? Icons.check_circle
-                                  : Icons.warning,
-                              size: 16,
-                              color:
-                                  _isWithinGeofence ? Colors.green : Colors.red,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.journeyPlan.outlet.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _isWithinGeofence
-                                  ? 'Within check-in range'
-                                  : 'Outside check-in range',
-                              style: TextStyle(
-                                color: _isWithinGeofence
-                                    ? Colors.green
-                                    : Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            // Left column
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildInfoItem(
+                                    'Date',
+                                    dateFormatter
+                                        .format(widget.journeyPlan.date),
+                                    Icons.calendar_today,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildInfoItem(
+                                    'Location',
+                                    widget.journeyPlan.outlet.address,
+                                    Icons.location_on,
+                                  ),
+                                ],
                               ),
                             ),
+                            // Right column
+                            if (!widget.journeyPlan.isPending)
+                              Expanded(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildInfoItem(
+                                      // Show different label based on journey status
+                                      widget.journeyPlan.isPending
+                                          ? 'Current Location'
+                                          : 'Check-in Location',
+                                      _isFetchingLocation
+                                          ? 'Fetching location...'
+                                          : _currentAddress,
+                                      Icons.my_location,
+                                    ),
+                                    if (_currentPosition != null) ...[
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _isWithinGeofence
+                                              ? Colors.green.withOpacity(0.1)
+                                              : Colors.red.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _isWithinGeofence
+                                                  ? Icons.check_circle
+                                                  : Icons.warning,
+                                              size: 14,
+                                              color: _isWithinGeofence
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                _isWithinGeofence
+                                                    ? 'Within range'
+                                                    : 'Outside range',
+                                                style: TextStyle(
+                                                  color: _isWithinGeofence
+                                                      ? Colors.green
+                                                      : Colors.red,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (!_isWithinGeofence)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            '${_distanceToOutlet.toStringAsFixed(1)}m away',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade600,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Distance to outlet: ${_distanceToOutlet.toStringAsFixed(1)} meters',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-              // Footer
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12.0),
-                    bottomRight: Radius.circular(12.0),
+                      ],
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (widget.journeyPlan.isCheckedIn ||
-                        widget.journeyPlan.isCompleted)
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ReportsOrdersPage(
-                                  journeyPlan: widget.journeyPlan),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.assessment, size: 18),
-                        label: const Text('View Reports'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                        ),
-                      )
-                    else if (widget.journeyPlan.isPending)
-                      ElevatedButton.icon(
-                        onPressed: (_isCheckingIn || !_isWithinGeofence)
-                            ? null
-                            : _checkIn,
-                        icon: const Icon(Icons.directions, size: 18),
-                        label: const Text('Check In'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                        ),
+
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8.0,
+                      horizontal: 12.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(8.0),
+                        bottomRight: Radius.circular(8.0),
                       ),
-                  ],
-                ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (widget.journeyPlan.isCheckedIn ||
+                            widget.journeyPlan.isInTransit ||
+                            widget.journeyPlan.isCompleted)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ReportsOrdersPage(
+                                    journeyPlan: widget.journeyPlan,
+                                    onAllReportsSubmitted:
+                                        _handleAllReportsSubmitted,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.assessment, size: 16),
+                            label: const Text('View Reports'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                            ),
+                          )
+                        else if (widget.journeyPlan.isPending)
+                          ElevatedButton.icon(
+                            onPressed: (_isCheckingIn || !_isWithinGeofence)
+                                ? null
+                                : _checkIn,
+                            icon: const Icon(Icons.directions, size: 16),
+                            label: const Text('Check In'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -870,20 +1452,93 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   fontSize: 11,
                 ),
               ),
-              const SizedBox(height: 1),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              const SizedBox(height: 2),
+              if (_isFetchingLocation && label == 'Current Location')
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Fetching location...',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                    height: 1.3,
+                    color: value.startsWith('Error') ||
+                            value.contains('denied') ||
+                            value == 'Address not available'
+                        ? Colors.red.shade700
+                        : Colors.black87,
+                  ),
+                  // Allow multiple lines for address
+                  maxLines: label.contains('Location') ? 3 : 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
           ),
         ),
       ],
     );
+  }
+
+  // Refresh journey status from the API
+  Future<void> _refreshJourneyStatus() async {
+    try {
+      if (widget.journeyPlan.id == null) return;
+
+      // Fetch updated journey plan
+      final updatedPlan =
+          await ApiService.getJourneyPlanById(widget.journeyPlan.id!);
+
+      if (!mounted) return;
+
+      // Update local state if needed
+      if (updatedPlan != null && widget.onCheckInSuccess != null) {
+        widget.onCheckInSuccess!(updatedPlan);
+      }
+
+      // Refresh location if checked in
+      if (updatedPlan != null &&
+          (updatedPlan.isCheckedIn || updatedPlan.isInTransit)) {
+        _useCheckInLocation();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Refreshed successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Error refreshing journey status: $e');
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to refresh: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

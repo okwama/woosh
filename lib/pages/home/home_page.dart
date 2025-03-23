@@ -6,7 +6,7 @@ import 'package:whoosh/pages/order/vieworder_page.dart';
 import 'package:whoosh/services/api_service.dart';
 
 import '../../components/menu_tile.dart';
-import '../order/editorder_page.dart';
+import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../targets/targets_page.dart';
@@ -51,7 +51,7 @@ class _HomePageState extends State<HomePage> {
       final journeyPlans = await ApiService.fetchJourneyPlans();
       setState(() {
         _pendingJourneyPlans =
-            journeyPlans.where((plan) => plan.status == 'pending').length;
+            journeyPlans.where((plan) => plan.isPending).length;
         _isLoading = false;
       });
     } catch (e) {
@@ -60,6 +60,14 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _refreshData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    await _loadPendingJourneyPlans();
+    _loadUserData();
   }
 
   Future<void> _logout() async {
@@ -135,6 +143,19 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {
+              _refreshData();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing dashboard...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
@@ -242,7 +263,9 @@ class _HomePageState extends State<HomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => const AddEditOrderPage()),
+                              builder: (context) => const ViewClientPage(
+                                    forOrderCreation: true,
+                                  )),
                         );
                       },
                     ),
@@ -253,7 +276,7 @@ class _HomePageState extends State<HomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => const ViewOrderPage()),
+                              builder: (context) => const ViewOrdersPage()),
                         );
                       },
                     ),

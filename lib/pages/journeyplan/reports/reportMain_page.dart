@@ -12,10 +12,12 @@ import 'package:whoosh/services/api_service.dart';
 
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
+  final VoidCallback? onAllReportsSubmitted;
 
   const ReportsOrdersPage({
     super.key,
     required this.journeyPlan,
+    this.onAllReportsSubmitted,
   });
 
   @override
@@ -33,6 +35,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   String? _imageUrl;
   ReportType _selectedReportType = ReportType.PRODUCT_AVAILABILITY;
   List<Product> _products = [];
+  List<Report> _submittedReports = [];
 
   @override
   void initState() {
@@ -42,9 +45,9 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
 
   Future<void> _loadProducts() async {
     try {
-      final response = await _apiService.getProducts();
+      final products = await ApiService.getProducts();
       setState(() {
-        _products = response.data;
+        _products = products;
         _isLoading = false;
       });
     } catch (e) {
@@ -100,75 +103,35 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   }
 
   Future<void> _submitReport() async {
-    if (_commentController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a comment')),
-      );
-      return;
-    }
-
-    if (_selectedReportType == ReportType.PRODUCT_AVAILABILITY &&
-        (_selectedProduct == null || _quantityController.text.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please select a product and enter quantity')),
-      );
-      return;
-    }
-
-    if (_selectedReportType == ReportType.VISIBILITY_ACTIVITY &&
-        _imageFile == null &&
-        _imageUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please take a picture')),
-      );
-      return;
-    }
-
-    final box = GetStorage();
-    final userId = box.read('userId');
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User not authenticated')),
-      );
-      return;
-    }
+    if (_isSubmitting) return;
 
     setState(() => _isSubmitting = true);
 
     try {
-      String? imageUrl = _imageUrl;
-      if (_imageFile != null && _imageUrl == null) {
-        imageUrl = await _uploadImage();
-        if (imageUrl == null) {
-          setState(() => _isSubmitting = false);
-          return;
-        }
-      }
+      String? imageUrl = await _uploadImage();
 
       Report report;
       switch (_selectedReportType) {
         case ReportType.PRODUCT_AVAILABILITY:
           report = Report(
             type: ReportType.PRODUCT_AVAILABILITY,
-            journeyPlanId: widget.journeyPlan.id!,
-            userId: userId,
-            outletId: widget.journeyPlan.outletId,
+            journeyPlanId: widget.journeyPlan.id,
+            userId: widget.journeyPlan.userId!,
+            outletId: widget.journeyPlan.outlet.id,
             productReport: ProductReport(
               reportId: 0,
-              productName: _selectedProduct!.name,
+              productName: _selectedProduct?.name,
               quantity: int.tryParse(_quantityController.text),
               comment: _commentController.text,
             ),
           );
           break;
-
         case ReportType.VISIBILITY_ACTIVITY:
           report = Report(
             type: ReportType.VISIBILITY_ACTIVITY,
-            journeyPlanId: widget.journeyPlan.id!,
-            userId: userId,
-            outletId: widget.journeyPlan.outletId,
+            journeyPlanId: widget.journeyPlan.id,
+            userId: widget.journeyPlan.userId!,
+            outletId: widget.journeyPlan.outlet.id,
             visibilityReport: VisibilityReport(
               reportId: 0,
               comment: _commentController.text,
@@ -176,13 +139,12 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
             ),
           );
           break;
-
         case ReportType.FEEDBACK:
           report = Report(
             type: ReportType.FEEDBACK,
-            journeyPlanId: widget.journeyPlan.id!,
-            userId: userId,
-            outletId: widget.journeyPlan.outletId,
+            journeyPlanId: widget.journeyPlan.id,
+            userId: widget.journeyPlan.userId!,
+            outletId: widget.journeyPlan.outlet.id,
             feedbackReport: FeedbackReport(
               reportId: 0,
               comment: _commentController.text,
@@ -193,14 +155,24 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
 
       await _apiService.submitReport(report);
 
+      setState(() {
+        _submittedReports.add(report);
+        _resetForm();
+      });
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Report submitted successfully')),
       );
 
-      _resetForm();
+      // Check if all required reports are submitted
+      if (_areAllReportsSubmitted()) {
+        widget.onAllReportsSubmitted?.call();
+      }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit report: $e')),
+        SnackBar(content: Text('Error submitting report: $e')),
       );
     } finally {
       if (mounted) {
@@ -209,14 +181,24 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     }
   }
 
+  bool _areAllReportsSubmitted() {
+    // Check if at least one report of each type has been submitted
+    bool hasProductReport =
+        _submittedReports.any((r) => r.type == ReportType.PRODUCT_AVAILABILITY);
+    bool hasVisibilityReport =
+        _submittedReports.any((r) => r.type == ReportType.VISIBILITY_ACTIVITY);
+    bool hasFeedbackReport =
+        _submittedReports.any((r) => r.type == ReportType.FEEDBACK);
+
+    return hasProductReport && hasVisibilityReport && hasFeedbackReport;
+  }
+
   void _resetForm() {
     _commentController.clear();
     _quantityController.clear();
-    setState(() {
-      _selectedProduct = null;
-      _imageFile = null;
-      _imageUrl = null;
-    });
+    _selectedProduct = null;
+    _imageFile = null;
+    _imageUrl = null;
   }
 
   Widget _buildReportForm() {

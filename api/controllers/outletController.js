@@ -70,8 +70,42 @@ const updateOutlet = async (req, res) => {
   }
 };
 
+// Get products for a specific outlet
+const getOutletProducts = async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        products: {
+          include: {
+            product: true
+          }
+        }
+      }
+    });
+    
+    if (!outlet) {
+      return res.status(404).json({ error: 'Outlet not found' });
+    }
+    
+    // Format the response to return just the products
+    const products = outlet.products.map(op => ({
+      ...op.product,
+      quantity: op.quantity
+    }));
+    
+    res.status(200).json(products);
+  } catch (error) {
+    console.error('Error fetching outlet products:', error);
+    res.status(500).json({ error: 'Failed to fetch outlet products' });
+  }
+};
+
 module.exports = {
   getOutlets,
   createOutlet,
   updateOutlet,
+  getOutletProducts
 };

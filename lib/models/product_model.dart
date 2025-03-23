@@ -1,5 +1,3 @@
-import 'package:whoosh/models/outlet_model.dart';
-
 class Product {
   final int id;
   final String name;
@@ -10,8 +8,6 @@ class Product {
   final int orderQuantity;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int outletId;
-  final Outlet? outlet;
 
   Product({
     required this.id,
@@ -23,8 +19,6 @@ class Product {
     required this.orderQuantity,
     required this.createdAt,
     required this.updatedAt,
-    required this.outletId,
-    this.outlet,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -32,14 +26,12 @@ class Product {
       id: json['id'],
       name: json['name'],
       description: json['description'],
-      price: json['price'].toDouble(),
+      price: (json['price'] as num).toDouble(),
       currentStock: json['currentStock'],
       reorderPoint: json['reorderPoint'],
       orderQuantity: json['orderQuantity'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      outletId: json['outletId'],
-      outlet: json['outlet'] != null ? Outlet.fromJson(json['outlet']) : null,
     );
   }
 
@@ -54,8 +46,6 @@ class Product {
       'orderQuantity': orderQuantity,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'outletId': outletId,
-      'outlet': outlet?.toJson(),
     };
   }
 }

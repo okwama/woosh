@@ -2,9 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:whoosh/models/outlet_model.dart';
 import 'package:whoosh/services/api_service.dart';
+import 'package:whoosh/pages/order/addorder_page.dart';
 
 class ViewClientPage extends StatefulWidget {
-  const ViewClientPage({Key? key}) : super(key: key);
+  final bool forOrderCreation;
+
+  const ViewClientPage({
+    Key? key,
+    this.forOrderCreation = false,
+  }) : super(key: key);
 
   @override
   State<ViewClientPage> createState() => _ViewClientPageState();
@@ -236,7 +242,23 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                   ),
                                   child: InkWell(
                                     onTap: () {
-                                      // TODO: Navigate to outlet details
+                                      if (widget.forOrderCreation) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => AddOrderPage(
+                                              outlet: outlet,
+                                            ),
+                                          ),
+                                        ).then((result) {
+                                          if (result == true) {
+                                            Navigator.pop(
+                                                context); // Return to previous screen
+                                          }
+                                        });
+                                      } else {
+                                        // TODO: Navigate to outlet details
+                                      }
                                     },
                                     borderRadius: BorderRadius.circular(12),
                                     child: Padding(
