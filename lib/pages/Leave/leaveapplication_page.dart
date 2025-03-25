@@ -1,0 +1,266 @@
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:whoosh/services/api_service.dart';
+import 'package:whoosh/pages/Leave/leave_requests_page.dart';
+import 'dart:io';
+
+class LeaveApplicationPage extends StatefulWidget {
+  const LeaveApplicationPage({Key? key}) : super(key: key);
+
+  @override
+  _LeaveApplicationPageState createState() => _LeaveApplicationPageState();
+}
+
+class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _startDateController = TextEditingController();
+  final TextEditingController _endDateController = TextEditingController();
+  final TextEditingController _reasonController = TextEditingController();
+
+  String? _selectedLeaveType;
+  File? _attachedFile;
+  bool _isLoading = false;
+  String? _error;
+
+  final List<String> _leaveTypes = [
+    'Sick Leave',
+    'Annual Leave',
+    'Leave Request'
+  ];
+
+  @override
+  void dispose() {
+    _startDateController.dispose();
+    _endDateController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (picked != null) {
+      final formattedDate = DateFormat('yyyy-MM-dd').format(picked);
+      setState(() {
+        if (isStartDate) {
+          _startDateController.text = formattedDate;
+        } else {
+          _endDateController.text = formattedDate;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'png', 'pdf'],
+      );
+
+      if (result != null) {
+        setState(() {
+          _attachedFile = File(result.files.single.path!);
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error picking file: $e';
+      });
+    }
+  }
+
+  Future<void> _submitLeaveApplication() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_selectedLeaveType == 'Sick Leave' && _attachedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please attach a document for sick leave'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      await ApiService.submitLeaveApplication(
+        leaveType: _selectedLeaveType!,
+        startDate: _startDateController.text,
+        endDate: _endDateController.text,
+        reason: _reasonController.text,
+        attachmentFile: _attachedFile,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leave application submitted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to submit leave application: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leave Application'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.list),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LeaveRequestsPage(),
+                ),
+              );
+            },
+            tooltip: 'View Leave Requests',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    DropdownButtonFormField<String>(
+                      value: _selectedLeaveType,
+                      decoration: const InputDecoration(
+                        labelText: 'Leave Type',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _leaveTypes.map((type) {
+                        return DropdownMenuItem(
+                          value: type,
+                          child: Text(type),
+                        );
+                      }).toList(),
+                      validator: (value) =>
+                          value == null ? 'Please select a leave type' : null,
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedLeaveType = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _startDateController,
+                      decoration: InputDecoration(
+                        labelText: 'Start Date',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () => _selectDate(context, true),
+                        ),
+                      ),
+                      readOnly: true,
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please select start date'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _endDateController,
+                      decoration: InputDecoration(
+                        labelText: 'End Date',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () => _selectDate(context, false),
+                        ),
+                      ),
+                      readOnly: true,
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please select end date'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _reasonController,
+                      decoration: const InputDecoration(
+                        labelText: 'Reason',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please enter a reason'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    if (_selectedLeaveType == 'Sick Leave') ...[
+                      ElevatedButton.icon(
+                        onPressed: _pickFile,
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Attach Document'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                      if (_attachedFile != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'File attached: ${_attachedFile!.path.split('/').last}',
+                            style: const TextStyle(color: Colors.green),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                    ],
+                    ElevatedButton(
+                      onPressed: _submitLeaveApplication,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Submit Application'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}

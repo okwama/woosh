@@ -59,6 +59,37 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     }
   }
 
+  Future<void> _refreshData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Reload products
+      await _loadProducts();
+
+      // Load any existing reports for this journey
+      try {
+        final reports = await _apiService.getReports(
+          journeyPlanId: widget.journeyPlan.id,
+        );
+        setState(() {
+          _submittedReports = reports;
+        });
+      } catch (e) {
+        print('Error loading existing reports: $e');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reports refreshed')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _commentController.dispose();
@@ -326,6 +357,13 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
         title: const Text('Reports'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: _refreshData,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

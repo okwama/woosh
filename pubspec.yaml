@@ -24,6 +24,9 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.0
   geocoding: ^2.1.1
+  flutter_staggered_animations: ^1.1.1
+  percent_indicator: ^4.2.3
+  file_picker: ^9.2.1
 
 dev_dependencies:
   flutter_test:
@@ -34,5 +37,5 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/ # Declare the entire folder
-    - assets/whoosh.png # Declare individual files
+    - lib/assets/
+    - lib/assets/images/

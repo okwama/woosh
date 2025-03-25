@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:math';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -42,7 +43,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   bool _isCameraVisible = false;
 
   // Geofencing constants
-  static const double GEOFENCE_RADIUS_METERS = 5.0; // 5 meters radius
+  static const double GEOFENCE_RADIUS_METERS = 100.0; // Increased to 100 meters
   static const Duration LOCATION_UPDATE_INTERVAL = Duration(seconds: 5);
 
   String _currentAddress = 'Fetching location...';
@@ -338,10 +339,32 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
-  // Calculate distance between two points
+  // Calculate distance using Haversine formula
   double _calculateDistance(
       double lat1, double lon1, double lat2, double lon2) {
-    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
+    const double earthRadius = 6371000; // Earth's radius in meters
+
+    // Convert to radians
+    double lat1Rad = lat1 * pi / 180;
+    double lat2Rad = lat2 * pi / 180;
+    double deltaLat = (lat2 - lat1) * pi / 180;
+    double deltaLon = (lon2 - lon1) * pi / 180;
+
+    // Haversine formula
+    double a = sin(deltaLat / 2) * sin(deltaLat / 2) +
+        cos(lat1Rad) * cos(lat2Rad) * sin(deltaLon / 2) * sin(deltaLon / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    // Calculate distance in meters
+    double distance = earthRadius * c;
+
+    print('\nDebug - Distance calculation:');
+    print('From: ($lat1, $lon1)');
+    print('To: ($lat2, $lon2)');
+    print('Distance: ${distance.toStringAsFixed(2)} meters');
+    print('Geofence radius: $GEOFENCE_RADIUS_METERS meters');
+
+    return distance;
   }
 
   // Check if user is within geofence
@@ -351,12 +374,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       if (widget.journeyPlan.isCheckedIn ||
           widget.journeyPlan.isInTransit ||
           widget.journeyPlan.isCompleted) {
+        print('Debug - Journey is already checked in or in progress');
         _isWithinGeofence = true;
         return true;
       }
 
       if (_currentPosition == null) {
-        print('Current position is null');
+        print('Debug - Current position is null');
         return false;
       }
 
@@ -364,18 +388,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       final outletLat = widget.journeyPlan.outlet.latitude;
       final outletLon = widget.journeyPlan.outlet.longitude;
 
+      // Add debug logging
+      print('\nDebug - Current Position:');
+      print('Latitude: ${_currentPosition!.latitude}');
+      print('Longitude: ${_currentPosition!.longitude}');
+      print('Debug - Outlet Position:');
+      print('Latitude: $outletLat');
+      print('Longitude: $outletLon');
+
       if (outletLat == null || outletLon == null) {
-        print('Outlet coordinates not available');
-        // Only show notification if we're in the check-in process
-        if (_isCheckingIn) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Outlet location data is missing. Please contact support.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        print('Debug - Outlet coordinates not available');
         return false;
       }
 
@@ -387,27 +409,24 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         outletLon,
       );
 
-      print('Distance to outlet: $_distanceToOutlet meters');
-
       // Check if distance is within acceptable range
       final isWithinRange = _distanceToOutlet <= GEOFENCE_RADIUS_METERS;
 
-      // Log geofence status for debugging
       print(
-          'Geofence status: ${isWithinRange ? "Within range" : "Outside range"}');
+          'Debug - Geofence status: ${isWithinRange ? "Within range" : "Outside range"}');
+      print(
+          'Distance to outlet: ${_distanceToOutlet.toStringAsFixed(2)} meters');
+
+      // Update the UI state
+      if (mounted) {
+        setState(() {
+          _isWithinGeofence = isWithinRange;
+        });
+      }
 
       return isWithinRange;
     } catch (e) {
-      print('Error checking geofence: $e');
-      // Only show error notification if we're in the check-in process
-      if (_isCheckingIn) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error checking location: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      print('Debug - Error checking geofence: $e');
       return false;
     }
   }
@@ -417,178 +436,57 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
     setState(() {
       _isFetchingLocation = true;
-      _currentAddress = 'Fetching location...';
     });
 
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!mounted) return;
-
-      if (!serviceEnabled) {
-        setState(() {
-          _currentAddress = 'Location services disabled';
-          _isFetchingLocation = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content:
-                  Text('Location services are disabled. Please enable them.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-        return;
-      }
-
+      // 1. Check permissions
       LocationPermission permission = await Geolocator.checkPermission();
-      if (!mounted) return;
-
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (!mounted) return;
-
         if (permission == LocationPermission.denied) {
-          setState(() {
-            _currentAddress = 'Location permission denied';
-            _isFetchingLocation = false;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Location permissions are denied.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
+          throw Exception('Location permissions denied');
         }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          _currentAddress = 'Location permission permanently denied';
-          _isFetchingLocation = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Location permissions are permanently denied. Please enable them in settings.',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
+      // 2. Check services
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services disabled');
       }
 
+      // 3. Get position with balanced accuracy and faster timeout
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 5),
       );
+
       if (!mounted) return;
 
-      // Get address from coordinates
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        if (!mounted) return;
-
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
-
-          // Create a more structured address with null checks
-          final List<String> addressComponents = [];
-
-          // Add street address if available
-          if (place.street != null && place.street!.isNotEmpty) {
-            addressComponents.add(place.street!);
-          }
-
-          // Add area/locality information
-          final List<String> areaComponents = [];
-          if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-            areaComponents.add(place.subLocality!);
-          }
-          if (place.locality != null && place.locality!.isNotEmpty) {
-            areaComponents.add(place.locality!);
-          }
-          if (areaComponents.isNotEmpty) {
-            addressComponents.add(areaComponents.join(', '));
-          }
-
-          // Add region/country
-          final List<String> regionComponents = [];
-          if (place.administrativeArea != null &&
-              place.administrativeArea!.isNotEmpty) {
-            regionComponents.add(place.administrativeArea!);
-          }
-          if (place.country != null && place.country!.isNotEmpty) {
-            regionComponents.add(place.country!);
-          }
-          if (regionComponents.isNotEmpty) {
-            addressComponents.add(regionComponents.join(', '));
-          }
-
-          // Join all components with appropriate separators
-          final formattedAddress = addressComponents.join('\n');
-
-          if (!mounted) return;
-          setState(() {
-            _currentAddress = formattedAddress.isEmpty
-                ? 'Address not available'
-                : formattedAddress;
-          });
-        } else {
-          if (!mounted) return;
-          setState(() {
-            _currentAddress = 'Address not available';
-          });
-        }
-      } catch (e) {
-        print('Error getting address: $e');
-        if (!mounted) return;
-        setState(() {
-          _currentAddress = 'Location found, address unavailable';
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Issue resolving address: $e'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+      // 4. Validate position
+      if (position.latitude == 0 && position.longitude == 0) {
+        throw Exception('Invalid position received');
       }
 
-      if (!mounted) return;
+      print('Debug - Got position with accuracy: ${position.accuracy} meters');
+
       setState(() {
         _currentPosition = position;
-        _isFetchingLocation = false;
       });
 
-      // Check geofence after getting position
-      _isWithinGeofence = await _checkGeofence();
-      if (!mounted) return;
-      setState(() {}); // Update UI to reflect geofence status
+      // 5. Get address and check geofence
+      await _getAddressFromLatLng(position.latitude, position.longitude);
+      await _checkGeofence();
     } catch (e) {
-      print('Error getting location: $e');
+      print('Debug - Error getting position: $e');
       if (!mounted) return;
       setState(() {
-        _isFetchingLocation = false;
-        _currentAddress = 'Error getting location';
+        _currentAddress = 'Could not determine location';
       });
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error getting location: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isFetchingLocation = false;
+        });
       }
     }
   }
@@ -602,17 +500,31 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       print('Starting location updates for pending journey');
       _positionStreamSubscription = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5, // Update if moved more than 5 meters
+          accuracy: LocationAccuracy.medium,
+          distanceFilter: 10,
         ),
       ).listen(
         (Position position) {
           // Only update position if widget is still mounted and journey is still pending
           if (mounted && widget.journeyPlan.isPending) {
+            print('\nDebug - New position received:');
+            print('Latitude: ${position.latitude}');
+            print('Longitude: ${position.longitude}');
+            print('Accuracy: ${position.accuracy} meters');
+            print('Previous geofence status: $_isWithinGeofence');
+
             setState(() {
               _currentPosition = position;
             });
-            _checkGeofence();
+
+            // Check geofence and log the result
+            _checkGeofence().then((isWithinRange) {
+              print('Debug - Geofence check completed:');
+              print('Is within range: $isWithinRange');
+              print('New geofence status: $_isWithinGeofence');
+              print(
+                  'Distance to outlet: ${_distanceToOutlet.toStringAsFixed(2)} meters\n');
+            });
           }
         },
         onError: (error) {
@@ -626,7 +538,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
             );
           }
         },
-        cancelOnError: false, // Don't cancel the stream on error
+        cancelOnError: false,
       );
     }
   }
@@ -642,7 +554,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'You must be within ${GEOFENCE_RADIUS_METERS} meters of the outlet to check in. Current distance: ${_distanceToOutlet.toStringAsFixed(1)} meters',
+              'You must be closer to the outlet to check in. Please move within ${(GEOFENCE_RADIUS_METERS / 1000).toStringAsFixed(0)} kilometers.',
             ),
             backgroundColor: Colors.red,
           ),
@@ -1010,10 +922,118 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
+  // Get address from latitude and longitude
+  Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isFetchingLocation = true;
+      // Set a default value immediately in case of errors
+      _currentAddress = 'Check-in location';
+    });
+
+    // Validate inputs
+    if (latitude == 0 && longitude == 0) {
+      print('Invalid coordinates: latitude and longitude are both 0');
+      setState(() {
+        _isFetchingLocation = false;
+      });
+      return;
+    }
+
+    try {
+      print('Attempting to get address for: $latitude, $longitude');
+
+      // Create a fallback address immediately
+      final fallbackAddress =
+          'Location at (${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)})';
+
+      // Try to get the address but be prepared for failure
+      try {
+        // Add a delay before geocoding to avoid rate limiting issues
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        final List<Placemark> placemarks = await placemarkFromCoordinates(
+          latitude,
+          longitude,
+          localeIdentifier: 'en_US',
+        ).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            print('Geocoding timed out');
+            throw TimeoutException('Geocoding operation timed out');
+          },
+        );
+
+        if (!mounted) return;
+
+        if (placemarks.isNotEmpty) {
+          // Safely extract address components with null checks
+          final Placemark place = placemarks.first;
+
+          final String street = place.street ?? '';
+          final String locality = place.locality ?? '';
+          final String subLocality = place.subLocality ?? '';
+
+          String addressText;
+          if (street.isNotEmpty) {
+            addressText = street;
+            if (subLocality.isNotEmpty || locality.isNotEmpty) {
+              addressText +=
+                  ', ${subLocality.isNotEmpty ? subLocality : locality}';
+            }
+          } else if (subLocality.isNotEmpty || locality.isNotEmpty) {
+            addressText = subLocality.isNotEmpty ? subLocality : locality;
+          } else {
+            // If no meaningful address components, use the fallback
+            addressText = fallbackAddress;
+          }
+
+          setState(() {
+            _currentAddress = addressText;
+            _isFetchingLocation = false;
+          });
+
+          print('Successfully retrieved address: $addressText');
+          return;
+        }
+      } catch (geocodingError) {
+        // Just log the error and continue to use the fallback
+        print('Geocoding error: $geocodingError');
+      }
+
+      // If we get here, either the geocoding failed or returned no results
+      // Use the fallback address
+      if (!mounted) return;
+
+      setState(() {
+        _currentAddress = fallbackAddress;
+        _isFetchingLocation = false;
+      });
+    } catch (e) {
+      print('Error in _getAddressFromLatLng: $e');
+
+      if (!mounted) return;
+
+      // Final fallback
+      setState(() {
+        _currentAddress = 'Location found';
+        _isFetchingLocation = false;
+      });
+    }
+  }
+
   // Use the check-in location from the journey plan
   void _useCheckInLocation() {
     if (widget.journeyPlan.latitude != null &&
         widget.journeyPlan.longitude != null) {
+      // Add debug logging
+      print('Debug - Using Check-in Location:');
+      print('Journey Plan Latitude: ${widget.journeyPlan.latitude}');
+      print('Journey Plan Longitude: ${widget.journeyPlan.longitude}');
+      print('Outlet Latitude: ${widget.journeyPlan.outlet.latitude}');
+      print('Outlet Longitude: ${widget.journeyPlan.outlet.longitude}');
+
       // Create a position from the stored coordinates
       _currentPosition = Position(
         latitude: widget.journeyPlan.latitude!,
@@ -1030,7 +1050,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         headingAccuracy: 0,
       );
 
-      // Get address for the stored coordinates
+      // Set a default address immediately
+      setState(() {
+        _currentAddress =
+            'Location: ${widget.journeyPlan.latitude!.toStringAsFixed(6)}, ${widget.journeyPlan.longitude!.toStringAsFixed(6)}';
+      });
+
+      // Try to get a more detailed address
       _getAddressFromLatLng(
           widget.journeyPlan.latitude!, widget.journeyPlan.longitude!);
 
@@ -1040,79 +1066,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       print(
           'No check-in location found in journey plan, getting current position instead');
       _getCurrentPosition();
-    }
-  }
-
-  // Get address from latitude and longitude
-  Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
-    setState(() {
-      _isFetchingLocation = true;
-    });
-
-    try {
-      List<Placemark> placemarks =
-          await placemarkFromCoordinates(latitude, longitude);
-      if (!mounted) return;
-
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks[0];
-
-        // Create a more structured address with null checks
-        final List<String> addressComponents = [];
-
-        // Add street address if available
-        if (place.street != null && place.street!.isNotEmpty) {
-          addressComponents.add(place.street!);
-        }
-
-        // Add area/locality information
-        final List<String> areaComponents = [];
-        if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-          areaComponents.add(place.subLocality!);
-        }
-        if (place.locality != null && place.locality!.isNotEmpty) {
-          areaComponents.add(place.locality!);
-        }
-        if (areaComponents.isNotEmpty) {
-          addressComponents.add(areaComponents.join(', '));
-        }
-
-        // Add region/country
-        final List<String> regionComponents = [];
-        if (place.administrativeArea != null &&
-            place.administrativeArea!.isNotEmpty) {
-          regionComponents.add(place.administrativeArea!);
-        }
-        if (place.country != null && place.country!.isNotEmpty) {
-          regionComponents.add(place.country!);
-        }
-        if (regionComponents.isNotEmpty) {
-          addressComponents.add(regionComponents.join(', '));
-        }
-
-        // Join all components with appropriate separators
-        final formattedAddress = addressComponents.join('\n');
-
-        if (!mounted) return;
-        setState(() {
-          _currentAddress =
-              formattedAddress.isEmpty ? 'Check-in location' : formattedAddress;
-          _isFetchingLocation = false;
-        });
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _currentAddress = 'Check-in location';
-          _isFetchingLocation = false;
-        });
-      }
-    } catch (e) {
-      print('Error getting address from check-in coordinates: $e');
-      if (!mounted) return;
-      setState(() {
-        _currentAddress = 'Check-in location';
-        _isFetchingLocation = false;
-      });
     }
   }
 
@@ -1278,81 +1231,78 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                               ),
                             ),
                             // Right column
-                            if (!widget.journeyPlan.isPending)
-                              Expanded(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildInfoItem(
-                                      // Show different label based on journey status
-                                      widget.journeyPlan.isPending
-                                          ? 'Current Location'
-                                          : 'Check-in Location',
-                                      _isFetchingLocation
-                                          ? 'Fetching location...'
-                                          : _currentAddress,
-                                      Icons.my_location,
-                                    ),
-                                    if (_currentPosition != null) ...[
-                                      const SizedBox(height: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _isWithinGeofence
-                                              ? Colors.green.withOpacity(0.1)
-                                              : Colors.red.withOpacity(0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildInfoItem(
+                                    // Show different label based on journey status
+                                    widget.journeyPlan.isPending
+                                        ? 'Current Location'
+                                        : 'Check-in Location',
+                                    _isFetchingLocation
+                                        ? 'Fetching location...'
+                                        : _currentAddress,
+                                    Icons.my_location,
+                                  ),
+                                  if (_currentPosition != null) ...[
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _isWithinGeofence
+                                            ? Colors.green.withOpacity(0.1)
+                                            : Colors.red.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            _isWithinGeofence
+                                                ? Icons.check_circle
+                                                : Icons.warning,
+                                            size: 14,
+                                            color: _isWithinGeofence
+                                                ? Colors.green
+                                                : Colors.red,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
                                               _isWithinGeofence
-                                                  ? Icons.check_circle
-                                                  : Icons.warning,
-                                              size: 14,
-                                              color: _isWithinGeofence
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                _isWithinGeofence
-                                                    ? 'Within range'
-                                                    : 'Outside range',
-                                                style: TextStyle(
-                                                  color: _isWithinGeofence
-                                                      ? Colors.green
-                                                      : Colors.red,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                                  ? 'Within range'
+                                                  : 'Outside range',
+                                              style: TextStyle(
+                                                color: _isWithinGeofence
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
                                               ),
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
-                                      if (!_isWithinGeofence)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            '${_distanceToOutlet.toStringAsFixed(1)}m away',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade600,
-                                              fontSize: 11,
-                                            ),
+                                    ),
+                                    if (!_isWithinGeofence)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '${_distanceToOutlet.toStringAsFixed(1)}m away',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 11,
                                           ),
                                         ),
-                                    ],
+                                      ),
                                   ],
-                                ),
+                                ],
                               ),
+                            ),
                           ],
                         ),
                       ],

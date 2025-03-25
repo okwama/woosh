@@ -9,6 +9,7 @@ const outletRoutes = require('./routes/outletRoutes');
 const noticeBoardRoutes = require('./routes/noticeBoardRoutes');
 const productRoutes = require('./routes/productRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const leaveRoutes = require('./routes/leave.routes');
 
 const app = express();
 app.use(express.json());
@@ -26,6 +27,7 @@ app.use('/api/outlets', outletRoutes);
 app.use('/api/notice-board', noticeBoardRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/leave', leaveRoutes);
 
 // Handle 404 Errors
 app.use((req, res, next) => {

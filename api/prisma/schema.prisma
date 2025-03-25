@@ -8,15 +8,21 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  phoneNumber  String        @unique
-  password     String
-  journeyPlans JourneyPlan[]
-  orders       Order[]
-  tokens       Token[]
-  reports      Report[]
+  id            Int           @id @default(autoincrement())
+  name          String
+  email         String        @unique
+  phoneNumber   String        @unique
+  password      String
+  role          String        @default("USER") // Can be "USER" or "ADMIN"
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  journeyPlans  JourneyPlan[]
+  orders        Order[]
+  tokens        Token[]
+  reports       Report[]
+  leaves        Leave[]
+
+  @@map("users")
 }
 
 model Token {
@@ -158,4 +164,20 @@ model Product {
   orders        Order[]
 
   @@index([outletId], map: "Product_outletId_fkey")
+}
+
+model Leave {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  leaveType   String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  attachment  String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("leaves")
 }

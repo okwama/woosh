@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:whoosh/pages/Leave/leaveapplication_page.dart';
 import 'package:whoosh/pages/client/viewclient_page.dart';
 import 'package:whoosh/pages/login/login_page.dart';
 import 'package:whoosh/pages/order/vieworder_page.dart';
@@ -181,28 +182,28 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Menu section title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.dashboard,
-                    size: 20,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Quick Actions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+             // Menu section title
+            // Padding(
+            //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            //   child: Row(
+            //     children: [
+            //       Icon(
+            //         Icons.dashboard,
+            //         size: 20,
+            //         color: Theme.of(context).primaryColor,
+            //       ),
+            //       const SizedBox(width: 8),
+            //       // Text(
+            //       //   'Quick Actions',
+            //       //   style: TextStyle(
+            //       //     fontSize: 18,
+            //       //     fontWeight: FontWeight.bold,
+            //       //     color: Theme.of(context).primaryColor,
+            //       //   ),
+            //       // ),
+            //     ],
+            //   ),
+            // ),
 
             // Grid menu items
             Expanded(
@@ -288,6 +289,17 @@ class _HomePageState extends State<HomePage> {
                           context,
                           MaterialPageRoute(
                               builder: (context) => const TargetsPage()),
+                        );
+                      },
+                    ),
+                    MenuTile(
+                      title: 'Leave Application',
+                      icon: Icons.post_add,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const LeaveApplicationPage()),
                         );
                       },
                     ),

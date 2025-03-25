@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:whoosh/services/api_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:whoosh/controllers/auth_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -13,8 +15,8 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final ApiService _apiService = ApiService();
   final _formKey = GlobalKey<FormState>();
+  final AuthController _authController = Get.find<AuthController>();
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -50,34 +52,26 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-
       if (result['success']) {
-        _showToast("Login successful!", false);
-        
-        // Navigate to home or dashboard page
+        _authController.isLoggedIn.value = true;
         Get.offAllNamed('/home');
+        _showToast('Login successful', false);
       } else {
-        _showToast(result['message'], true);
+        _showToast(result['message'] ?? 'Login failed', true);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      _showToast("Login failed: ${e.toString()}", true);
+      _showToast(e.toString(), true);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -89,16 +83,12 @@ class _LoginPageState extends State<LoginPage> {
                 // Logo
                 Center(
                   child: Container(
-                    height: 120,
-                    width: 120,
-                    margin: const EdgeInsets.only(bottom: 40),
-                    child: Image.asset(
-                      'assets/whoosh.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+                      height: 120,
+                      width: 120,
+                      margin: const EdgeInsets.only(bottom: 40),
+                      child: SvgPicture.asset('assets/woosh_logo.png')),
                 ),
-                
+
                 // Welcome Text
                 const Text(
                   'Welcome Back',
@@ -109,9 +99,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 const Text(
                   'Sign in to continue',
                   style: TextStyle(
@@ -120,9 +110,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: 40),
-                
+
                 // Login Form
                 Form(
                   key: _formKey,
@@ -131,24 +121,24 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       // Email Field
                       _buildPhoneNumberField(),
-                      
+
                       const SizedBox(height: 20),
-                      
+
                       // Password Field
                       _buildPasswordField(),
-                      
+
                       const SizedBox(height: 12),
-                      
+
                       // Forgot Password
                       _buildForgotPasswordButton(),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Login Button
                       _buildLoginButton(),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Don't have an account
                       _buildSignUpRow(),
                     ],
@@ -177,7 +167,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-            return 'Please enter your phone number';
+          return 'Please enter your phone number';
         }
         if (!GetUtils.isPhoneNumber(value)) {
           return 'Please enter a valid phone number';
