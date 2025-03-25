@@ -237,7 +237,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     MenuTile(
                       title: 'View Client',
-                      icon: Icons.storefront,
+                      icon: Icons.storefront_outlined,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -294,7 +294,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     MenuTile(
                       title: 'Leave Application',
-                      icon: Icons.post_add,
+                      icon: Icons.post_add_outlined,
                       onTap: () {
                         Navigator.push(
                           context,

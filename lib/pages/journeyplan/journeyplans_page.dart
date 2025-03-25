@@ -55,7 +55,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
   }
 
-  Future<void> _createJourneyPlan(int outletId, DateTime date) async {
+  Future<void> _createJourneyPlan(int outletId, DateTime date,
+      {String? notes}) async {
     try {
       setState(() {
         _isLoading = true;
@@ -64,6 +65,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       await ApiService.createJourneyPlan(
         outletId,
         date,
+        notes: notes,
       );
 
       // Refresh journey plans after creating a new one
@@ -91,6 +93,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
 
   void _showOutletSelectionDialog() {
     DateTime selectedDate = DateTime.now();
+    String searchQuery = '';
+    List<Outlet> filteredOutlets = _outlets;
+    final TextEditingController notesController = TextEditingController();
 
     showDialog(
       context: context,
@@ -143,6 +148,54 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
+                    'Notes (Optional)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: notesController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Add any additional information',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12.0, horizontal: 12.0),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Search Outlet',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        searchQuery = value.toLowerCase();
+                        filteredOutlets = _outlets.where((outlet) {
+                          return outlet.name
+                                  .toLowerCase()
+                                  .contains(searchQuery) ||
+                              outlet.address
+                                  .toLowerCase()
+                                  .contains(searchQuery);
+                        }).toList();
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search by name or address',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 8.0, horizontal: 12.0),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
                     'Select Outlet',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
@@ -151,24 +204,28 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                     height: 200,
                     child: _outlets.isEmpty
                         ? const Center(child: Text('No outlets available'))
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: _outlets.length,
-                            itemBuilder: (context, index) {
-                              final outlet = _outlets[index];
-                              return ListTile(
-                                title: Text(outlet.name),
-                                subtitle: Text(outlet.address),
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  _createJourneyPlan(
-                                    outlet.id,
-                                    selectedDate,
+                        : filteredOutlets.isEmpty
+                            ? const Center(
+                                child: Text('No matching outlets found'))
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredOutlets.length,
+                                itemBuilder: (context, index) {
+                                  final outlet = filteredOutlets[index];
+                                  return ListTile(
+                                    title: Text(outlet.name),
+                                    subtitle: Text(outlet.address),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      _createJourneyPlan(
+                                        outlet.id,
+                                        selectedDate,
+                                        notes: notesController.text.trim(),
+                                      );
+                                    },
                                   );
                                 },
-                              );
-                            },
-                          ),
+                              ),
                   ),
                 ],
               ),

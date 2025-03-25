@@ -86,7 +86,8 @@ class _LoginPageState extends State<LoginPage> {
                       height: 120,
                       width: 120,
                       margin: const EdgeInsets.only(bottom: 40),
-                      child: SvgPicture.asset('assets/woosh_logo.png')),
+                      child: Image.asset('assets/woosh.png',
+                          fit: BoxFit.contain)),
                 ),
 
                 // Welcome Text
@@ -278,7 +279,7 @@ class _LoginPageState extends State<LoginPage> {
             Get.toNamed('/register');
           },
           child: const Text(
-            'Sign Up',
+            'Contact Us',
             style: TextStyle(
               color: Color(0xFFC69C6D),
               fontWeight: FontWeight.bold,

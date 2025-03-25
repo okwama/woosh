@@ -114,8 +114,18 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
               child: _orders.isEmpty && _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _orders.isEmpty
-                      ? const Center(
-                          child: Text('No orders found'),
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shopping_basket_outlined,
+                                size: 48,
+                                color: Colors.grey.shade300,
+                              ),
+                              const Text('No orders found'),
+                            ],
+                          ),
                         )
                       : ListView.builder(
                           controller: _scrollController,
@@ -182,5 +192,5 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                         ),
             ),
     );
-  }
-}
+
+  }}

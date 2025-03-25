@@ -14,6 +14,7 @@ class JourneyPlan {
   final String time;
   final int? userId;
   final int status; // 0 for pending, 1 for checked in
+  final String? notes;
   final DateTime? checkInTime;
   final double? latitude;
   final double? longitude;
@@ -31,6 +32,7 @@ class JourneyPlan {
     this.longitude,
     this.imageUrl,
     required this.outlet,
+    this.notes,
   });
 
   // Helper getters for status
@@ -85,6 +87,7 @@ class JourneyPlan {
     String? time,
     int? userId,
     int? status,
+    String? notes,
     DateTime? checkInTime,
     double? latitude,
     double? longitude,
@@ -97,6 +100,7 @@ class JourneyPlan {
       time: time ?? this.time,
       userId: userId ?? this.userId,
       status: status ?? this.status,
+      notes: notes ?? this.notes,
       checkInTime: checkInTime ?? this.checkInTime,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -142,6 +146,7 @@ class JourneyPlan {
       time: time,
       userId: json['userId'],
       status: status,
+      notes: json['notes'],
       checkInTime:
           json['checkInTime'] != null ? parseDate(json['checkInTime']) : null,
       latitude: json['latitude'] != null
@@ -166,6 +171,7 @@ class JourneyPlan {
       'time': time,
       'userId': userId,
       'status': status,
+      'notes': notes,
       'checkInTime': checkInTime?.toIso8601String(),
       'latitude': latitude,
       'longitude': longitude,

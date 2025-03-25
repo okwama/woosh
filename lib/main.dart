@@ -10,7 +10,7 @@ import 'package:whoosh/controllers/auth_controller.dart';
 
 // Custom color scheme
 const Color primaryBlack = Color(0xFFC69C6D);
-const Color secondaryGrey = Color(0xFF333333);
+const Color secondaryGrey = Color.fromARGB(255, 0, 0, 0);
 const Color accentGrey = Color(0xFF666666);
 const Color lightGrey = Color(0xFFE0E0E0);
 const Color backgroundColor = Color(0xFFF5F5F5);

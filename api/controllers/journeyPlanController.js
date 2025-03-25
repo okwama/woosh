@@ -12,10 +12,10 @@ const getUserId = (req) => {
 // Create a new journey plan
 const createJourneyPlan = async (req, res) => {
   try {
-    const { outletId, date } = req.body;
+    const { outletId, date, notes } = req.body;
     const userId = req.user.id;
 
-    console.log('Creating journey plan with:', { outletId, date, userId });
+    console.log('Creating journey plan with:', { outletId, date, userId, notes });
 
     // Input validation
     if (!outletId) {
@@ -69,6 +69,7 @@ const createJourneyPlan = async (req, res) => {
         userId: userId,
         outletId: parseInt(outletId),
         status: 0, // 0 for pending
+        notes: notes,
       },
       include: {
         outlet: true,
@@ -135,7 +136,7 @@ const getJourneyPlans = async (req, res) => {
 // Update a journey plan
 const updateJourneyPlan = async (req, res) => {
   const { journeyId } = req.params;
-  const { status, checkInTime, latitude, longitude, imageUrl } = req.body;
+  const { status, checkInTime, latitude, longitude, imageUrl, notes } = req.body;
   const userId = req.user.id;
 
   // Input validation
@@ -205,6 +206,7 @@ const updateJourneyPlan = async (req, res) => {
         latitude: latitude || existingJourneyPlan.latitude,
         longitude: longitude || existingJourneyPlan.longitude,
         imageUrl: imageUrl || existingJourneyPlan.imageUrl,
+        notes: notes !== undefined ? notes : existingJourneyPlan.notes,
       },
       include: {
         outlet: true,

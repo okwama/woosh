@@ -209,9 +209,14 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notice Board'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+        title: Text(
+          'Notice Board',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -248,18 +253,18 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      Text(
-                        'Notice Board',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      // IconButton(
+                      //   icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      //   onPressed: () => Navigator.pop(context),
+                      // ),
+                      // Text(
+                      //   'Notice Board',
+                      //   style: const TextStyle(
+                      //     fontSize: 24,
+                      //     fontWeight: FontWeight.bold,
+                      //     color: Colors.white,
+                      //   ),
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 10),

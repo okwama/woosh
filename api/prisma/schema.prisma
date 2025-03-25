@@ -70,6 +70,7 @@ model JourneyPlan {
   date        DateTime
   time        String
   userId      Int?
+  notes       String?
   outletId    Int
   status      Int       @default(0) // 0 for pending, 1 for checked in
   checkInTime DateTime?

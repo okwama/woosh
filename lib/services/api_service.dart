@@ -164,8 +164,8 @@ class ApiService {
   }
 
   // Create a Journey Plan
-  static Future<JourneyPlan> createJourneyPlan(
-      int outletId, DateTime dateTime) async {
+  static Future<JourneyPlan> createJourneyPlan(int outletId, DateTime dateTime,
+      {String? notes}) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
@@ -177,16 +177,22 @@ class ApiService {
           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
 
       print(
-          'Creating journey plan with outletId: $outletId, date: ${dateTime.toIso8601String()}, time: $time');
+          'Creating journey plan with outletId: $outletId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes');
+
+      final Map<String, dynamic> requestBody = {
+        'outletId': outletId,
+        'date': dateTime.toIso8601String(),
+        'time': time,
+      };
+
+      if (notes != null && notes.isNotEmpty) {
+        requestBody['notes'] = notes;
+      }
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
         headers: _headers(),
-        body: jsonEncode({
-          'outletId': outletId,
-          'date': dateTime.toIso8601String(),
-          'time': time,
-        }),
+        body: jsonEncode(requestBody),
       );
 
       print('Create journey plan response status: ${response.statusCode}');
@@ -270,6 +276,7 @@ class ApiService {
     double? latitude,
     double? longitude,
     String? imageUrl,
+    String? notes,
   }) async {
     try {
       final token = _getAuthToken();
@@ -310,6 +317,7 @@ class ApiService {
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (notes != null) 'notes': notes,
       };
 
       final response = await http.put(

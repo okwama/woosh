@@ -8,7 +8,6 @@ import 'package:whoosh/services/api_service.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
 import 'package:whoosh/pages/journeyplan/reports/reportMain_page.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -37,13 +36,19 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   double _distanceToOutlet = 0.0;
   StreamSubscription<Position>? _positionStreamSubscription;
 
+  // Notes-related variables
+  final TextEditingController _notesController = TextEditingController();
+  bool _isEditingNotes = false;
+  bool _isSavingNotes = false;
+
   // Camera-related variables
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   bool _isCameraVisible = false;
 
   // Geofencing constants
-  static const double GEOFENCE_RADIUS_METERS = 100.0; // Increased to 100 meters
+  static const double GEOFENCE_RADIUS_METERS =
+      100000.0; // Increased to 100 meters
   static const Duration LOCATION_UPDATE_INTERVAL = Duration(seconds: 5);
 
   String _currentAddress = 'Fetching location...';
@@ -52,6 +57,9 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize notes controller with existing notes
+    _notesController.text = widget.journeyPlan.notes ?? '';
 
     // If the journey plan is already checked in or in progress, use the stored location
     if (widget.journeyPlan.isCheckedIn || widget.journeyPlan.isInTransit) {
@@ -84,6 +92,9 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     // Cancel camera controller
     _cameraController?.dispose();
     _cameraController = null;
+
+    // Dispose of text controller
+    _notesController.dispose();
 
     // Remove observer
     WidgetsBinding.instance.removeObserver(this);
@@ -1305,6 +1316,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                             ),
                           ],
                         ),
+
+                        // Notes section
+                        const SizedBox(height: 16),
+                        _buildNotesSection(),
                       ],
                     ),
                   ),
@@ -1490,5 +1505,125 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         ),
       );
     }
+  }
+
+  Widget _buildNotesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.notes, size: 16, color: Colors.grey),
+            const SizedBox(width: 8),
+            Text(
+              'Notes',
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 16),
+              onPressed: () {
+                _showEditNotesDialog();
+              },
+              constraints: const BoxConstraints(),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: widget.journeyPlan.notes?.isNotEmpty == true
+              ? Text(widget.journeyPlan.notes!)
+              : Text(
+                  'No notes added',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  void _showEditNotesDialog() {
+    final TextEditingController notesController = TextEditingController(
+      text: widget.journeyPlan.notes ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Notes'),
+        content: TextField(
+          controller: notesController,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes about this journey plan...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              try {
+                // Show loading indicator
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Saving notes...'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+
+                // Call API to update notes
+                final updatedJourneyPlan = await ApiService.updateJourneyPlan(
+                  journeyId: widget.journeyPlan.id!,
+                  outletId: widget.journeyPlan.outletId,
+                  notes: notesController.text.trim(),
+                );
+
+                // If the update was successful, rebuild the UI
+                if (widget.onCheckInSuccess != null) {
+                  widget.onCheckInSuccess!(updatedJourneyPlan);
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Notes saved successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to save notes: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 }
