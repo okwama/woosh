@@ -148,7 +148,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Notes (Optional)',
+                    'Agenda (Optional)',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
