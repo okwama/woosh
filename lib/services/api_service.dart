@@ -1005,30 +1005,85 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
+      print('Submitting leave application with data:');
+      print('leaveType: $leaveType');
+      print('startDate: $startDate');
+      print('endDate: $endDate');
+      print('reason: $reason');
+      print('attachment: ${attachmentFile?.path ?? 'No file'}');
+
       final uri = Uri.parse('$baseUrl/leave');
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll(_headers('multipart/form-data'))
-        ..fields['leaveType'] = leaveType
-        ..fields['startDate'] = startDate
-        ..fields['endDate'] = endDate
-        ..fields['reason'] = reason;
 
-      if (attachmentFile != null) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'attachment',
-          attachmentFile.path,
-        ));
-      }
+      // For platforms without dart:io support (like web), use regular HTTP request
+      if (attachmentFile == null) {
+        // No attachment, use a regular JSON request
+        final response = await http.post(
+          uri,
+          headers: _headers(), // Regular headers
+          body: jsonEncode({
+            'leaveType': leaveType,
+            'startDate': startDate,
+            'endDate': endDate,
+            'reason': reason,
+          }),
+        );
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+        print('Response status: ${response.statusCode}');
+        print('Response body: ${response.body}');
 
-      if (response.statusCode == 201) {
-        return Leave.fromJson(jsonDecode(response.body));
+        if (response.statusCode == 201) {
+          return Leave.fromJson(jsonDecode(response.body));
+        } else {
+          final errorData = jsonDecode(response.body);
+          throw Exception(
+              errorData['error'] ?? 'Failed to submit leave application');
+        }
       } else {
-        throw Exception('Failed to submit leave application');
+        // For attachments, try to handle platform differences
+        try {
+          // Create basic headers without content-type (will be set by MultipartRequest)
+          final headers = {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          };
+
+          final request = http.MultipartRequest('POST', uri)
+            ..headers.addAll(headers)
+            ..fields['leaveType'] = leaveType
+            ..fields['startDate'] = startDate
+            ..fields['endDate'] = endDate
+            ..fields['reason'] = reason;
+
+          request.files.add(await http.MultipartFile.fromPath(
+            'attachment',
+            attachmentFile.path,
+          ));
+
+          print('Sending multipart request to: $uri');
+          print('With headers: ${request.headers}');
+          print('With fields: ${request.fields}');
+
+          final streamedResponse = await request.send();
+          final response = await http.Response.fromStream(streamedResponse);
+
+          print('Response status: ${response.statusCode}');
+          print('Response body: ${response.body}');
+
+          if (response.statusCode == 201) {
+            return Leave.fromJson(jsonDecode(response.body));
+          } else {
+            final errorData = jsonDecode(response.body);
+            throw Exception(
+                errorData['error'] ?? 'Failed to submit leave application');
+          }
+        } catch (e) {
+          print('Error with multipart request: $e');
+          throw Exception(
+              'File uploads are not supported in this environment: $e');
+        }
       }
     } catch (e) {
+      print('Error in submitLeaveApplication: $e');
       rethrow;
     }
   }

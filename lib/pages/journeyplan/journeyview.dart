@@ -716,12 +716,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           throw Exception('No image was selected');
         }
 
-        // Convert XFile to File
-        final bytes = await image.readAsBytes();
-        final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/image.jpg');
-        await tempFile.writeAsBytes(bytes);
-        return tempFile;
+        return File(image.path);
       } else {
         // For mobile platforms, use camera
         if (!_isCameraInitialized) {

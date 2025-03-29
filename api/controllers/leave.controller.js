@@ -42,12 +42,104 @@ exports.submitLeave = async (req, res) => {
         return res.status(400).json({ error: err.message });
       }
 
+      console.log('Request headers:', req.headers);
+      console.log('Authentication:', req.headers.authorization ? 'Present' : 'Missing');
+      console.log('Content-Type:', req.headers['content-type']);
+      console.log('Request body:', req.body);
+      console.log('Form fields:', {
+        leaveType: req.body.leaveType,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        reason: req.body.reason,
+        file: req.file ? req.file.filename : 'No file uploaded'
+      });
+      
+      // Debug authentication
+      console.log('User object:', req.user);
+      
+      // Manual check for fields to provide better error messages
+      const missingFields = [];
+      if (!req.body.leaveType) missingFields.push('leaveType');
+      if (!req.body.startDate) missingFields.push('startDate');
+      if (!req.body.endDate) missingFields.push('endDate');
+      if (!req.body.reason) missingFields.push('reason');
+      
+      if (missingFields.length > 0) {
+        return res.status(400).json({ 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          received: req.body
+        });
+      }
+      
       const { leaveType, startDate, endDate, reason } = req.body;
+      
+      // Check if user is authenticated
+      if (!req.user) {
+        return res.status(401).json({ 
+          error: 'User not authenticated. Please log in again.',
+          authHeader: req.headers.authorization ? 'Present' : 'Missing'
+        });
+      }
+      
+      // Use a hardcoded user ID for testing if needed
+      // const userId = 1; // Uncomment for testing
       const userId = req.user.id;
+      console.log('Authenticated user:', { userId, user: req.user });
 
-      // Validate dates
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      // Simple date validation and parsing
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      // Parse dates safely
+      let start, end;
+      
+      try {
+        // Format to ensure YYYY-MM-DD
+        const formatDateString = (dateStr) => {
+          // Check if the date is in format YYYY-MM-DD
+          if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            return dateStr;
+          }
+          
+          // Try to parse as date and reformat
+          try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              return date.toISOString().split('T')[0];
+            }
+          } catch (e) {
+            console.error('Date parsing error:', e);
+          }
+          
+          return null;
+        };
+        
+        const formattedStartDate = formatDateString(startDate);
+        const formattedEndDate = formatDateString(endDate);
+        
+        if (!formattedStartDate || !formattedEndDate) {
+          return res.status(400).json({ 
+            error: 'Invalid date format. Please use YYYY-MM-DD format.' 
+          });
+        }
+        
+        start = new Date(formattedStartDate);
+        end = new Date(formattedEndDate);
+        
+        console.log('Parsed dates:', { 
+          startDate, endDate,
+          formattedStartDate, formattedEndDate,
+          start: start.toISOString(), 
+          end: end.toISOString() 
+        });
+        
+      } catch (error) {
+        console.error('Date parsing error:', error);
+        return res.status(400).json({
+          error: 'Invalid date format. Please use YYYY-MM-DD format.'
+        });
+      }
 
       if (end < start) {
         return res.status(400).json({

@@ -86,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
                       height: 120,
                       width: 120,
                       margin: const EdgeInsets.only(bottom: 40),
-                      child: Image.asset('assets/woosh.png',
+                      child: Image.asset('assets/woosh_logo.png',
                           fit: BoxFit.contain)),
                 ),
 

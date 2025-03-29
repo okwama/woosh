@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const path = require('path');
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const journeyPlanRoutes = require('./routes/journeyPlanRoutes');
@@ -10,11 +11,15 @@ const noticeBoardRoutes = require('./routes/noticeBoardRoutes');
 const productRoutes = require('./routes/productRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const leaveRoutes = require('./routes/leave.routes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 app.use(morgan('dev'));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Default Route
 app.get('/', (req, res) => res.json({ message: 'Welcome to the API' }));
@@ -28,6 +33,7 @@ app.use('/api/notice-board', noticeBoardRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api', uploadRoutes);
 
 // Handle 404 Errors
 app.use((req, res, next) => {

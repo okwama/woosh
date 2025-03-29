@@ -37,7 +37,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/woosh_logo.png"
+  image_path: "assets/images/logg.png"
   remove_alpha_ios: true 
   # Optional for Android adaptive icons:
   # adaptive_icon_background: "#FFFFFF"
