@@ -1,8 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:async';
+import 'dart:io' if (dart.library.html) 'dart:html' as html;
 import 'package:http/http.dart' as http;
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/noticeboard_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
@@ -13,6 +18,9 @@ import 'package:whoosh/models/order_model.dart';
 import 'package:whoosh/models/target_model.dart';
 import 'package:whoosh/models/leave_model.dart';
 import 'package:whoosh/controllers/auth_controller.dart';
+
+// Handle platform-specific imports
+import 'image_upload.dart';
 
 class PaginatedResponse<T> {
   final List<T> data;
@@ -87,7 +95,7 @@ class ApiService {
   }
 
   static void handleNetworkError(dynamic error) {
-    if (error is SocketException ||
+    if (error.toString().contains('SocketException') ||
         error.toString().contains('XMLHttpRequest error')) {
       Get.toNamed('/no_connection');
     }
@@ -144,7 +152,7 @@ class ApiService {
           .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
-          throw const SocketException("Connection timeout");
+          throw Exception("Connection timeout");
         },
       );
 
@@ -231,7 +239,7 @@ class ApiService {
           .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
-          throw const SocketException("Connection timeout");
+          throw Exception("Connection timeout");
         },
       );
 
@@ -257,11 +265,7 @@ class ApiService {
         throw Exception(
             'Failed to load journey plans: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
-    } on SocketException catch (e) {
-      print('Network error in fetchJourneyPlans: $e');
-      throw Exception(
-          "Network error: Could not connect to the server. Please check your internet connection and ensure the server is running.");
-    } catch (e) {
+    } on Exception catch (e) {
       print('Error in fetchJourneyPlans: $e');
       throw Exception('An error occurred while fetching journey plans: $e');
     }
@@ -409,8 +413,8 @@ class ApiService {
     }
   }
 
-  // Upload Image
-  static Future<String> uploadImage(File imageFile) async {
+  // Upload Image function for cross-platform compatibility
+  static Future<String> uploadImage(dynamic imageFile) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
@@ -418,25 +422,29 @@ class ApiService {
       }
 
       final url = Uri.parse('$baseUrl/upload-image');
-
-      // Since we're uploading files, we need to set a specific content type
       final authHeaders = _headers('multipart/form-data');
 
+      // Create the multipart request
       final request = http.MultipartRequest('POST', url)
-        ..headers.addAll(authHeaders)
-        ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+        ..headers.addAll(authHeaders);
+
+      // Use the platform-specific implementation to add file to request
+      await addFileToRequest(request, imageFile, 'attachment');
 
       final response = await request.send();
 
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
         final decodedJson = jsonDecode(responseData);
-        return decodedJson[
-            'imageUrl']; // Assuming the API returns the image URL
+        return decodedJson['imageUrl']; // The backend returns the ImageKit URL
       } else {
+        final responseData = await response.stream.bytesToString();
+        print(
+            'Upload failed with status: ${response.statusCode}, response: $responseData');
         throw Exception('Failed to upload image: ${response.statusCode}');
       }
     } catch (e) {
+      print('Upload error: $e');
       throw Exception('An error occurred while uploading the image: $e');
     }
   }
@@ -457,7 +465,7 @@ class ApiService {
           .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
-          throw const SocketException("Connection timeout");
+          throw Exception("Connection timeout");
         },
       );
 
@@ -991,13 +999,12 @@ class ApiService {
     }
   }
 
-  // Submit leave application
   static Future<Leave> submitLeaveApplication({
     required String leaveType,
     required String startDate,
     required String endDate,
     required String reason,
-    File? attachmentFile,
+    dynamic attachmentFile, // Accepts File for mobile, Uint8List for web
   }) async {
     try {
       final token = _getAuthToken();
@@ -1010,16 +1017,15 @@ class ApiService {
       print('startDate: $startDate');
       print('endDate: $endDate');
       print('reason: $reason');
-      print('attachment: ${attachmentFile?.path ?? 'No file'}');
+      print('attachment: ${attachmentFile != null ? "Yes" : "No file"}');
 
       final uri = Uri.parse('$baseUrl/leave');
 
-      // For platforms without dart:io support (like web), use regular HTTP request
+      // Handle request when no attachment is present
       if (attachmentFile == null) {
-        // No attachment, use a regular JSON request
         final response = await http.post(
           uri,
-          headers: _headers(), // Regular headers
+          headers: _headers(),
           body: jsonEncode({
             'leaveType': leaveType,
             'startDate': startDate,
@@ -1028,58 +1034,57 @@ class ApiService {
           }),
         );
 
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        if (response.statusCode == 201) {
+          return Leave.fromJson(jsonDecode(response.body));
+        } else {
+          throw Exception(jsonDecode(response.body)['error'] ??
+              'Failed to submit leave application');
+        }
+      } else {
+        // Handle Multipart File Upload
+        final request = http.MultipartRequest('POST', uri)
+          ..headers.addAll({
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          })
+          ..fields['leaveType'] = leaveType
+          ..fields['startDate'] = startDate
+          ..fields['endDate'] = endDate
+          ..fields['reason'] = reason;
+
+        // Handle different file types based on platform
+        if (kIsWeb) {
+          print('Web file upload: Adding bytes to multipart request');
+          // Web file upload (bytes)
+          request.files.add(http.MultipartFile.fromBytes(
+            'attachment',
+            attachmentFile,
+            filename:
+                'web_document_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            contentType: MediaType('application', 'octet-stream'),
+          ));
+        } else {
+          print('Mobile file upload: Adding file from path');
+          // Mobile/desktop file upload (File object)
+          request.files.add(await http.MultipartFile.fromPath(
+            'attachment',
+            attachmentFile.path,
+            filename: attachmentFile.path.split('/').last,
+          ));
+        }
+
+        print('Sending multipart request for leave application');
+        final streamedResponse = await request.send();
+        print('Response status code: ${streamedResponse.statusCode}');
+
+        final response = await http.Response.fromStream(streamedResponse);
 
         if (response.statusCode == 201) {
           return Leave.fromJson(jsonDecode(response.body));
         } else {
-          final errorData = jsonDecode(response.body);
-          throw Exception(
-              errorData['error'] ?? 'Failed to submit leave application');
-        }
-      } else {
-        // For attachments, try to handle platform differences
-        try {
-          // Create basic headers without content-type (will be set by MultipartRequest)
-          final headers = {
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          };
-
-          final request = http.MultipartRequest('POST', uri)
-            ..headers.addAll(headers)
-            ..fields['leaveType'] = leaveType
-            ..fields['startDate'] = startDate
-            ..fields['endDate'] = endDate
-            ..fields['reason'] = reason;
-
-          request.files.add(await http.MultipartFile.fromPath(
-            'attachment',
-            attachmentFile.path,
-          ));
-
-          print('Sending multipart request to: $uri');
-          print('With headers: ${request.headers}');
-          print('With fields: ${request.fields}');
-
-          final streamedResponse = await request.send();
-          final response = await http.Response.fromStream(streamedResponse);
-
-          print('Response status: ${response.statusCode}');
-          print('Response body: ${response.body}');
-
-          if (response.statusCode == 201) {
-            return Leave.fromJson(jsonDecode(response.body));
-          } else {
-            final errorData = jsonDecode(response.body);
-            throw Exception(
-                errorData['error'] ?? 'Failed to submit leave application');
-          }
-        } catch (e) {
-          print('Error with multipart request: $e');
-          throw Exception(
-              'File uploads are not supported in this environment: $e');
+          print('Leave application failed: ${response.body}');
+          throw Exception(jsonDecode(response.body)['error'] ??
+              'Failed to submit leave application');
         }
       }
     } catch (e) {
@@ -1143,6 +1148,51 @@ class ApiService {
       }
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // Fix for SocketException catch blocks
+  static Future<List<Outlet>> fetchOutletsByGeolocation(
+      double latitude, double longitude) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(
+            '$baseUrl/outlets/nearby?latitude=$latitude&longitude=$longitude'),
+        headers: _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Outlet.fromJson(json)).toList();
+      } else {
+        throw Exception(
+            'Failed to fetch outlets by geolocation: ${response.statusCode}');
+      }
+    } on Exception catch (e) {
+      print('Error fetching outlets by geolocation: $e');
+      handleNetworkError(e);
+      throw Exception('Failed to fetch outlets by geolocation: $e');
+    }
+  }
+
+  // Fix for File type check
+  static bool _isValidFileAttachment(dynamic file) {
+    return file != null;
+  }
+
+  static Future<void> updateOrderStatus(
+      int orderId, String status, String? reason) async {
+    try {
+      // ... existing code
+    } on Exception catch (e) {
+      print('Error updating order status: $e');
+      handleNetworkError(e);
+      throw Exception('Failed to update order status: $e');
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:whoosh/services/api_service.dart';
 import 'package:whoosh/pages/Leave/leave_requests_page.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
 
 class LeaveApplicationPage extends StatefulWidget {
   const LeaveApplicationPage({Key? key}) : super(key: key);
@@ -20,10 +21,11 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   final TextEditingController _reasonController = TextEditingController();
 
   String? _selectedLeaveType;
-  File? _attachedFile;
+  dynamic _attachedFile; // Changed to dynamic to handle both File and bytes
+  String? _fileName;
   bool _isLoading = false;
   String? _error;
-  bool _isFileUploadSupported = !kIsWeb; // File upload not supported on web
+  bool _isFileAttached = false;
 
   final List<String> _leaveTypes = [
     'Sick Leave',
@@ -60,28 +62,35 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   }
 
   Future<void> _pickFile() async {
-    if (!_isFileUploadSupported) {
-      setState(() {
-        _error = 'File upload is not supported in this environment.';
-      });
-      return;
-    }
-
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'png', 'pdf'],
+        withData: kIsWeb, // Get file bytes for web
       );
 
       if (result != null) {
         setState(() {
-          _attachedFile = File(result.files.single.path!);
+          _fileName = result.files.single.name;
+
+          if (kIsWeb) {
+            // On web, store the file bytes
+            _attachedFile = result.files.single.bytes;
+          } else {
+            // On mobile, store the file path
+            _attachedFile = File(result.files.single.path!);
+          }
+
+          _isFileAttached = true;
         });
+
+        print('File picked: $_fileName');
       }
     } catch (e) {
       setState(() {
         _error = 'Error picking file: $e';
       });
+      print('Error picking file: $e');
     }
   }
 
@@ -90,25 +99,14 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       return;
     }
 
-    if (_selectedLeaveType == 'Sick Leave' && _attachedFile == null) {
-      // Skip file validation on web
-      if (!_isFileUploadSupported && _selectedLeaveType == 'Sick Leave') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content:
-                Text('Note: File attachment not available in this environment'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please attach a document for sick leave'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+    if (_selectedLeaveType == 'Sick Leave' && !_isFileAttached) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please attach a document for sick leave'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
     setState(() {
@@ -122,15 +120,15 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       print('Start Date: ${_startDateController.text}');
       print('End Date: ${_endDateController.text}');
       print('Reason: ${_reasonController.text}');
-      print('File: ${_attachedFile?.path ?? 'None'}');
-      print('Is file upload supported: $_isFileUploadSupported');
+      print('File attached: ${_isFileAttached ? "Yes" : "No"}');
+      print('File name: $_fileName');
 
       await ApiService.submitLeaveApplication(
         leaveType: _selectedLeaveType!,
         startDate: _startDateController.text,
         endDate: _endDateController.text,
         reason: _reasonController.text,
-        attachmentFile: _isFileUploadSupported ? _attachedFile : null,
+        attachmentFile: _isFileAttached ? _attachedFile : null,
       );
 
       if (mounted) {
@@ -182,17 +180,6 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (!_isFileUploadSupported)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        color: Colors.amber.shade100,
-                        child: const Text(
-                          'Note: File attachments are not supported in this environment.',
-                          style: TextStyle(color: Colors.black87),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -278,11 +265,11 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                       ),
-                      if (_attachedFile != null)
+                      if (_isFileAttached)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'File attached: ${_attachedFile!.path.split('/').last}',
+                            'File attached: $_fileName',
                             style: const TextStyle(color: Colors.green),
                           ),
                         ),

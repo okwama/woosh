@@ -2,21 +2,17 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const ImageKit = require('imagekit');
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/leave-documents';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+// Configure ImageKit
+const imagekit = new ImageKit({
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
+
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -34,135 +30,99 @@ const upload = multer({
   }
 }).single('attachment');
 
+// Helper function to upload file to ImageKit
+const uploadToImageKit = async (fileBuffer, fileName, folder) => {
+  try {
+    console.log('Uploading file to ImageKit:', fileName);
+    
+    // Upload to ImageKit - using the method that worked in our test
+    const result = await imagekit.upload({
+      file: fileBuffer,
+      fileName: fileName,
+      folder: folder
+    });
+    
+    console.log('File uploaded successfully to ImageKit:', result.url);
+    return result;
+  } catch (error) {
+    console.error('ImageKit upload error:', error);
+    throw error;
+  }
+};
+
 // Submit leave application
 exports.submitLeave = async (req, res) => {
   try {
     upload(req, res, async function (err) {
       if (err) {
+        console.error('File upload error:', err);
         return res.status(400).json({ error: err.message });
       }
-
-      console.log('Request headers:', req.headers);
-      console.log('Authentication:', req.headers.authorization ? 'Present' : 'Missing');
-      console.log('Content-Type:', req.headers['content-type']);
+      
       console.log('Request body:', req.body);
-      console.log('Form fields:', {
-        leaveType: req.body.leaveType,
-        startDate: req.body.startDate,
-        endDate: req.body.endDate,
-        reason: req.body.reason,
-        file: req.file ? req.file.filename : 'No file uploaded'
-      });
       
-      // Debug authentication
-      console.log('User object:', req.user);
-      
-      // Manual check for fields to provide better error messages
-      const missingFields = [];
-      if (!req.body.leaveType) missingFields.push('leaveType');
-      if (!req.body.startDate) missingFields.push('startDate');
-      if (!req.body.endDate) missingFields.push('endDate');
-      if (!req.body.reason) missingFields.push('reason');
-      
-      if (missingFields.length > 0) {
-        return res.status(400).json({ 
-          error: `Missing required fields: ${missingFields.join(', ')}`,
-          received: req.body
+      if (!req.body.leaveType || !req.body.startDate || !req.body.endDate || !req.body.reason) {
+        console.error('Missing required fields:', { 
+          leaveType: !!req.body.leaveType, 
+          startDate: !!req.body.startDate, 
+          endDate: !!req.body.endDate, 
+          reason: !!req.body.reason 
         });
+        return res.status(400).json({ error: 'Missing required fields' });
       }
-      
-      const { leaveType, startDate, endDate, reason } = req.body;
-      
-      // Check if user is authenticated
+
       if (!req.user) {
-        return res.status(401).json({ 
-          error: 'User not authenticated. Please log in again.',
-          authHeader: req.headers.authorization ? 'Present' : 'Missing'
-        });
+        console.error('User not authenticated');
+        return res.status(401).json({ error: 'User not authenticated' });
       }
-      
-      // Use a hardcoded user ID for testing if needed
-      // const userId = 1; // Uncomment for testing
+
       const userId = req.user.id;
-      console.log('Authenticated user:', { userId, user: req.user });
+      const { leaveType, startDate, endDate, reason } = req.body;
+      let attachmentUrl = null;
 
-      // Simple date validation and parsing
-      if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'Start date and end date are required' });
-      }
-
-      // Parse dates safely
-      let start, end;
-      
-      try {
-        // Format to ensure YYYY-MM-DD
-        const formatDateString = (dateStr) => {
-          // Check if the date is in format YYYY-MM-DD
-          if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            return dateStr;
-          }
-          
-          // Try to parse as date and reformat
-          try {
-            const date = new Date(dateStr);
-            if (!isNaN(date.getTime())) {
-              return date.toISOString().split('T')[0];
-            }
-          } catch (e) {
-            console.error('Date parsing error:', e);
-          }
-          
-          return null;
-        };
-        
-        const formattedStartDate = formatDateString(startDate);
-        const formattedEndDate = formatDateString(endDate);
-        
-        if (!formattedStartDate || !formattedEndDate) {
-          return res.status(400).json({ 
-            error: 'Invalid date format. Please use YYYY-MM-DD format.' 
-          });
+      if (req.file) {
+        try {
+          console.log('Uploading file to ImageKit:', req.file.originalname, req.file.mimetype, req.file.size);
+          const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(req.file.originalname)}`;
+          const result = await uploadToImageKit(req.file.buffer, uniqueFilename, 'whoosh/leave-documents');
+          attachmentUrl = result.url;
+          console.log('File uploaded successfully:', attachmentUrl);
+        } catch (uploadError) {
+          console.error('Error uploading to ImageKit:', uploadError);
+          return res.status(500).json({ error: `Failed to upload document: ${uploadError.message}` });
         }
-        
-        start = new Date(formattedStartDate);
-        end = new Date(formattedEndDate);
-        
-        console.log('Parsed dates:', { 
-          startDate, endDate,
-          formattedStartDate, formattedEndDate,
-          start: start.toISOString(), 
-          end: end.toISOString() 
-        });
-        
-      } catch (error) {
-        console.error('Date parsing error:', error);
-        return res.status(400).json({
-          error: 'Invalid date format. Please use YYYY-MM-DD format.'
-        });
       }
 
-      if (end < start) {
-        return res.status(400).json({
-          error: 'End date cannot be before start date'
-        });
-      }
-
-      const leave = await prisma.leave.create({
-        data: {
+      try {
+        console.log('Creating leave record in database with data:', {
           userId,
           leaveType,
-          startDate: start,
-          endDate: end,
-          reason,
-          attachment: req.file ? req.file.path : null
-        }
-      });
+          startDate,
+          endDate,
+          hasAttachment: !!attachmentUrl
+        });
+        
+        const leave = await prisma.leave.create({
+          data: {
+            userId,
+            leaveType,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            reason,
+            attachment: attachmentUrl
+          }
+        });
 
-      res.status(201).json(leave);
+        console.log('Leave record created successfully:', leave.id);
+        res.status(201).json(leave);
+      } catch (dbError) {
+        console.error('Database error:', dbError);
+        res.status(500).json({ error: `Database error: ${dbError.message}` });
+      }
     });
   } catch (error) {
-    console.error('Error submitting leave:', error);
-    res.status(500).json({ error: 'Failed to submit leave application' });
+    console.error('Unhandled error in submitLeave:', error);
+    res.status(500).json({ error: `Failed to submit leave application: ${error.message}` });
   }
 };
 
@@ -174,10 +134,8 @@ exports.getUserLeaves = async (req, res) => {
       where: { userId },
       orderBy: { createdAt: 'desc' }
     });
-
     res.json(leaves);
   } catch (error) {
-    console.error('Error fetching leaves:', error);
     res.status(500).json({ error: 'Failed to fetch leave applications' });
   }
 };
@@ -188,19 +146,13 @@ exports.getAllLeaves = async (req, res) => {
     const leaves = await prisma.leave.findMany({
       include: {
         user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
+          select: { id: true, name: true, email: true }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
-
     res.json(leaves);
   } catch (error) {
-    console.error('Error fetching all leaves:', error);
     res.status(500).json({ error: 'Failed to fetch leave applications' });
   }
 };
@@ -219,10 +171,8 @@ exports.updateLeaveStatus = async (req, res) => {
       where: { id: parseInt(id) },
       data: { status }
     });
-
     res.json(leave);
   } catch (error) {
-    console.error('Error updating leave status:', error);
     res.status(500).json({ error: 'Failed to update leave status' });
   }
-}; 
+};

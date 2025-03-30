@@ -19,7 +19,9 @@ app.use(cors());
 app.use(morgan('dev'));
 
 // Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+console.log('Static file path configured:', path.join(__dirname, '../uploads'));
 
 // Default Route
 app.get('/', (req, res) => res.json({ message: 'Welcome to the API' }));

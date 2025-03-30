@@ -1,76 +1,91 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const ImageKit = require('imagekit');
+require('dotenv').config(); // Ensure environment variables are loaded
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/images';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename with original extension
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+// Configure ImageKit
+const imagekit = new ImageKit({
+  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
 
-// Configure upload middleware
+// Debug ImageKit configuration
+console.log('ImageKit Configuration:');
+console.log('URL Endpoint:', process.env.IMAGEKIT_URL_ENDPOINT);
+console.log('Public Key:', process.env.IMAGEKIT_PUBLIC_KEY ? 'Set (starts with: ' + process.env.IMAGEKIT_PUBLIC_KEY.substring(0, 15) + '...)' : 'Not set');
+console.log('Private Key:', process.env.IMAGEKIT_PRIVATE_KEY ? 'Set (starts with: ' + process.env.IMAGEKIT_PRIVATE_KEY.substring(0, 15) + '...)' : 'Not set');
+
+// Configure multer for memory storage
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
-  fileFilter: function (req, file, cb) {
-    // Validate file type
-    const allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf'	];
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf'];
     const ext = path.extname(file.originalname).toLowerCase();
+
     if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPG and PNG files are allowed.'));
+      cb(new Error(`Invalid file type: ${ext}. Only JPG, JPEG, PNG, and PDF files are allowed.`));
     }
   }
-}).single('file');
+}).single('attachment');
+
+// Helper function to upload buffer to ImageKit
+const uploadToImageKit = async (fileBuffer, fileName, folder) => {
+  try {
+    console.log('Uploading file to ImageKit:', fileName);
+    
+    // Upload to ImageKit - using the simple approach that works
+    const result = await imagekit.upload({
+      file: fileBuffer,
+      fileName,
+      folder
+    });
+    
+    console.log('File uploaded successfully to ImageKit:', result.url);
+    return result;
+  } catch (error) {
+    console.error('ImageKit upload error:', error);
+    throw error;
+  }
+};
 
 // Upload image endpoint
 exports.uploadImage = async (req, res) => {
-  try {
-    upload(req, res, async function (err) {
-      if (err instanceof multer.MulterError) {
-        // A Multer error occurred during upload
-        console.error('Multer error:', err);
-        return res.status(400).json({ error: err.message });
-      } else if (err) {
-        // An unknown error occurred
-        console.error('Upload error:', err);
-        return res.status(400).json({ error: err.message });
-      }
-      
-      if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
+  upload(req, res, async (err) => {
+    if (err) {
+      console.error('Upload error:', err);
+      return res.status(400).json({ error: err.message });
+    }
 
-      // Get the base URL from environment variable or use a default
-      const baseUrl = process.env.BASE_URL || 'https://https-github-com-okwama-woosh-api.vercel.app';
-      
-      // Return the complete URL to the uploaded file
-      const imageUrl = `${baseUrl}/uploads/images/${req.file.filename}`;
-      
-      console.log('File uploaded successfully:', {
-        originalName: req.file.originalname,
-        filename: req.file.filename,
-        size: req.file.size,
-        url: imageUrl
+    if (!req.file) {
+      console.error('No file received in the request');
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('Processing file upload:', req.file.originalname, req.file.mimetype, req.file.size);
+
+    try {
+      const folder = 'whoosh';
+      const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(req.file.originalname)}`;
+
+      const result = await uploadToImageKit(req.file.buffer, uniqueFilename, folder);
+      console.log('File uploaded successfully to ImageKit:', result.url);
+
+      res.json({ 
+        success: true,
+        imageUrl: result.url,
+        fileId: result.fileId,
+        name: result.name
       });
-
-      res.json({ imageUrl });
-    });
-  } catch (error) {
-    console.error('Error in uploadImage:', error);
-    res.status(500).json({ error: 'Failed to upload image' });
-  }
-}; 
+    } catch (error) {
+      console.error('Error uploading to ImageKit:', error);
+      res.status(500).json({ 
+        error: 'Failed to upload image to cloud storage',
+        details: error.message
+      });
+    }
+  });
+};

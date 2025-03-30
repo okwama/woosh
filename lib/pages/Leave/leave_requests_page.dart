@@ -149,9 +149,12 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
                                       children: [
                                         const Icon(Icons.attach_file),
                                         const SizedBox(width: 8),
-                                        Text(
-                                          'Attachment: ${leave.attachment!.split('/').last}',
-                                          style: const TextStyle(fontSize: 16),
+                                        Flexible(
+                                          child: Text(
+                                            'Attachment: ${leave.attachment!.split('/').last.length > 8 ? leave.attachment!.split('/').last.substring(0, 8) + '...' : leave.attachment!.split('/').last}',
+                                            style:
+                                                const TextStyle(fontSize: 16),
+                                          ),
                                         ),
                                       ],
                                     ),

@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
+import 'package:whoosh/services/universal_file.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -210,7 +211,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                             _isCameraVisible = false;
                           });
                           Navigator.pop(context);
-                          await _processImage(File(image.path));
+
+                          // Create platform-specific file
+                          dynamic imageFile = kIsWeb ? image : File(image.path);
+                          await _processImage(imageFile);
                         }
                       } catch (e) {
                         print('Error capturing image: $e');
@@ -233,7 +237,57 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _processImage(File imageFile) async {
+  Future<dynamic> _captureImage() async {
+    try {
+      if (kIsWeb) {
+        // For web platforms, use ImagePicker with camera source only
+        final ImagePicker picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: ImageSource.camera, // Explicitly use camera only
+          maxWidth: 1920,
+          maxHeight: 1080,
+          imageQuality: 85,
+        );
+
+        if (image == null) {
+          throw Exception(
+              'No image was captured. Camera access may have been denied.');
+        }
+
+        // Return the XFile directly for web
+        return image;
+      } else {
+        // For mobile platforms, use camera controller directly
+        if (!_isCameraInitialized || _cameraController == null) {
+          // Try to initialize the camera if not already initialized
+          await _initializeCamera();
+
+          if (!_isCameraInitialized || _cameraController == null) {
+            throw Exception(
+                'Camera could not be initialized. Please check camera permissions.');
+          }
+        }
+
+        final image = await _cameraController!.takePicture();
+        return File(image.path);
+      }
+    } catch (e) {
+      print('Error capturing image: $e');
+      // Show an error message to the user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not access camera: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _processImage(dynamic imageFile) async {
     if (mounted) {
       setState(() {
         _isCheckingIn = true;
@@ -587,6 +641,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 'Distance to outlet: ${_distanceToOutlet.toStringAsFixed(1)} meters',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 12),
+              const Text(
+                'A photo will be taken using your camera to verify your presence.',
+                style: TextStyle(color: Colors.blue, fontSize: 13),
+              ),
             ],
           ),
           actions: [
@@ -604,85 +663,24 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       if (confirmed != true) return;
 
-      // Capture image
+      // Show a message that camera is about to open
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Opening camera for check-in photo...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+
+      // Capture image - returns File on mobile, XFile on web
       final imageFile = await _captureImage();
       if (imageFile == null) {
         throw Exception('Failed to capture image');
       }
 
       // Upload image
-      final imageUrl = await ApiService.uploadImage(imageFile);
-      if (imageUrl == null) {
-        throw Exception('Failed to upload image');
-      }
-
-      // Update journey plan
-      final updatedPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.statusCheckedIn,
-        checkInTime: DateTime.now(),
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
-        imageUrl: imageUrl,
-      );
-
-      // Immediately update to In Progress status
-      final inProgressPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.statusInProgress,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Successfully checked in!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Show success dialog with details
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text('Check-in Successful!'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Outlet: ${inProgressPlan.outlet.name}'),
-              const SizedBox(height: 8),
-              Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
-              const SizedBox(height: 8),
-              Text('Location: $_currentAddress'),
-              const SizedBox(height: 8),
-              const Text('Status: In Progress'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-
-      // Navigate to reports page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(journeyPlan: inProgressPlan),
-        ),
-      );
+      await _submitWithImage(imageFile);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -700,151 +698,109 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
-  Future<File?> _captureImage() async {
-    try {
-      if (kIsWeb) {
-        // For web platforms, use ImagePicker
-        final ImagePicker picker = ImagePicker();
-        final XFile? image = await picker.pickImage(
-          source: ImageSource.camera,
-          maxWidth: 1920,
-          maxHeight: 1080,
-          imageQuality: 85,
-        );
+  Future<void> _submitWithImage(dynamic imageFile) async {
+    if (imageFile != null) {
+      try {
+        print('Uploading image...');
+        final imageUrl = await ApiService.uploadImage(imageFile);
+        print('Image uploaded successfully: $imageUrl');
 
-        if (image == null) {
-          throw Exception('No image was selected');
+        if (widget.journeyPlan.id == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Journey ID is required to check in.')),
+            );
+          }
+          return;
         }
 
-        return File(image.path);
-      } else {
-        // For mobile platforms, use camera
-        if (!_isCameraInitialized) {
-          throw Exception('Camera is not initialized');
-        }
-
-        final image = await _cameraController!.takePicture();
-        return File(image.path);
-      }
-    } catch (e) {
-      print('Error capturing image: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> _handleCheckIn(String? imageUrl) async {
-    try {
-      if (widget.journeyPlan.id == null) {
+        // Show loading indicator
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Journey ID is required to check in.')),
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         }
-        return;
-      }
 
-      setState(() {
-        _isCheckingIn = true;
-      });
+        final updatedPlan = await ApiService.updateJourneyPlan(
+          journeyId: widget.journeyPlan.id!,
+          outletId: widget.journeyPlan.outlet.id,
+          status: JourneyPlan.statusCheckedIn,
+          checkInTime: DateTime.now(),
+          latitude: _currentPosition?.latitude,
+          longitude: _currentPosition?.longitude,
+          imageUrl: imageUrl,
+        );
 
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+        // Immediately update to In Progress status
+        final inProgressPlan = await ApiService.updateJourneyPlan(
+          journeyId: widget.journeyPlan.id!,
+          outletId: widget.journeyPlan.outlet.id,
+          status: JourneyPlan.statusInProgress,
+        );
 
-      // First update to Checked In status
-      final checkedInPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.statusCheckedIn,
-        checkInTime: DateTime.now(),
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
-        imageUrl: imageUrl,
-      );
+        // Close loading indicator
+        if (mounted) {
+          Navigator.pop(context);
+        }
 
-      // Immediately update to In Progress status
-      final updatedPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.statusInProgress,
-      );
+        if (widget.onCheckInSuccess != null && mounted) {
+          widget.onCheckInSuccess!(inProgressPlan);
+        }
 
-      // Close loading indicator
-      Navigator.pop(context);
-
-      if (widget.onCheckInSuccess != null) {
-        widget.onCheckInSuccess!(updatedPlan);
-      }
-
-      // Show success dialog with details
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text('Check-in Successful!'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Outlet: ${updatedPlan.outlet.name}'),
-              const SizedBox(height: 8),
-              Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
-              const SizedBox(height: 8),
-              Text('Location: $_currentAddress'),
-              const SizedBox(height: 8),
-              const Text('Status: In Progress'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('View Reports'),
+        // Show success dialog with details
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Check-in Successful!'),
+              ],
             ),
-          ],
-        ),
-      );
-
-      // Navigate to reports page
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(
-            journeyPlan: updatedPlan,
-            onAllReportsSubmitted: _handleAllReportsSubmitted,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Outlet: ${inProgressPlan.outlet.name}'),
+                const SizedBox(height: 8),
+                Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
+                const SizedBox(height: 8),
+                Text('Location: $_currentAddress'),
+                const SizedBox(height: 8),
+                const Text('Status: In Progress'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('View Reports'),
+              ),
+            ],
           ),
-        ),
-      );
-    } catch (e) {
-      print('Check-in error: $e');
-      // Close loading indicator if it's showing
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to check-in: $e'),
-          duration: const Duration(seconds: 5),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCheckingIn = false;
-        });
+        );
+
+        // Navigate to reports page
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                ReportsOrdersPage(journeyPlan: inProgressPlan),
+          ),
+        );
+      } catch (e) {
+        print('Error checking in: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error checking in: $e')),
+          );
+        }
       }
     }
   }
