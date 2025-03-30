@@ -8,19 +8,19 @@ datasource db {
 }
 
 model User {
-  id            Int           @id @default(autoincrement())
-  name          String
-  email         String        @unique
-  phoneNumber   String        @unique
-  password      String
-  role          String        @default("USER") // Can be "USER" or "ADMIN"
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  journeyPlans  JourneyPlan[]
-  orders        Order[]
-  tokens        Token[]
-  reports       Report[]
-  leaves        Leave[]
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String        @unique
+  phoneNumber  String        @unique
+  password     String
+  role         String        @default("USER")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  journeyPlans JourneyPlan[]
+  orders       Order[]
+  reports      Report[]
+  tokens       Token[]
+  leaves       Leave[]
 
   @@map("users")
 }
@@ -56,30 +56,34 @@ model Order {
   updatedAt DateTime @updatedAt
   outletId  Int
   productId Int?
-  user      User     @relation(fields: [userId], references: [id])
   outlet    Outlet   @relation(fields: [outletId], references: [id])
   product   Product? @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
   reports   Report[]
 
   @@index([userId], map: "Order_userId_fkey")
   @@index([productId], map: "Order_productId_fkey")
+  @@index([outletId], map: "Order_outletId_fkey")
 }
 
 model JourneyPlan {
-  id          Int       @id @default(autoincrement())
-  date        DateTime
-  time        String
-  userId      Int?
-  notes       String?
-  outletId    Int
-  status      Int       @default(0) // 0 for pending, 1 for checked in
-  checkInTime DateTime?
-  latitude    Float?
-  longitude   Float?
-  imageUrl    String?
-  outlet      Outlet    @relation(fields: [outletId], references: [id])
-  user        User?     @relation(fields: [userId], references: [id])
-  reports     Report[]
+  id                Int       @id @default(autoincrement())
+  date              DateTime
+  time              String
+  userId            Int?
+  outletId          Int
+  status            Int       @default(0)
+  checkInTime       DateTime?
+  latitude          Float?
+  longitude         Float?
+  imageUrl          String?
+  notes             String?
+  checkoutLatitude  Float?
+  checkoutLongitude Float?
+  checkoutTime      DateTime?
+  outlet            Outlet    @relation(fields: [outletId], references: [id])
+  user              User?     @relation(fields: [userId], references: [id])
+  reports           Report[]
 
   @@index([outletId], map: "JourneyPlan_outletId_fkey")
   @@index([userId], map: "JourneyPlan_userId_fkey")
@@ -93,28 +97,21 @@ model NoticeBoard {
   updatedAt DateTime @updatedAt
 }
 
-enum ReportType {
-  PRODUCT_AVAILABILITY
-  VISIBILITY_ACTIVITY
-  FEEDBACK
-}
 model Report {
-  id             Int          @id @default(autoincrement())
-  type           ReportType
-  journeyPlanId  Int?
-  userId         Int
-  orderId        Int?
-  outletId       Int
-  createdAt      DateTime     @default(now())
-
-  user        User        @relation(fields: [userId], references: [id])
-  order       Order?      @relation(fields: [orderId], references: [id])
-  outlet      Outlet      @relation(fields: [outletId], references: [id])
-  journeyPlan JourneyPlan? @relation(fields: [journeyPlanId], references: [id])
-
-  feedbackReport    FeedbackReport?
-  productReport     ProductReport?
-  visibilityReport  VisibilityReport?
+  id               Int               @id @default(autoincrement())
+  orderId          Int?
+  outletId         Int
+  createdAt        DateTime          @default(now())
+  userId           Int
+  journeyPlanId    Int?
+  type             ReportType
+  feedbackReport   FeedbackReport?
+  productReport    ProductReport?
+  journeyPlan      JourneyPlan?      @relation(fields: [journeyPlanId], references: [id])
+  order            Order?            @relation(fields: [orderId], references: [id])
+  outlet           Outlet            @relation(fields: [outletId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  visibilityReport VisibilityReport?
 
   @@index([userId], map: "Report_userId_fkey")
   @@index([orderId], map: "Report_orderId_fkey")
@@ -123,62 +120,65 @@ model Report {
 }
 
 model FeedbackReport {
-  reportId     Int        @id
-  comment      String?
-  createdAt    DateTime   @default(now())
-
-  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportId  Int      @id
+  comment   String?
+  createdAt DateTime @default(now())
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
 
 model ProductReport {
-  reportId     Int        @id
-  productName  String?
-  quantity     Int?
-  comment      String?
-  createdAt    DateTime   @default(now())
-
-  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportId    Int      @id
+  productName String?
+  quantity    Int?
+  comment     String?
+  createdAt   DateTime @default(now())
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
 
 model VisibilityReport {
-  reportId     Int        @id
-  comment      String?
-  imageUrl     String?
-  createdAt    DateTime   @default(now())
-
-  report       Report     @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportId  Int      @id
+  comment   String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
 
-
 model Product {
-  id            Int       @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   name          String
   description   String?
   price         Float
   currentStock  Int
   reorderPoint  Int
-  orderQuantity Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  orderQuantity Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   outletId      Int
-  outlet        Outlet    @relation(fields: [outletId], references: [id])
   orders        Order[]
+  outlet        Outlet   @relation(fields: [outletId], references: [id])
 
   @@index([outletId], map: "Product_outletId_fkey")
 }
 
 model Leave {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  leaveType   String
-  startDate   DateTime
-  endDate     DateTime
-  reason      String
-  attachment  String?
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id])
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  leaveType  String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  attachment String?
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
 
+  @@index([userId], map: "leaves_userId_fkey")
   @@map("leaves")
+}
+
+enum ReportType {
+  PRODUCT_AVAILABILITY
+  VISIBILITY_ACTIVITY
+  FEEDBACK
 }

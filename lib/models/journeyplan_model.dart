@@ -20,6 +20,9 @@ class JourneyPlan {
   final double? longitude;
   final String? imageUrl;
   final Outlet outlet;
+  final DateTime? checkoutTime;
+  final double? checkoutLatitude;
+  final double? checkoutLongitude;
 
   JourneyPlan({
     this.id,
@@ -33,6 +36,9 @@ class JourneyPlan {
     this.imageUrl,
     required this.outlet,
     this.notes,
+    this.checkoutTime,
+    this.checkoutLatitude,
+    this.checkoutLongitude,
   });
 
   // Helper getters for status
@@ -93,6 +99,9 @@ class JourneyPlan {
     double? longitude,
     String? imageUrl,
     Outlet? outlet,
+    DateTime? checkoutTime,
+    double? checkoutLatitude,
+    double? checkoutLongitude,
   }) {
     return JourneyPlan(
       id: id ?? this.id,
@@ -106,6 +115,9 @@ class JourneyPlan {
       longitude: longitude ?? this.longitude,
       imageUrl: imageUrl ?? this.imageUrl,
       outlet: outlet ?? this.outlet,
+      checkoutTime: checkoutTime ?? this.checkoutTime,
+      checkoutLatitude: checkoutLatitude ?? this.checkoutLatitude,
+      checkoutLongitude: checkoutLongitude ?? this.checkoutLongitude,
     );
   }
 
@@ -161,6 +173,18 @@ class JourneyPlan {
           : null,
       imageUrl: json['imageUrl'],
       outlet: Outlet.fromJson(json['outlet']),
+      checkoutTime:
+          json['checkoutTime'] != null ? parseDate(json['checkoutTime']) : null,
+      checkoutLatitude: json['checkoutLatitude'] != null
+          ? (json['checkoutLatitude'] is double
+              ? json['checkoutLatitude']
+              : double.tryParse(json['checkoutLatitude'].toString()))
+          : null,
+      checkoutLongitude: json['checkoutLongitude'] != null
+          ? (json['checkoutLongitude'] is double
+              ? json['checkoutLongitude']
+              : double.tryParse(json['checkoutLongitude'].toString()))
+          : null,
     );
   }
 
@@ -177,6 +201,9 @@ class JourneyPlan {
       'longitude': longitude,
       'imageUrl': imageUrl,
       'outlet': outlet.toJson(),
+      'checkoutTime': checkoutTime?.toIso8601String(),
+      'checkoutLatitude': checkoutLatitude,
+      'checkoutLongitude': checkoutLongitude,
     };
   }
 }

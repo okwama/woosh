@@ -136,36 +136,52 @@ const getJourneyPlans = async (req, res) => {
 // Update a journey plan
 const updateJourneyPlan = async (req, res) => {
   const { journeyId } = req.params;
-  const { status, checkInTime, latitude, longitude, imageUrl, notes } = req.body;
-  const userId = req.user.id;
+  const { 
+    outletId, 
+    status, 
+    checkInTime, 
+    latitude, 
+    longitude, 
+    imageUrl, 
+    notes,
+    checkoutTime,
+    checkoutLatitude,
+    checkoutLongitude 
+  } = req.body;
 
-  // Input validation
-  if (!journeyId) {
-    return res.status(400).json({ error: 'Missing required field: journeyId' });
-  }
-
-  // Validate status
-  const STATUS_MAP = {
-    'pending': 0,
-    'checked_in': 1,
-    'in_progress': 2,
-    'completed': 3,
-    'cancelled': 4
-  };
-
-  const REVERSE_STATUS_MAP = {
-    0: 'pending',
-    1: 'checked_in',
-    2: 'in_progress',
-    3: 'completed',
-    4: 'cancelled'
-  };
-
-  if (status && !Object.keys(STATUS_MAP).includes(status)) {
-    return res.status(400).json({ error: 'Invalid status value' });
-  }
+  // Log request details for debugging
+  console.log('[CHECKOUT LOG] Updating journey plan:', { 
+    journeyId, outletId, status, checkInTime, 
+    latitude, longitude, imageUrl, notes,
+    checkoutTime, checkoutLatitude, checkoutLongitude
+  });
 
   try {
+    // Validate required params
+    if (!journeyId) {
+      return res.status(400).json({ error: 'Missing required field: journeyId' });
+    }
+
+    // Get the authenticated user
+    const userId = req.user.id;
+
+    // Status mapping
+    const STATUS_MAP = {
+      'pending': 0,
+      'checked_in': 1,
+      'in_progress': 2,
+      'completed': 3,
+      'cancelled': 4
+    };
+
+    const REVERSE_STATUS_MAP = {
+      0: 'pending',
+      1: 'checked_in',
+      2: 'in_progress',
+      3: 'completed',
+      4: 'cancelled'
+    };
+
     // Check if the journey plan exists and belongs to the user
     const existingJourneyPlan = await prisma.journeyPlan.findUnique({
       where: { id: parseInt(journeyId) },
@@ -179,21 +195,30 @@ const updateJourneyPlan = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized to update this journey plan' });
     }
 
-    // Validate status transitions
+    // Add validation for status transitions if needed
+    const currentStatus = REVERSE_STATUS_MAP[existingJourneyPlan.status];
+    
+    // Log status change if applicable
     if (status) {
-      const currentStatus = REVERSE_STATUS_MAP[existingJourneyPlan.status];
-      const validTransitions = {
-        'pending': ['checked_in', 'cancelled'],
-        'checked_in': ['in_progress', 'completed', 'cancelled'],
-        'in_progress': ['completed', 'cancelled'],
-        'completed': [],
-        'cancelled': []
-      };
+      console.log(`[CHECKOUT LOG] Status changing from ${currentStatus} to ${status}`);
+    }
+    
+    // Log checkout data if provided
+    if (checkoutTime) {
+      console.log('[CHECKOUT LOG] Checkout data received:');
+      console.log(`[CHECKOUT LOG] Checkout Time: ${checkoutTime}`);
+      console.log(`[CHECKOUT LOG] Checkout Latitude: ${checkoutLatitude}`);
+      console.log(`[CHECKOUT LOG] Checkout Longitude: ${checkoutLongitude}`);
+    }
 
-      if (!validTransitions[currentStatus]?.includes(status)) {
-        return res.status(400).json({ 
-          error: `Invalid status transition from ${currentStatus} to ${status}` 
-        });
+    // Validate if outlet exists
+    if (outletId) {
+      const outlet = await prisma.outlet.findUnique({
+        where: { id: parseInt(outletId) },
+      });
+
+      if (!outlet) {
+        return res.status(400).json({ error: 'Outlet not found' });
       }
     }
 
@@ -207,21 +232,35 @@ const updateJourneyPlan = async (req, res) => {
         longitude: longitude || existingJourneyPlan.longitude,
         imageUrl: imageUrl || existingJourneyPlan.imageUrl,
         notes: notes !== undefined ? notes : existingJourneyPlan.notes,
+        checkoutTime: checkoutTime ? new Date(checkoutTime) : existingJourneyPlan.checkoutTime,
+        checkoutLatitude: checkoutLatitude || existingJourneyPlan.checkoutLatitude,
+        checkoutLongitude: checkoutLongitude || existingJourneyPlan.checkoutLongitude,
+        outlet: outletId
+          ? {
+              connect: { id: parseInt(outletId) },
+            }
+          : undefined,
       },
       include: {
         outlet: true,
       },
     });
 
-    // Convert numeric status to string in response
-    const response = {
+    // Log the updated journey plan
+    console.log('[CHECKOUT LOG] Journey plan updated successfully:');
+    console.log(`[CHECKOUT LOG] ID: ${updatedJourneyPlan.id}`);
+    console.log(`[CHECKOUT LOG] Status: ${REVERSE_STATUS_MAP[updatedJourneyPlan.status]}`);
+    console.log(`[CHECKOUT LOG] Checkout Time: ${updatedJourneyPlan.checkoutTime}`);
+    console.log(`[CHECKOUT LOG] Checkout Latitude: ${updatedJourneyPlan.checkoutLatitude}`);
+    console.log(`[CHECKOUT LOG] Checkout Longitude: ${updatedJourneyPlan.checkoutLongitude}`);
+
+    res.status(200).json({
       ...updatedJourneyPlan,
       status: REVERSE_STATUS_MAP[updatedJourneyPlan.status]
-    };
-
-    res.json(response);
+    });
   } catch (error) {
-    console.error('Error updating journey plan:', error);
+    // Handle errors
+    console.error('[CHECKOUT LOG] Error updating journey plan:', error);
     res.status(500).json({ error: 'Failed to update journey plan' });
   }
 };

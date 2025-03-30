@@ -281,6 +281,9 @@ class ApiService {
     double? longitude,
     String? imageUrl,
     String? notes,
+    DateTime? checkoutTime,
+    double? checkoutLatitude,
+    double? checkoutLongitude,
   }) async {
     try {
       final token = _getAuthToken();
@@ -322,7 +325,22 @@ class ApiService {
         if (longitude != null) 'longitude': longitude,
         if (imageUrl != null) 'imageUrl': imageUrl,
         if (notes != null) 'notes': notes,
+        if (checkoutTime != null)
+          'checkoutTime': checkoutTime.toIso8601String(),
+        if (checkoutLatitude != null) 'checkoutLatitude': checkoutLatitude,
+        if (checkoutLongitude != null) 'checkoutLongitude': checkoutLongitude,
       };
+
+      // Log the API request
+      if (checkoutTime != null) {
+        print('API REQUEST - CHECKOUT DATA:');
+        print('URL: $url');
+        print('Journey ID: $journeyId');
+        print('Status: $statusString');
+        print('Checkout Time: ${checkoutTime.toIso8601String()}');
+        print('Checkout Latitude: $checkoutLatitude');
+        print('Checkout Longitude: $checkoutLongitude');
+      }
 
       final response = await http.put(
         url,
@@ -330,15 +348,49 @@ class ApiService {
         body: jsonEncode(body),
       );
 
+      // Log the response
+      if (checkoutTime != null) {
+        print('API RESPONSE - CHECKOUT DATA:');
+        print('Status Code: ${response.statusCode}');
+        print('Response Body Length: ${response.body.length}');
+        print(
+            'First 100 chars of response: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...');
+      }
+
       if (response.statusCode == 200) {
         final decodedJson = jsonDecode(response.body);
+
+        // Log successful response data
+        if (checkoutTime != null) {
+          print('CHECKOUT API - RESPONSE SUCCESSFUL:');
+          print('Journey ID: ${decodedJson['id']}');
+          print('Status: ${decodedJson['status']}');
+          print('Checkout Time: ${decodedJson['checkoutTime']}');
+          print('Checkout Latitude: ${decodedJson['checkoutLatitude']}');
+          print('Checkout Longitude: ${decodedJson['checkoutLongitude']}');
+        }
+
         return JourneyPlan.fromJson(decodedJson);
       } else {
         final errorBody = jsonDecode(response.body);
+
+        // Log error response data
+        if (checkoutTime != null) {
+          print('CHECKOUT API - RESPONSE ERROR:');
+          print('Status Code: ${response.statusCode}');
+          print('Error Message: ${errorBody['error'] ?? 'Unknown error'}');
+        }
+
         throw Exception(
             'Failed to update journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
+      // Log exception
+      if (checkoutTime != null) {
+        print('CHECKOUT API - EXCEPTION:');
+        print('Error: $e');
+      }
+
       throw Exception('An error occurred while updating the journey plan: $e');
     }
   }

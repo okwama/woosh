@@ -9,6 +9,7 @@ import 'package:whoosh/models/report/productReport_model.dart';
 import 'package:whoosh/models/report/visibilityReport_model.dart';
 import 'package:whoosh/models/report/feedbackReport_model.dart';
 import 'package:whoosh/services/api_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -36,6 +37,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   ReportType _selectedReportType = ReportType.PRODUCT_AVAILABILITY;
   List<Product> _products = [];
   List<Report> _submittedReports = [];
+  bool _isCheckingOut = false;
 
   @override
   void initState() {
@@ -480,9 +482,161 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                 ),
               ),
             ),
+
+            // Checkout Button
+            const SizedBox(height: 24),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Complete Visit',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'When you have completed all required tasks, check out to mark this visit as complete.',
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isCheckingOut ? null : _confirmCheckout,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        icon: const Icon(Icons.check_circle),
+                        label: _isCheckingOut
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : const Text('CHECK OUT'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmCheckout() async {
+    if (_isCheckingOut) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Checkout'),
+        content: const Text(
+          'Are you sure you want to check out from this location? This will mark your visit as complete.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('CHECK OUT'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _processCheckout();
+    }
+  }
+
+  Future<void> _processCheckout() async {
+    setState(() {
+      _isCheckingOut = true;
+    });
+
+    try {
+      // Get current position
+      print('CHECKOUT: Starting checkout process...');
+      print('CHECKOUT: Getting current position...');
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      print(
+          'CHECKOUT: Position obtained: ${position.latitude}, ${position.longitude}');
+      print('CHECKOUT: Accuracy: ${position.accuracy} meters');
+      print('CHECKOUT: Timestamp: ${DateTime.now().toIso8601String()}');
+      print('CHECKOUT: Journey ID: ${widget.journeyPlan.id}');
+      print('CHECKOUT: Outlet ID: ${widget.journeyPlan.outlet.id}');
+
+      // Update journey plan with checkout information
+      print('CHECKOUT: Sending data to API...');
+      final response = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        outletId: widget.journeyPlan.outlet.id,
+        status: JourneyPlan.statusCompleted,
+        checkoutTime: DateTime.now(),
+        checkoutLatitude: position.latitude,
+        checkoutLongitude: position.longitude,
+      );
+
+      print('CHECKOUT: API response received:');
+      print('CHECKOUT: Updated Journey Plan ID: ${response.id}');
+      print('CHECKOUT: New Status: ${response.statusText}');
+      print('CHECKOUT: Checkout Time: ${response.checkoutTime}');
+      print('CHECKOUT: Checkout Latitude: ${response.checkoutLatitude}');
+      print('CHECKOUT: Checkout Longitude: ${response.checkoutLongitude}');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Checkout completed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Call the callback if provided
+        widget.onAllReportsSubmitted?.call();
+
+        // Navigate back after successful checkout
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      print('CHECKOUT ERROR: ${e.toString()}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during checkout: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingOut = false;
+        });
+      }
+    }
   }
 }

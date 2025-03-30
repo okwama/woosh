@@ -3,6 +3,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/report/report_model.dart';
 import 'package:whoosh/services/api_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
   TextEditingController get commentController => _commentController;
@@ -11,6 +12,8 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
 
   final TextEditingController _commentController = TextEditingController();
   bool _isSubmitting = false;
+  bool _isCheckingOut = false;
+  Position? _currentPosition;
   final _apiService = ApiService();
 
   @override
@@ -92,6 +95,93 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
     );
   }
 
+  Widget buildCheckoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isCheckingOut ? null : _confirmCheckout,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+        ),
+        child: _isCheckingOut
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text('Complete Checkout'),
+      ),
+    );
+  }
+
+  Future<void> _confirmCheckout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Checkout'),
+        content: const Text('Are you sure you want to complete this visit?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Checkout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _processCheckout();
+    }
+  }
+
+  Future<void> _processCheckout() async {
+    if (_isCheckingOut) return;
+
+    setState(() {
+      _isCheckingOut = true;
+    });
+
+    try {
+      // Get current position
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final journeyPlan = (widget as BaseReportPage).journeyPlan;
+
+      // Update journey plan with checkout information
+      await ApiService.updateJourneyPlan(
+        journeyId: journeyPlan.id!,
+        outletId: journeyPlan.outletId,
+        status: JourneyPlan.statusCompleted,
+        checkoutTime: DateTime.now(),
+        checkoutLatitude: _currentPosition!.latitude,
+        checkoutLongitude: _currentPosition!.longitude,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Checkout completed successfully')),
+        );
+
+        // Navigate back after successful checkout
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during checkout: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingOut = false;
+        });
+      }
+    }
+  }
+
   Future<void> onSubmit() async {
     // To be implemented by subclasses
   }
@@ -115,6 +205,8 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
             buildReportForm(),
             const SizedBox(height: 16),
             buildSubmitButton(),
+            const SizedBox(height: 16),
+            buildCheckoutButton(),
           ],
         ),
       ),
