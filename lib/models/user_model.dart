@@ -24,6 +24,22 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // Support minimal user data from order responses
+    if (json['email'] == null) {
+      return User(
+        id: json['id'],
+        name: json['name'],
+        phoneNumber: json['phoneNumber']
+            .toString(), // Convert to string in case it's a number
+        email: '', // Default empty string for minimal responses
+        password: '', // Default empty string for minimal responses
+        orders: [],
+        journeyPlans: [],
+        tokens: [],
+      );
+    }
+
+    // Full user data parsing
     return User(
       id: json['id'],
       name: json['name'],

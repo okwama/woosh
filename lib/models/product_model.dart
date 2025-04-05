@@ -1,7 +1,8 @@
+
 class Product {
   final int id;
   final String name;
-  final String? description;
+  final String description;
   final double price;
   final int currentStock;
   final int reorderPoint;
@@ -12,7 +13,7 @@ class Product {
   Product({
     required this.id,
     required this.name,
-    this.description,
+    this.description = '', // Default empty string if no description provided
     required this.price,
     required this.currentStock,
     required this.reorderPoint,
@@ -25,7 +26,7 @@ class Product {
     return Product(
       id: json['id'],
       name: json['name'],
-      description: json['description'],
+      description: json['description'] ?? '', // Handle potential null descriptions
       price: (json['price'] as num).toDouble(),
       currentStock: json['currentStock'],
       reorderPoint: json['reorderPoint'],
@@ -56,4 +57,18 @@ class Product {
 
   @override
   int get hashCode => id.hashCode;
+
+  static Product defaultProduct() {
+    return Product(
+      id: 0,
+      name: 'Unknown',
+      description: '',
+      price: 0,
+      currentStock: 0,
+      reorderPoint: 0,
+      orderQuantity: 0,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
 }

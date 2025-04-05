@@ -18,6 +18,7 @@ import 'package:whoosh/models/order_model.dart';
 import 'package:whoosh/models/target_model.dart';
 import 'package:whoosh/models/leave_model.dart';
 import 'package:whoosh/controllers/auth_controller.dart';
+import 'package:dio/dio.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -681,49 +682,72 @@ class ApiService {
     }
   }
 
+  static final _dio = Dio(BaseOptions(
+    baseUrl: baseUrl,
+    headers: _headers(),
+  ));
+
   // Create a new order
   static Future<Order> createOrder({
     required int outletId,
-    required int productId,
-    required int quantity,
+    required List<Map<String, dynamic>> items,
   }) async {
     try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception('User is not authenticated');
-      }
+      final requestBody = {
+        'outletId': outletId,
+        'orderItems': items
+            .map((item) => {
+                  'productId': item['productId'],
+                  'quantity': item['quantity'],
+                })
+            .toList(),
+      };
+
+      print('Creating order with request body:');
+      print(jsonEncode(requestBody));
 
       final response = await http.post(
         Uri.parse('$baseUrl/orders'),
         headers: _headers(),
-        body: jsonEncode({
-          'outletId': outletId,
-          'productId': productId,
-          'quantity': quantity,
-        }),
+        body: jsonEncode(requestBody),
       );
 
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
       if (response.statusCode == 201) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-        if (responseData['success'] == true) {
-          return Order.fromJson(responseData['data']);
+        final responseData = jsonDecode(response.body);
+        print('Parsed response data: ${jsonEncode(responseData)}');
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          try {
+            return Order.fromJson(responseData['data']);
+          } catch (parseError) {
+            print('Error parsing order response: $parseError');
+            print(
+                'Response data structure: ${responseData['data'].runtimeType}');
+            rethrow;
+          }
         } else {
-          throw Exception(responseData['error'] ?? 'Failed to create order');
+          throw Exception(responseData['error'] ??
+              'Failed to create order: Invalid response format');
         }
       } else {
-        throw Exception('Failed to create order: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(
+            'Failed to create order: ${response.statusCode}\n${errorData['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
       print('Error creating order: $e');
-      throw Exception('Failed to create order');
+      rethrow;
     }
   }
 
   // Update an existing order
   static Future<Order> updateOrder({
     required int orderId,
-    required int productId,
-    required int quantity,
+    required List<Map<String, dynamic>>
+        orderItems, // Now an array of order items
   }) async {
     try {
       final token = _getAuthToken();
@@ -735,8 +759,7 @@ class ApiService {
         Uri.parse('$baseUrl/orders/$orderId'),
         headers: _headers(),
         body: jsonEncode({
-          'productId': productId,
-          'quantity': quantity,
+          'orderItems': orderItems, // Send orderItems array for update
         }),
       );
 
@@ -1245,6 +1268,25 @@ class ApiService {
       print('Error updating order status: $e');
       handleNetworkError(e);
       throw Exception('Failed to update order status: $e');
+    }
+  }
+
+  static Future<bool> deleteOrder(int orderId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/orders/$orderId'),
+        headers: _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['success'] == true;
+      } else {
+        throw Exception('Failed to delete order: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error deleting order: $e');
+      throw Exception('Failed to delete order');
     }
   }
 }

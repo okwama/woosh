@@ -1,12 +1,14 @@
 // View Order Page
 import 'package:flutter/material.dart';
 import 'package:whoosh/models/order_model.dart';
+import 'package:whoosh/models/orderitem_model.dart'; // Add this import
 import 'package:whoosh/services/api_service.dart';
 import 'package:intl/intl.dart';
 import 'package:whoosh/pages/order/addorder_page.dart';
+import 'package:get/get.dart';
 
 class ViewOrdersPage extends StatefulWidget {
-  const ViewOrdersPage({Key? key}) : super(key: key);
+  const ViewOrdersPage({super.key});
 
   @override
   _ViewOrdersPageState createState() => _ViewOrdersPageState();
@@ -83,6 +85,51 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
     return _loadOrders(page: 1);
   }
 
+  Future<void> _deleteOrder(Order order) async {
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Order'),
+          content: const Text('Are you sure you want to delete this order?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        await ApiService.deleteOrder(order.id);
+        Get.snackbar(
+          'Success',
+          'Order deleted successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        _refreshOrders();
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete order',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,9 +189,15 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                             }
 
                             final order = _orders[index];
+                            // Get the first order item to display as main product
+                            final firstOrderItem = order.orderItems.isNotEmpty
+                                ? order.orderItems.first
+                                : null;
+
                             return Card(
                               child: ListTile(
-                                title: Text(order.product.name),
+                                title: Text(firstOrderItem?.product?.name ??
+                                    'No products'),
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -155,7 +208,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                       ),
                                     ),
                                     Text(
-                                      'Quantity: ${order.quantity}',
+                                      'Total Items: ${order.orderItems.length}',
                                       style: const TextStyle(
                                         fontSize: 12,
                                       ),
@@ -168,23 +221,33 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                     ),
                                   ],
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AddOrderPage(
-                                          outlet: order.outlet,
-                                          order: order,
-                                        ),
-                                      ),
-                                    ).then((result) {
-                                      if (result == true) {
-                                        _refreshOrders();
-                                      }
-                                    });
-                                  },
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => AddOrderPage(
+                                              outlet: order.outlet,
+                                              order: order,
+                                            ),
+                                          ),
+                                        ).then((result) {
+                                          if (result == true) {
+                                            _refreshOrders();
+                                          }
+                                        });
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete),
+                                      onPressed: () => _deleteOrder(order),
+                                      color: Colors.red,
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
@@ -192,5 +255,5 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                         ),
             ),
     );
-
-  }}
+  }
+}

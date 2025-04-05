@@ -4,6 +4,8 @@ import 'package:whoosh/models/order_model.dart';
 import 'package:whoosh/models/product_model.dart';
 import 'package:whoosh/models/outlet_model.dart';
 import 'package:whoosh/services/api_service.dart';
+import 'package:whoosh/models/orderitem_model.dart'; // Add this import
+import 'package:get/get.dart'; // Add this import
 
 class CartItem {
   final Product product;
@@ -41,12 +43,18 @@ class _AddOrderPageState extends State<AddOrderPage> {
     super.initState();
     _loadProducts();
     if (widget.order != null) {
-      _selectedProduct = widget.order!.product;
-      _quantityController.text = widget.order!.quantity.toString();
-      _cartItems.add(CartItem(
-        product: widget.order!.product,
-        quantity: widget.order!.quantity,
-      ));
+      // Populate the cart items from the order's orderItems
+      if (widget.order!.orderItems.isNotEmpty) {
+        for (var orderItem in widget.order!.orderItems) {
+          if (orderItem.product != null) {
+            // Add null check for product
+            _cartItems.add(CartItem(
+              product: orderItem.product!,
+              quantity: orderItem.quantity,
+            ));
+          }
+        }
+      }
     }
   }
 
@@ -125,30 +133,57 @@ class _AddOrderPageState extends State<AddOrderPage> {
     });
 
     try {
+      final items = _cartItems
+          .map((item) => {
+                'productId': item.product.id,
+                'quantity': item.quantity,
+              })
+          .toList();
+
       if (widget.order == null) {
-        // Create new orders for each cart item
-        for (var item in _cartItems) {
-          await ApiService.createOrder(
-            outletId: widget.outlet.id,
-            productId: item.product.id,
-            quantity: item.quantity,
-          );
-        }
+        // Create new order
+        await ApiService.createOrder(
+          outletId: widget.outlet.id,
+          items: items,
+        );
+        Get.snackbar(
+          'Success',
+          'Order created successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        Navigator.pop(context, true);
       } else {
         // Update existing order
         await ApiService.updateOrder(
           orderId: widget.order!.id,
-          productId: _cartItems.first.product.id,
-          quantity: _cartItems.first.quantity,
+          orderItems: items,
         );
+        Get.snackbar(
+          'Success',
+          'Order updated successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        Navigator.pop(context, true);
       }
-
-      Navigator.pop(context, true);
     } catch (e) {
       setState(() {
         _error = 'Failed to save order: $e';
         _isLoading = false;
       });
+      Get.snackbar(
+        'Error',
+        'Failed to save order',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
     }
   }
 

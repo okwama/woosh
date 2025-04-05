@@ -32,4 +32,14 @@ class Outlet {
       'longitude': longitude,
     };
   }
+
+  static Outlet defaultOutlet() {
+    return Outlet(
+      id: 0,
+      name: 'Unknown',
+      address: '',
+      latitude: 0.0,
+      longitude: 0.0,
+    );
+  }
 }
