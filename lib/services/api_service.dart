@@ -1273,20 +1273,26 @@ class ApiService {
 
   static Future<bool> deleteOrder(int orderId) async {
     try {
+      print('[DELETE] Attempting to delete order: $orderId');
+
       final response = await http.delete(
         Uri.parse('$baseUrl/orders/$orderId'),
         headers: _headers(),
       );
 
+      print('[DELETE] Response status: ${response.statusCode}');
+      print('[DELETE] Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         return responseData['success'] == true;
       } else {
-        throw Exception('Failed to delete order: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Failed to delete order');
       }
     } catch (e) {
-      print('Error deleting order: $e');
-      throw Exception('Failed to delete order');
+      print('[ERROR] Deleting order: $e');
+      throw Exception('Failed to delete order: $e');
     }
   }
 }

@@ -57,24 +57,23 @@ model Order {
   outlet    Outlet   @relation(fields: [outletId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
   reports   Report[]
+  orderItems OrderItem[] @relation("OrderToOrderItem")
 
   @@index([userId], map: "Order_userId_fkey")
   @@index([outletId], map: "Order_outletId_fkey")
-  orderItems OrderItem[]
 }
+
 model OrderItem {
   id        Int      @id @default(autoincrement())
   orderId   Int
   productId Int
   quantity  Int      // quantity per product in that order
-  order     Order    @relation(fields: [orderId], references: [id])
+  order     Order    @relation("OrderToOrderItem", fields: [orderId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
-  
 }
-
 
 model JourneyPlan {
   id                Int       @id @default(autoincrement())

@@ -172,13 +172,22 @@ class _AddOrderPageState extends State<AddOrderPage> {
         Navigator.pop(context, true);
       }
     } catch (e) {
+      String errorMessage = 'Failed to save order';
+
+      if (e.toString().contains('Invalid product')) {
+        errorMessage = 'One or more products are invalid';
+      } else if (e.toString().contains('Insufficient stock')) {
+        errorMessage = 'One or more products have insufficient stock';
+      }
+
       setState(() {
-        _error = 'Failed to save order: $e';
+        _error = errorMessage;
         _isLoading = false;
       });
+
       Get.snackbar(
         'Error',
-        'Failed to save order',
+        errorMessage,
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
