@@ -8,6 +8,7 @@ class User {
   final String email;
   final String phoneNumber;
   final String password; // Hashed password
+  final String? photoUrl;
   final List<Order> orders;
   final List<JourneyPlan> journeyPlans;
   final List<Token> tokens;
@@ -18,6 +19,7 @@ class User {
     required this.email,
     required this.phoneNumber,
     required this.password,
+    this.photoUrl,
     required this.orders,
     required this.journeyPlans,
     required this.tokens,
@@ -29,10 +31,10 @@ class User {
       return User(
         id: json['id'],
         name: json['name'],
-        phoneNumber: json['phoneNumber']
-            .toString(), // Convert to string in case it's a number
+        phoneNumber: json['phoneNumber'].toString(), // Convert to string in case it's a number
         email: '', // Default empty string for minimal responses
         password: '', // Default empty string for minimal responses
+        photoUrl: json['photoUrl'],
         orders: [],
         journeyPlans: [],
         tokens: [],
@@ -46,6 +48,7 @@ class User {
       email: json['email'],
       phoneNumber: json['phoneNumber'],
       password: json['password'],
+      photoUrl: json['photoUrl'],
       orders: (json['orders'] as List?)
               ?.map((order) => Order.fromJson(order))
               .toList() ??
@@ -68,6 +71,7 @@ class User {
       'email': email,
       'phone_number': phoneNumber,
       'password': password,
+      'photoUrl': photoUrl,
       'orders': orders.map((order) => order.toJson()).toList(),
       'journeyPlans':
           journeyPlans.map((journeyPlan) => journeyPlan.toJson()).toList(),

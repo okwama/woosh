@@ -86,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
                       height: 120,
                       width: 120,
                       margin: const EdgeInsets.only(bottom: 40),
-                      child: Image.asset('assets/woosh_logo.png',
+                      child: Image.asset('assets/ben.png',
                           fit: BoxFit.contain)),
                 ),
 
@@ -96,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFC69C6D),
+                    color: Color(0xFFDB9C2E),
                   ),
                   textAlign: TextAlign.center,
                 ),

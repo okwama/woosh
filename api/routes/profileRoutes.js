@@ -1,0 +1,30 @@
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const { auth } = require('../middleware/auth');
+const { updateProfilePhoto, getProfile } = require('../controllers/profileController');
+
+// Configure multer for memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
+  }
+});
+
+// Routes
+router.get('/profile', auth, getProfile);
+router.post('/profile/photo', auth, upload.single('photo'), updateProfilePhoto);
+
+module.exports = router;

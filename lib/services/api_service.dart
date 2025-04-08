@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:io' if (dart.library.html) 'dart:html' as html;
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;  // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
 import 'package:whoosh/models/journeyplan_model.dart';
 import 'package:whoosh/models/noticeboard_model.dart';
@@ -19,6 +19,8 @@ import 'package:whoosh/models/target_model.dart';
 import 'package:whoosh/models/leave_model.dart';
 import 'package:whoosh/controllers/auth_controller.dart';
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as path;
+import 'package:image_picker/image_picker.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -45,54 +47,7 @@ class ApiService {
 
   static String? _getAuthToken() {
     final box = GetStorage();
-    final token = box.read('token');
-    if (token != null) {
-      print(
-          'Token exists: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
-      // Check if token is expired
-      if (_isTokenExpired(token)) {
-        _handleTokenExpiration();
-        return null;
-      }
-    } else {
-      print('No authentication token found');
-    }
-    return token;
-  }
-
-  static bool _isTokenExpired(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length > 1) {
-        final payload = parts[1];
-        final normalized = base64Url.normalize(payload);
-        final decoded = utf8.decode(base64Url.decode(normalized));
-        final Map<String, dynamic> decodedMap = json.decode(decoded);
-        final exp = decodedMap['exp'] as int;
-        final expirationTime = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
-        return DateTime.now().isAfter(expirationTime);
-      }
-    } catch (e) {
-      print('Error checking token expiration: $e');
-    }
-    return true;
-  }
-
-  static void _handleTokenExpiration() {
-    logout();
-  }
-
-  static Future<void> logout() async {
-    try {
-      final box = GetStorage();
-      await box.remove('token');
-      await box.remove('user');
-      final authController = Get.find<AuthController>();
-      authController.isLoggedIn.value = false;
-      print('Logged out successfully');
-    } catch (e) {
-      print('Error during logout: $e');
-    }
+    return box.read('token');
   }
 
   static void handleNetworkError(dynamic error) {
@@ -1293,6 +1248,109 @@ class ApiService {
     } catch (e) {
       print('[ERROR] Deleting order: $e');
       throw Exception('Failed to delete order: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getProfile() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/profile'),
+        headers: _headers(),
+      );
+
+      if (response.statusCode != 200) {
+        final errorMsg = json.decode(response.body)['message'] ?? 'Failed to fetch profile data';
+        throw Exception(errorMsg);
+      }
+
+      final responseData = json.decode(response.body);
+      if (responseData['user'] == null) {
+        throw Exception('Invalid response format from server');
+      }
+
+      return responseData;
+    } catch (e) {
+      handleNetworkError(e);
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/users/profile'),
+        headers: _headers(),
+        body: json.encode(data),
+      );
+      await _handleResponse(response);
+      return json.decode(response.body);
+    } catch (e) {
+      handleNetworkError(e);
+      rethrow;
+    }
+  }
+
+  static Future<String> updateProfilePhoto(XFile photo) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/profile/photo'), // Removed /api prefix to match backend route
+      );
+      
+      request.headers.addAll(_headers()..remove('Content-Type'));
+
+      if (kIsWeb) {
+        // For web, XFile provides bytes directly
+        final bytes = await photo.readAsBytes();
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'photo',  // Field name must match multer configuration
+            bytes,
+            filename: photo.name,
+            contentType: MediaType('image', photo.name.split('.').last),
+          ),
+        );
+      } else {
+        // For mobile platforms
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'photo',  // Field name must match multer configuration
+            photo.path,
+            contentType: MediaType('image', photo.path.split('.').last),
+          ),
+        );
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode != 200) {
+        final errorMsg = response.statusCode == 404 
+          ? 'Profile photo upload endpoint not found. Please check API configuration.' 
+          : (json.decode(response.body)['message'] ?? 'Failed to update profile photo');
+        throw Exception(errorMsg);
+      }
+      
+      final responseData = json.decode(response.body);
+      if (responseData['user'] != null && responseData['user']['photoUrl'] != null) {
+        return responseData['user']['photoUrl'];
+      }
+      throw Exception('Invalid response format from server');
+    } catch (e) {
+      handleNetworkError(e);
+      rethrow;
+    }
+  }
+
+  static Future<void> logout() async {
+    try {
+      final box = GetStorage();
+      await box.remove('token');
+      await box.remove('user');
+      final authController = Get.find<AuthController>();
+      authController.isLoggedIn.value = false;
+    } catch (e) {
+      print('Error during logout: $e');
     }
   }
 }

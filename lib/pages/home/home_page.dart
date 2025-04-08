@@ -5,6 +5,7 @@ import 'package:whoosh/pages/client/viewclient_page.dart';
 import 'package:whoosh/pages/login/login_page.dart';
 import 'package:whoosh/pages/order/vieworder_page.dart';
 import 'package:whoosh/services/api_service.dart';
+import 'package:whoosh/pages/profile/profile.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -182,7 +183,7 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: Column(
           children: [
-             // Menu section title
+            // Menu section title
             // Padding(
             //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             //   child: Row(
@@ -216,11 +217,16 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     // User Profile Tile
                     MenuTile(
-                      title: 'Mechandiser',
+                      title: 'Merchandiser',
                       subtitle: '$userName\n$userPhone',
                       icon: Icons.person,
                       onTap: () {
-                        // TODO: Navigate to profile page
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ProfilePage(),
+                          ),
+                        );
                       },
                     ),
                     MenuTile(

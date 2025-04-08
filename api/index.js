@@ -12,6 +12,7 @@ const productRoutes = require('./routes/productRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const leaveRoutes = require('./routes/leave.routes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
 const app = express();
 app.use(express.json());
@@ -36,6 +37,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', profileRoutes);
 
 // Handle 404 Errors
 app.use((req, res, next) => {

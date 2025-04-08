@@ -72,7 +72,7 @@ class JourneyPlan {
   Color get statusColor {
     switch (status) {
       case statusPending:
-        return Colors.orange;
+        return const Color.fromARGB(218, 94, 71, 38);
       case statusCheckedIn:
         return Colors.blue;
       case statusInProgress:
