@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
-import 'package:whoosh/models/report/report_model.dart';
-import 'package:whoosh/models/report/visibilityReport_model.dart';
-import 'package:whoosh/pages/journeyplan/reports/base_report_page.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
+import 'package:woosh/services/api_service.dart';
 
 class VisibilityActivityPage extends BaseReportPage {
   const VisibilityActivityPage({
@@ -19,10 +19,34 @@ class VisibilityActivityPage extends BaseReportPage {
 }
 
 class _VisibilityActivityPageState extends State<VisibilityActivityPage>
-    with BaseReportPageMixin {
+    with BaseReportPageMixin, WidgetsBindingObserver {
   File? _imageFile;
   String? _imageUrl;
   final _apiService = ApiService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    // Clear image cache when memory is low
+    ImageCache().clear();
+    ImageCache().clearLiveImages();
+    ApiCache.clear();
+    // Clear local image file if it exists
+    if (_imageFile != null) {
+      _imageFile = null;
+    }
+  }
 
   Future<void> _pickImage() async {
     try {

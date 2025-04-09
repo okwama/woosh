@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/models/noticeboard_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/models/noticeboard_model.dart';
 import 'package:intl/intl.dart'; // Import for date formatting
 
 class NoticeBoardPage extends StatefulWidget {

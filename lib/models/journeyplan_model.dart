@@ -1,4 +1,4 @@
-import 'package:whoosh/models/outlet_model.dart';
+import 'package:woosh/models/outlet_model.dart';
 import 'package:flutter/material.dart';
 
 class JourneyPlan {

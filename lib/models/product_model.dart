@@ -1,4 +1,3 @@
-
 class Product {
   final int id;
   final String name;
@@ -9,6 +8,7 @@ class Product {
   final int orderQuantity;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? imageUrl;
 
   Product({
     required this.id,
@@ -20,6 +20,7 @@ class Product {
     required this.orderQuantity,
     required this.createdAt,
     required this.updatedAt,
+    this.imageUrl,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -33,6 +34,7 @@ class Product {
       orderQuantity: json['orderQuantity'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      imageUrl: json['imageUrl'],
     );
   }
 
@@ -47,6 +49,7 @@ class Product {
       'orderQuantity': orderQuantity,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'imageUrl': imageUrl,
     };
   }
 

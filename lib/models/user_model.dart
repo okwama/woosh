@@ -1,6 +1,6 @@
-import 'package:whoosh/models/journeyPlan_model.dart';
-import 'package:whoosh/models/order_model.dart';
-import 'package:whoosh/models/token_model.dart';
+import 'package:woosh/models/journeyPlan_model.dart';
+import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/token_model.dart';
 
 class User {
   final int id;

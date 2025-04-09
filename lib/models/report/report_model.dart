@@ -1,6 +1,6 @@
-import 'package:whoosh/models/report/productReport_model.dart';
-import 'package:whoosh/models/report/visibilityReport_model.dart';
-import 'package:whoosh/models/report/feedbackReport_model.dart';
+import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/models/report/feedbackReport_model.dart';
 
 enum ReportType {
   PRODUCT_AVAILABILITY,

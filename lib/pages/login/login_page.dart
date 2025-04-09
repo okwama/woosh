@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:whoosh/controllers/auth_controller.dart';
+import 'package:woosh/controllers/auth_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -86,13 +86,13 @@ class _LoginPageState extends State<LoginPage> {
                       height: 120,
                       width: 120,
                       margin: const EdgeInsets.only(bottom: 40),
-                      child: Image.asset('assets/ben.png',
-                          fit: BoxFit.contain)),
+                      child:
+                          Image.asset('assets/ben.png', fit: BoxFit.contain)),
                 ),
 
                 // Welcome Text
                 const Text(
-                  'Welcome Back',
+                  'Woosh',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -224,7 +224,7 @@ class _LoginPageState extends State<LoginPage> {
         child: const Text(
           'Forgot Password?',
           style: TextStyle(
-            color: Color(0xFFC69C6D),
+            color: Color(0xFFDAA520),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -238,7 +238,7 @@ class _LoginPageState extends State<LoginPage> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _login,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFC69C6D),
+          backgroundColor: const Color(0xFFDAA520),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -282,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
           child: const Text(
             'Contact Us',
             style: TextStyle(
-              color: Color(0xFFC69C6D),
+              color: Color(0xFFDAA520),
               fontWeight: FontWeight.bold,
             ),
           ),

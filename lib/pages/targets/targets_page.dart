@@ -1,9 +1,9 @@
 // Add/Edit Order Page
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/models/target_model.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/pages/targets/add_edit_target_page.dart';
+import 'package:woosh/models/target_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/pages/targets/add_edit_target_page.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 

@@ -43,6 +43,7 @@ model Outlet {
   address      String
   latitude     Float?
   longitude    Float?
+  
   journeyPlans JourneyPlan[]
   orders       Order[]
   products     Product[]
@@ -161,6 +162,7 @@ model Product {
   currentStock  Int
   reorderPoint  Int
   orderQuantity Int      @default(0)
+  imageUrl      String?  @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   outletId      Int

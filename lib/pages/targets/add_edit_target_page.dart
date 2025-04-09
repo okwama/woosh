@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/models/target_model.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/target_model.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:get_storage/get_storage.dart';
 
 class AddEditTargetPage extends StatefulWidget {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/controllers/auth_controller.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/controllers/auth_controller.dart';
 
 class NoConnectionPage extends StatelessWidget {
   final VoidCallback? onRetry;

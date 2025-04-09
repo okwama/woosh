@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:whoosh/pages/Leave/leaveapplication_page.dart';
-import 'package:whoosh/pages/client/viewclient_page.dart';
-import 'package:whoosh/pages/login/login_page.dart';
-import 'package:whoosh/pages/order/vieworder_page.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/pages/profile/profile.dart';
+import 'package:woosh/pages/Leave/leaveapplication_page.dart';
+import 'package:woosh/pages/client/viewclient_page.dart';
+import 'package:woosh/pages/login/login_page.dart';
+import 'package:woosh/pages/order/vieworder_page.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/pages/profile/profile.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -82,11 +83,11 @@ class _HomePageState extends State<HomePage> {
           content: const Text('Are you sure you want to logout?'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Get.back(result: false),
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Get.back(result: true),
               child: const Text('Logout'),
             ),
           ],
@@ -110,21 +111,17 @@ class _HomePageState extends State<HomePage> {
 
       // Close loading indicator
       if (!mounted) return;
-      Navigator.pop(context);
+      Get.back();
 
       // Navigate to login page and clear all previous routes
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false,
-      );
+      Get.offAll(() => const LoginPage());
     } catch (e) {
       print('Error during logout: $e');
       if (!mounted) return;
 
       // Close loading indicator if it's showing
       if (Navigator.canPop(context)) {
-        Navigator.pop(context);
+        Get.back();
       }
 
       // Show error message
@@ -143,7 +140,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Moonsun Ltd'),
         backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: Color(0xFFFDFBD4),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -221,12 +218,7 @@ class _HomePageState extends State<HomePage> {
                       subtitle: '$userName\n$userPhone',
                       icon: Icons.person,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProfilePage(),
-                          ),
-                        );
+                        Get.to(() => ProfilePage());
                       },
                     ),
                     MenuTile(
@@ -234,79 +226,49 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const JourneyPlansPage()),
-                        ).then((_) => _loadPendingJourneyPlans());
+                        Get.to(() => const JourneyPlansPage())?.then((_) => _loadPendingJourneyPlans());
                       },
                     ),
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ViewClientPage()),
-                        );
+                        Get.to(() => const ViewClientPage());
                       },
                     ),
                     MenuTile(
                       title: 'Notice Board',
                       icon: Icons.notifications,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const NoticeBoardPage()),
-                        );
+                        Get.to(() => const NoticeBoardPage());
                       },
                     ),
                     MenuTile(
                       title: 'Add/Edit Order',
                       icon: Icons.edit,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ViewClientPage(
-                                    forOrderCreation: true,
-                                  )),
-                        );
+                        Get.to(() => const ViewClientPage(forOrderCreation: true));
                       },
                     ),
                     MenuTile(
                       title: 'View Order',
                       icon: Icons.view_list,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ViewOrdersPage()),
-                        );
+                        Get.to(() => const ViewOrdersPage());
                       },
                     ),
                     MenuTile(
                       title: 'View Targets',
                       icon: Icons.view_timeline_sharp,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const TargetsPage()),
-                        );
+                        Get.to(() => const TargetsPage());
                       },
                     ),
                     MenuTile(
                       title: 'Leave Application',
                       icon: Icons.post_add_outlined,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const LeaveApplicationPage()),
-                        );
+                        Get.to(() => const LeaveApplicationPage());
                       },
                     ),
                   ],

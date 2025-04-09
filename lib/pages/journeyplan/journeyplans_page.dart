@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
-import 'package:whoosh/models/outlet_model.dart';
-import 'package:whoosh/pages/journeyplan/journeyview.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/pages/journeyplan/journeyview.dart';
+import 'package:woosh/services/api_service.dart';
 
 class JourneyPlansPage extends StatefulWidget {
   const JourneyPlansPage({super.key});

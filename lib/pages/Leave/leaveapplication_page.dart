@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/pages/Leave/leave_requests_page.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/pages/Leave/leave_requests_page.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';

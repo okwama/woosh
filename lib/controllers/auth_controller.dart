@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/services/api_service.dart';
 
 class AuthController extends GetxController {
   final box = GetStorage();

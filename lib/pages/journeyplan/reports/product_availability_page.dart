@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
-import 'package:whoosh/models/product_model.dart';
-import 'package:whoosh/models/report/report_model.dart';
-import 'package:whoosh/models/report/productReport_model.dart';
-import 'package:whoosh/pages/journeyplan/reports/base_report_page.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
+import 'package:woosh/services/api_service.dart';
 
 class ProductAvailabilityPage extends BaseReportPage {
   const ProductAvailabilityPage({

@@ -1,6 +1,6 @@
-import 'package:whoosh/models/orderitem_model.dart';
-import 'package:whoosh/models/outlet_model.dart';
-import 'package:whoosh/models/user_model.dart';
+import 'package:woosh/models/orderitem_model.dart';
+import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/user_model.dart';
 
 class Order {
   final int id;

@@ -1,12 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:whoosh/controllers/profile_controller.dart';
+import 'package:woosh/controllers/profile_controller.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({Key? key}) : super(key: key);
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
 
-  ProfilePage({Key? key}) : super(key: key);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    ImageCache().clear();
+    ImageCache().clearLiveImages();
+    ApiCache.clear();
+  }
 
   @override
   Widget build(BuildContext context) {

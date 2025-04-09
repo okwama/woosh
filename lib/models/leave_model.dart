@@ -1,4 +1,4 @@
-import 'package:whoosh/models/user_model.dart';
+import 'package:woosh/models/user_model.dart';
 
 enum LeaveStatus { PENDING, APPROVED, REJECTED }
 

@@ -4,16 +4,16 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:whoosh/services/api_service.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/pages/journeyplan/reports/reportMain_page.dart';
+import 'package:woosh/pages/journeyplan/reports/reportMain_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
-import 'package:whoosh/services/universal_file.dart';
+import 'package:woosh/services/universal_file.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -31,9 +31,12 @@ class JourneyView extends StatefulWidget {
 
 class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   Position? _currentPosition;
+  String? _currentAddress;
   bool _isCheckingIn = false;
   bool _isFetchingLocation = false;
   bool _isWithinGeofence = false;
+  CameraController? _cameraController;
+  bool _isCameraInitialized = false;
   double _distanceToOutlet = 0.0;
   StreamSubscription<Position>? _positionStreamSubscription;
 
@@ -42,17 +45,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   bool _isEditingNotes = false;
   bool _isSavingNotes = false;
 
-  // Camera-related variables
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
-  bool _isCameraVisible = false;
-
   // Geofencing constants
   static const double GEOFENCE_RADIUS_METERS =
       100000.0; // Increased to 100 meters
   static const Duration LOCATION_UPDATE_INTERVAL = Duration(seconds: 5);
-
-  String _currentAddress = 'Fetching location...';
 
   @override
   void initState() {
@@ -127,6 +123,19 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
+  @override
+  void didHaveMemoryPressure() {
+    // Clear image cache when memory is low
+    ImageCache().clear();
+    ImageCache().clearLiveImages();
+    ApiCache.clear();
+    // Release camera resources if not in use
+    if (_cameraController != null && !_cameraController!.value.isInitialized) {
+      _cameraController?.dispose();
+      _cameraController = null;
+    }
+  }
+
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -168,12 +177,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isCameraVisible = true;
-      });
-    }
-
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -195,9 +198,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 children: [
                   TextButton(
                     onPressed: () {
-                      setState(() {
-                        _isCameraVisible = false;
-                      });
                       Navigator.pop(context);
                     },
                     child: const Text('Cancel'),
@@ -206,16 +206,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                     onPressed: () async {
                       try {
                         final image = await _cameraController!.takePicture();
-                        if (mounted) {
-                          setState(() {
-                            _isCameraVisible = false;
-                          });
-                          Navigator.pop(context);
+                        Navigator.pop(context);
 
-                          // Create platform-specific file
-                          dynamic imageFile = kIsWeb ? image : File(image.path);
-                          await _processImage(imageFile);
-                        }
+                        // Create platform-specific file
+                        dynamic imageFile = kIsWeb ? image : File(image.path);
+                        await _processImage(imageFile);
                       } catch (e) {
                         print('Error capturing image: $e');
                         if (mounted) {
@@ -398,7 +393,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _isCheckingIn = false;
-          _isCameraVisible = false;
         });
       }
     }
@@ -1204,7 +1198,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                         : 'Check-in Location',
                                     _isFetchingLocation
                                         ? 'Fetching location...'
-                                        : _currentAddress,
+                                        : _currentAddress ?? 'Location not available',
                                     Icons.my_location,
                                   ),
                                   if (_currentPosition != null) ...[
@@ -1549,6 +1543,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   journeyId: widget.journeyPlan.id!,
                   outletId: widget.journeyPlan.outletId,
                   notes: notesController.text.trim(),
+                  status: widget.journeyPlan.status,
                 );
 
                 // If the update was successful, rebuild the UI

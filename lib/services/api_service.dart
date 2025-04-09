@@ -5,25 +5,53 @@ import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;  // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
-import 'package:whoosh/models/journeyplan_model.dart';
-import 'package:whoosh/models/noticeboard_model.dart';
-import 'package:whoosh/models/outlet_model.dart';
-import 'package:whoosh/models/product_model.dart';
-import 'package:whoosh/models/report/report_model.dart';
-import 'package:whoosh/utils/auth_config.dart';
-import 'package:whoosh/models/order_model.dart';
-import 'package:whoosh/models/target_model.dart';
-import 'package:whoosh/models/leave_model.dart';
-import 'package:whoosh/controllers/auth_controller.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/noticeboard_model.dart';
+import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/utils/config.dart';
+import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/target_model.dart';
+import 'package:woosh/models/leave_model.dart';
+import 'package:woosh/controllers/auth_controller.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
+
+// API Caching System
+class ApiCache {
+  static final Map<String, dynamic> _cache = {};
+  static final Map<String, DateTime> _cacheTimestamp = {};
+  static const Duration cacheValidity = Duration(minutes: 5);
+
+  static void set(String key, dynamic data) {
+    _cache[key] = data;
+    _cacheTimestamp[key] = DateTime.now();
+  }
+
+  static dynamic get(String key) {
+    if (!_cache.containsKey(key)) return null;
+    if (DateTime.now().difference(_cacheTimestamp[key]!) > cacheValidity) {
+      _cache.remove(key);
+      _cacheTimestamp.remove(key);
+      return null;
+    }
+    return _cache[key];
+  }
+
+  static void clear() {
+    _cache.clear();
+    _cacheTimestamp.clear();
+  }
+}
 
 class PaginatedResponse<T> {
   final List<T> data;
@@ -42,12 +70,20 @@ class PaginatedResponse<T> {
 }
 
 class ApiService {
-  static const String baseUrl = '${ApiConfig.baseUrl}/api';
+  static const String baseUrl = '${Config.baseUrl}/api';
   static const Duration tokenExpirationDuration = Duration(hours: 5);
 
   static String? _getAuthToken() {
     final box = GetStorage();
-    return box.read('token');
+    return box.read<String>('token');
+  }
+
+  static Future<Map<String, String>> _headers([String? additionalContentType]) async {
+    final token = _getAuthToken();
+    return {
+      'Content-Type': additionalContentType ?? 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
   }
 
   static void handleNetworkError(dynamic error) {
@@ -63,15 +99,6 @@ class ApiService {
       throw Exception("Session expired. Please log in again.");
     }
     return response;
-  }
-
-  static Map<String, String> _headers([String? additionalContentType]) {
-    final token = _getAuthToken();
-    return {
-      'Content-Type': additionalContentType ?? 'application/json',
-      'Accept': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
   }
 
   // Helper to get user ID from token
@@ -103,7 +130,7 @@ class ApiService {
       final response = await http
           .get(
         Uri.parse('$baseUrl/outlets'),
-        headers: _headers(),
+        headers: await _headers(),
       )
           .timeout(
         const Duration(seconds: 15),
@@ -155,7 +182,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode(requestBody),
       );
 
@@ -190,7 +217,7 @@ class ApiService {
       final response = await http
           .get(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: _headers(),
+        headers: await _headers(),
       )
           .timeout(
         const Duration(seconds: 15),
@@ -300,7 +327,7 @@ class ApiService {
 
       final response = await http.put(
         url,
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode(body),
       );
 
@@ -363,7 +390,7 @@ class ApiService {
 
       final response = await http.get(
         url,
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -393,7 +420,7 @@ class ApiService {
 
       final response = await http.get(
         Uri.parse('$baseUrl/notice-board'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       print('Notice board response status: ${response.statusCode}');
@@ -430,7 +457,7 @@ class ApiService {
       }
 
       final url = Uri.parse('$baseUrl/upload-image');
-      final authHeaders = _headers('multipart/form-data');
+      final authHeaders = await _headers('multipart/form-data');
 
       // Create the multipart request
       final request = http.MultipartRequest('POST', url)
@@ -464,7 +491,7 @@ class ApiService {
       final response = await http
           .post(
         Uri.parse('$baseUrl/auth/login'),
-        headers: _headers(),
+        headers: await _headers(),
         body: json.encode({
           'phoneNumber': phoneNumber,
           'password': password,
@@ -508,30 +535,49 @@ class ApiService {
   // Get products (independent of outlets)
   static Future<List<Product>> getProducts() async {
     try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception('User is not authenticated');
-      }
-
+      print('[Products] Fetching products from API');
       final response = await http.get(
-        Uri.parse('$baseUrl/products'),
-        headers: _headers(),
+        Uri.parse('$baseUrl${Config.productsEndpoint}'),
+        headers: await _headers(),
       );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-        if (responseData['success'] == true && responseData['data'] != null) {
-          final List<dynamic> data = responseData['data'];
-          return data.map((json) => Product.fromJson(json)).toList();
-        } else {
-          throw Exception('Invalid response format');
-        }
-      } else {
+      print('[Products] Response status: ${response.statusCode}');
+      print('[Products] Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
         throw Exception('Failed to load products: ${response.statusCode}');
       }
+
+      final responseData = json.decode(response.body);
+      if (!responseData.containsKey('data')) {
+        throw Exception('Invalid API response: missing data field');
+      }
+
+      // Cache the response
+      ApiCache.set('products', responseData['data']);
+
+      final products = (responseData['data'] as List)
+          .map((item) => Product.fromJson(item))
+          .toList();
+
+      print('[Products] Successfully loaded ${products.length} products');
+
+      // Pre-cache images in a separate isolate
+      if (Get.context != null) {
+        for (var product in products) {
+          if (product.imageUrl != null) {
+            final imageUrl = '${Config.imageBaseUrl}/${product.imageUrl}';
+            final imageProvider = NetworkImage(imageUrl);
+            precacheImage(imageProvider, Get.context!);
+          }
+        }
+      }
+
+      return products;
     } catch (e) {
-      print('Error fetching products: $e');
-      throw Exception('Failed to load products');
+      print('[Products] Error loading products: $e');
+      handleNetworkError(e);
+      rethrow; // Let the UI handle the error
     }
   }
 
@@ -544,7 +590,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/reports'),
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode(report.toJson()),
       );
 
@@ -583,7 +629,7 @@ class ApiService {
 
       final response = await http.get(
         uri,
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -611,7 +657,7 @@ class ApiService {
 
       final response = await http.get(
         Uri.parse('$baseUrl/orders?page=$page&limit=$limit'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -639,59 +685,39 @@ class ApiService {
 
   static final _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
-    headers: _headers(),
+    contentType: 'application/json',
   ));
 
+  static Future<void> _initDioHeaders() async {
+    _dio.options.headers = await _headers();
+  }
+
   // Create a new order
-  static Future<Order> createOrder({
+  static Future<void> createOrder({
     required int outletId,
     required List<Map<String, dynamic>> items,
   }) async {
     try {
+      await _initDioHeaders();  // Initialize headers before making request
+
       final requestBody = {
         'outletId': outletId,
-        'orderItems': items
-            .map((item) => {
-                  'productId': item['productId'],
-                  'quantity': item['quantity'],
-                })
-            .toList(),
+        'items': items,
       };
 
-      print('Creating order with request body:');
-      print(jsonEncode(requestBody));
+      print('Creating order with body: $requestBody');
 
       final response = await http.post(
         Uri.parse('$baseUrl/orders'),
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode(requestBody),
       );
 
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
-        print('Parsed response data: ${jsonEncode(responseData)}');
-
-        if (responseData['success'] == true && responseData['data'] != null) {
-          try {
-            return Order.fromJson(responseData['data']);
-          } catch (parseError) {
-            print('Error parsing order response: $parseError');
-            print(
-                'Response data structure: ${responseData['data'].runtimeType}');
-            rethrow;
-          }
-        } else {
-          throw Exception(responseData['error'] ??
-              'Failed to create order: Invalid response format');
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(
-            'Failed to create order: ${response.statusCode}\n${errorData['error'] ?? 'Unknown error'}');
+      if (response.statusCode != 201) {
+        throw Exception('Failed to create order');
       }
+
+      print('Order created successfully');
     } catch (e) {
       print('Error creating order: $e');
       rethrow;
@@ -712,7 +738,7 @@ class ApiService {
 
       final response = await http.put(
         Uri.parse('$baseUrl/orders/$orderId'),
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode({
           'orderItems': orderItems, // Send orderItems array for update
         }),
@@ -753,7 +779,7 @@ class ApiService {
         final response = await http
             .get(
               Uri.parse('$baseUrl/targets'),
-              headers: _headers(),
+              headers: await _headers(),
             )
             .timeout(const Duration(seconds: 5));
 
@@ -862,7 +888,7 @@ class ApiService {
         final response = await http
             .post(
               Uri.parse('$baseUrl/targets'),
-              headers: _headers(),
+              headers: await _headers(),
               body: jsonEncode(target.toJson()),
             )
             .timeout(const Duration(seconds: 5));
@@ -902,7 +928,7 @@ class ApiService {
         final response = await http
             .put(
               Uri.parse('$baseUrl/targets/${target.id}'),
-              headers: _headers(),
+              headers: await _headers(),
               body: jsonEncode(target.toJson()),
             )
             .timeout(const Duration(seconds: 5));
@@ -938,7 +964,7 @@ class ApiService {
         final response = await http
             .delete(
               Uri.parse('$baseUrl/targets/$targetId'),
-              headers: _headers(),
+              headers: await _headers(),
             )
             .timeout(const Duration(seconds: 5));
 
@@ -972,7 +998,7 @@ class ApiService {
         final response = await http
             .patch(
               Uri.parse('$baseUrl/targets/$targetId/progress'),
-              headers: _headers(),
+              headers: await _headers(),
               body: jsonEncode({'currentValue': newValue}),
             )
             .timeout(const Duration(seconds: 5));
@@ -1055,7 +1081,7 @@ class ApiService {
       if (attachmentFile == null) {
         final response = await http.post(
           uri,
-          headers: _headers(),
+          headers: await _headers(),
           body: jsonEncode({
             'leaveType': leaveType,
             'startDate': startDate,
@@ -1086,21 +1112,25 @@ class ApiService {
         if (kIsWeb) {
           print('Web file upload: Adding bytes to multipart request');
           // Web file upload (bytes)
-          request.files.add(http.MultipartFile.fromBytes(
-            'attachment',
-            attachmentFile,
-            filename:
-                'web_document_${DateTime.now().millisecondsSinceEpoch}.jpg',
-            contentType: MediaType('application', 'octet-stream'),
-          ));
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'attachment',
+              attachmentFile,
+              filename:
+                  'web_document_${DateTime.now().millisecondsSinceEpoch}.jpg',
+              contentType: MediaType('application', 'octet-stream'),
+            ),
+          );
         } else {
           print('Mobile file upload: Adding file from path');
           // Mobile/desktop file upload (File object)
-          request.files.add(await http.MultipartFile.fromPath(
-            'attachment',
-            attachmentFile.path,
-            filename: attachmentFile.path.split('/').last,
-          ));
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'attachment',
+              attachmentFile.path,
+              filename: attachmentFile.path.split('/').last,
+            ),
+          );
         }
 
         print('Sending multipart request for leave application');
@@ -1128,7 +1158,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/leave/my-leaves'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -1147,7 +1177,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/leave/all'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -1167,7 +1197,7 @@ class ApiService {
     try {
       final response = await http.patch(
         Uri.parse('$baseUrl/leave/$leaveId/status'),
-        headers: _headers(),
+        headers: await _headers(),
         body: jsonEncode({'status': status.toString().split('.').last}),
       );
 
@@ -1193,7 +1223,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse(
             '$baseUrl/outlets/nearby?latitude=$latitude&longitude=$longitude'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {
@@ -1232,7 +1262,7 @@ class ApiService {
 
       final response = await http.delete(
         Uri.parse('$baseUrl/orders/$orderId'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       print('[DELETE] Response status: ${response.statusCode}');
@@ -1255,7 +1285,7 @@ class ApiService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/profile'),
-        headers: _headers(),
+        headers: await _headers(),
       );
 
       if (response.statusCode != 200) {
@@ -1279,7 +1309,7 @@ class ApiService {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/users/profile'),
-        headers: _headers(),
+        headers: await _headers(),
         body: json.encode(data),
       );
       await _handleResponse(response);
@@ -1297,7 +1327,7 @@ class ApiService {
         Uri.parse('$baseUrl/profile/photo'), // Removed /api prefix to match backend route
       );
       
-      request.headers.addAll(_headers()..remove('Content-Type'));
+      request.headers.addAll(await _headers()..remove('Content-Type'));
 
       if (kIsWeb) {
         // For web, XFile provides bytes directly
@@ -1321,7 +1351,10 @@ class ApiService {
         );
       }
 
+      print('Sending multipart request for profile photo update');
       final streamedResponse = await request.send();
+      print('Response status code: ${streamedResponse.statusCode}');
+      
       final response = await http.Response.fromStream(streamedResponse);
       
       if (response.statusCode != 200) {

@@ -1,10 +1,10 @@
 // View Order Page
 import 'package:flutter/material.dart';
-import 'package:whoosh/models/order_model.dart';
-import 'package:whoosh/models/orderitem_model.dart'; // Add this import
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/orderitem_model.dart'; // Add this import
+import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
-import 'package:whoosh/pages/order/addorder_page.dart';
+import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:get/get.dart';
 
 class ViewOrdersPage extends StatefulWidget {

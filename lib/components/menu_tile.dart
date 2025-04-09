@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class MenuTile extends StatelessWidget {
   final String title;
+  final Color backgroundColor = const Color(0xFFFDFBD4);  
   final IconData icon;
   final VoidCallback onTap;
   final int? badgeCount;
@@ -53,7 +54,7 @@ class MenuTile extends StatelessWidget {
                   child: Text(
                     badgeCount.toString(),
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Color(0xFFFDFBD4),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),

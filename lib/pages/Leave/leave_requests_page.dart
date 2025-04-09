@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:whoosh/models/leave_model.dart';
-import 'package:whoosh/services/api_service.dart';
+import 'package:woosh/models/leave_model.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
 
 class LeaveRequestsPage extends StatefulWidget {
