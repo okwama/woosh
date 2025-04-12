@@ -1,13 +1,21 @@
 class Config {
-  static const String baseUrl = 'https://github-com-okwama-woosh-api.vercel.app';
+  static const String baseUrl = 'http://147.182.202.116:3000';  // API prefix is added in routes
   static const String apiVersion = 'v1';
-  static const String imageBaseUrl = 'https://github-com-okwama-woosh-api.vercel.app/uploads';
+  static const String imageBaseUrl = 'http://147.182.202.116:3000/uploads';  // For uploaded files
+  // ImageKit configuration
   
-  // API Endpoints
-  static const String loginEndpoint = '/auth/login';
-  static const String productsEndpoint = '/products';
-  static const String ordersEndpoint = '/orders';
-  static const String outletsEndpoint = '/outlets';
+  // API Endpoints - all prefixed with /api in ApiService
+  static const String authEndpoint = '/api/auth';
+  static const String loginEndpoint = '/api/auth/login';
+  static const String productsEndpoint = '/api/products';
+  static const String ordersEndpoint = '/api/orders';
+  static const String outletsEndpoint = '/api/outlets';
+  static const String journeyPlansEndpoint = '/api/journey-plans';
+  static const String noticeBoardEndpoint = '/api/notice-board';
+  static const String reportsEndpoint = '/api/reports';
+  static const String leaveEndpoint = '/api/leave';
+  static const String profileEndpoint = '/api/profile';
+  static const String uploadEndpoint = '/api/upload-image';
   
   // Cache Configuration
   static const Duration defaultCacheValidity = Duration(minutes: 5);

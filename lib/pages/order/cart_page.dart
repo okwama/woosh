@@ -6,6 +6,7 @@ import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/products_grid_page.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/main.dart';
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
@@ -48,14 +49,34 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   Future<void> _placeOrder() async {
     _isLoading.value = true;
     _error.value = '';
+    
+    // Show loading indicator with descriptive message
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Processing Order'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Please wait while we process your order...'),
+            const SizedBox(height: 8),
+            const Text('This may take up to 30 seconds.', style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+      barrierDismissible: false,
+    );
 
     try {
       final items = cartController.items
           .map((item) => {
-                'productId': item.product.id,
-                'quantity': item.quantity,
+                'productId': item.product.id,  // Already an integer from Product model
+                'quantity': item.quantity,     // Already an integer from CartItem class
               })
           .toList();
+
+      print('Order items prepared: $items');
 
       if (widget.order == null) {
         await ApiService.createOrder(
@@ -85,10 +106,26 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         );
       }
 
+      // Close dialog before showing success message
+      Get.back();
+      
       cartController.clearCart();
       Get.until((route) => route.isFirst);
     } catch (e) {
-      _error.value = 'Failed to place order. Please try again.';
+      // Close dialog before showing error
+      Get.back();
+      
+      print('Order creation error: $e');
+      _error.value = 'Failed to place order: ${e.toString()}';
+      
+      Get.snackbar(
+        'Error',
+        'Failed to place order. Please try again.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     } finally {
       _isLoading.value = false;
     }
@@ -138,12 +175,19 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                ImageUtils.getThumbnailUrl(item.product.imageUrl),
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-              ),
+              child: item.product.imageUrl == null
+                  ? Image.asset(
+                      'assets/images/ben.png',
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.network(
+                      ImageUtils.getThumbnailUrl(item.product.imageUrl),
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -158,14 +202,14 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${item.product.price.toStringAsFixed(2)} × ${item.quantity}',
+                    '\KEs${item.product.price.toStringAsFixed(2)} × ${item.quantity}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[600],
                     ),
                   ),
                   Text(
-                    'Total: \$${item.total.toStringAsFixed(2)}',
+                    'Total: \KEs${item.total.toStringAsFixed(2)}',
                     style: TextStyle(
                       color: Theme.of(context).primaryColor,
                       fontWeight: FontWeight.bold,
@@ -245,7 +289,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ),
               ),
               Text(
-                '\$${cartController.total.toStringAsFixed(2)}',
+                '\KEs${cartController.total.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -277,18 +321,25 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: _placeOrder,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: primaryGradient,
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
                   ),
-                  child: Text(
-                    widget.order == null ? 'Place Order' : 'Update Order',
+                  child: ElevatedButton(
+                    onPressed: _placeOrder,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      widget.order == null ? 'Place Order' : 'Update Order',
+                    ),
                   ),
                 ),
               ),
@@ -304,14 +355,18 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.order == null ? 'Cart' : 'Edit Order'),
-        backgroundColor: Theme.of(context).primaryColor,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: primaryGradient,
+          ),
+        ),
         foregroundColor: Colors.white,
       ),
       body: Obx(() {
         if (_isLoading.value) {
           return const Center(child: CircularProgressIndicator());
         }
-        
+
         return Column(
           children: [
             if (_error.value.isNotEmpty)
@@ -326,19 +381,18 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ),
               ),
             Expanded(
-              child: cartController.items.isEmpty
-                  ? _buildEmptyCart()
-                  : ListView.builder(
-                      itemCount: cartController.items.length,
-                      itemBuilder: (context, index) {
-                        final item = cartController.items[index];
-                        return KeyedSubtree(
-                          key: ValueKey('cart_item_${item.product.id}'),
-                          child: _buildCartItem(index, item),
-                        );
-                      },
-                    )
-            ),
+                child: cartController.items.isEmpty
+                    ? _buildEmptyCart()
+                    : ListView.builder(
+                        itemCount: cartController.items.length,
+                        itemBuilder: (context, index) {
+                          final item = cartController.items[index];
+                          return KeyedSubtree(
+                            key: ValueKey('cart_item_${item.product.id}'),
+                            child: _buildCartItem(index, item),
+                          );
+                        },
+                      )),
             if (cartController.items.isNotEmpty) _buildTotalSection(),
           ],
         );

@@ -70,7 +70,7 @@ class PaginatedResponse<T> {
 }
 
 class ApiService {
-  static const String baseUrl = '${Config.baseUrl}/api';
+  static const String baseUrl = Config.baseUrl;  // /api prefix is already in the routes
   static const Duration tokenExpirationDuration = Duration(hours: 5);
 
   static String? _getAuthToken() {
@@ -87,9 +87,16 @@ class ApiService {
   }
 
   static void handleNetworkError(dynamic error) {
-    if (error.toString().contains('SocketException') ||
-        error.toString().contains('XMLHttpRequest error')) {
+    print('[Network] Handling error: $error');
+    
+    if (error is SocketException ||
+        error.toString().contains('XMLHttpRequest error') ||
+        error.toString().contains('Failed host lookup') ||
+        error.toString().contains('Network is unreachable')) {
+      print('[Network] Detected connection issue, navigating to no_connection page');
       Get.toNamed('/no_connection');
+    } else {
+      print('[Network] Unknown error type: ${error.runtimeType}');
     }
   }
 
@@ -129,7 +136,7 @@ class ApiService {
 
       final response = await http
           .get(
-        Uri.parse('$baseUrl/outlets'),
+        Uri.parse('$baseUrl${Config.outletsEndpoint}'),
         headers: await _headers(),
       )
           .timeout(
@@ -181,7 +188,7 @@ class ApiService {
       }
 
       final response = await http.post(
-        Uri.parse('$baseUrl/journey-plans'),
+        Uri.parse('$baseUrl/api/journey-plans'),
         headers: await _headers(),
         body: jsonEncode(requestBody),
       );
@@ -216,7 +223,7 @@ class ApiService {
 
       final response = await http
           .get(
-        Uri.parse('$baseUrl/journey-plans'),
+        Uri.parse('$baseUrl/api/journey-plans'),
         headers: await _headers(),
       )
           .timeout(
@@ -274,7 +281,7 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+      final url = Uri.parse('$baseUrl/api/journey-plans/$journeyId');
 
       // Convert numeric status to string status for the API
       String? statusString;
@@ -386,7 +393,7 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+      final url = Uri.parse('$baseUrl/api/journey-plans/$journeyId');
 
       final response = await http.get(
         url,
@@ -488,9 +495,13 @@ class ApiService {
   static Future<Map<String, dynamic>> login(
       String phoneNumber, String password) async {
     try {
+      print('[Login] Attempting login for phone: $phoneNumber');
+      final loginUrl = Uri.parse('$baseUrl${Config.loginEndpoint}');
+      print('[Login] Using URL: $loginUrl');
+
       final response = await http
           .post(
-        Uri.parse('$baseUrl/auth/login'),
+        loginUrl,
         headers: await _headers(),
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -500,34 +511,61 @@ class ApiService {
           .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
-          throw Exception("Connection timeout");
+          print('[Login] Request timed out after 15 seconds');
+          throw TimeoutException('Connection timed out. Please try again.');
         },
       );
 
-      Map<String, dynamic> data = {};
+      print('[Login] Response status: ${response.statusCode}');
+      print('[Login] Response body: ${response.body}');
+
+      Map<String, dynamic> data;
       try {
         data = json.decode(response.body);
       } catch (e) {
-        print('Error parsing response: $e');
+        print('[Login] Error parsing response: $e');
+        throw FormatException('Invalid response from server');
       }
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && data['token'] != null) {
+        print('[Login] Login successful');
         final box = GetStorage();
-        box.write('token', data['token']);
-        box.write('user', data['user']);
-        return {'success': true, 'token': data['token'], 'user': data['user']};
+        await box.write('token', data['token']);
+        await box.write('user', data['user']);
+        return {
+          'success': true,
+          'token': data['token'],
+          'user': data['user']
+        };
       } else {
+        print('[Login] Login failed with status: ${response.statusCode}');
+        final errorMessage = data['error'] ?? 
+                           data['message'] ?? 
+                           'Login failed with status ${response.statusCode}';
         return {
           'success': false,
-          'message':
-              data['error'] ?? 'Login failed with status ${response.statusCode}'
+          'message': errorMessage
         };
       }
-    } catch (e) {
+    } on TimeoutException catch (e) {
+      print('[Login] Timeout error: $e');
+      return {
+        'success': false,
+        'message': 'Connection timed out. Please check your internet connection.'
+      };
+    } on SocketException catch (e) {
+      print('[Login] Network error: $e');
       handleNetworkError(e);
       return {
         'success': false,
-        'message': 'Network error: Please check your internet connection'
+        'message': 'Network error: Unable to connect to the server. Please check your internet connection.'
+      };
+    } catch (e) {
+      print('[Login] Unexpected error: $e');
+      handleNetworkError(e);
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred. Please try again.'
       };
     }
   }
@@ -566,8 +604,10 @@ class ApiService {
       if (Get.context != null) {
         for (var product in products) {
           if (product.imageUrl != null) {
-            final imageUrl = '${Config.imageBaseUrl}/${product.imageUrl}';
-            final imageProvider = NetworkImage(imageUrl);
+            // Skip if imageUrl is null
+            if (product.imageUrl == null) continue;
+            
+            final imageProvider = NetworkImage(product.imageUrl!);
             precacheImage(imageProvider, Get.context!);
           }
         }
@@ -589,7 +629,7 @@ class ApiService {
       }
 
       final response = await http.post(
-        Uri.parse('$baseUrl/reports'),
+        Uri.parse('$baseUrl/api/reports'),
         headers: await _headers(),
         body: jsonEncode(report.toJson()),
       );
@@ -625,7 +665,7 @@ class ApiService {
       if (userId != null) queryParams['userId'] = userId.toString();
 
       final uri =
-          Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
+          Uri.parse('$baseUrl/api/reports').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -656,7 +696,7 @@ class ApiService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/orders?page=$page&limit=$limit'),
+        Uri.parse('$baseUrl/api/orders?page=$page&limit=$limit'),
         headers: await _headers(),
       );
 
@@ -699,22 +739,54 @@ class ApiService {
   }) async {
     try {
       await _initDioHeaders();  // Initialize headers before making request
-
+      
+      // The userId is extracted from the auth token by the server
+      // so we don't need to include it in the request body
       final requestBody = {
         'outletId': outletId,
-        'items': items,
+        'orderItems': items,  // Using the proper field name expected by the backend
       };
-
+      
       print('Creating order with body: $requestBody');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/orders'),
-        headers: await _headers(),
-        body: jsonEncode(requestBody),
+      // Check the auth token
+      final token = _getAuthToken();
+      print('Auth token for order creation: ${token?.substring(0, 20)}...');
+      
+      if (token == null) {
+        throw Exception('Authentication token not found. Please log in again.');
+      }
+      
+      final headers = await _headers();
+      // Ensure Content-Type is set correctly
+      headers['Content-Type'] = 'application/json';
+      
+      print('Using headers: $headers');
+      print('Sending to URL: ${Config.ordersEndpoint}');
+      
+      // Use Dio with increased timeout for order creation
+      final dio = Dio();
+      dio.options.connectTimeout = const Duration(milliseconds: 30000);  // 30 seconds connection timeout
+      dio.options.receiveTimeout = const Duration(milliseconds: 60000);  // 60 seconds receive timeout
+      dio.options.headers = headers;
+      
+      print('Making order request with increased timeout...');
+      final dioResponse = await _dio.post(
+        '$baseUrl/api/orders',
+        data: requestBody,
+      );
+      
+      final response = http.Response(
+        dioResponse.data.toString(), 
+        dioResponse.statusCode ?? 500,
+        headers: dioResponse.headers.map.map((key, value) => MapEntry(key, value.join(","))),
       );
 
-      if (response.statusCode != 201) {
-        throw Exception('Failed to create order');
+      print('Order creation response: ${response.statusCode}');
+      print('Response body: ${response.body}');
+    
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        throw Exception('Failed to create order: ${response.body}');
       }
 
       print('Order created successfully');
@@ -737,7 +809,7 @@ class ApiService {
       }
 
       final response = await http.put(
-        Uri.parse('$baseUrl/orders/$orderId'),
+        Uri.parse('$baseUrl/api/orders/$orderId'),
         headers: await _headers(),
         body: jsonEncode({
           'orderItems': orderItems, // Send orderItems array for update
@@ -1114,7 +1186,7 @@ class ApiService {
           // Web file upload (bytes)
           request.files.add(
             http.MultipartFile.fromBytes(
-              'attachment',
+              'attachment',  // Field name must match multer configuration
               attachmentFile,
               filename:
                   'web_document_${DateTime.now().millisecondsSinceEpoch}.jpg',
@@ -1126,7 +1198,7 @@ class ApiService {
           // Mobile/desktop file upload (File object)
           request.files.add(
             await http.MultipartFile.fromPath(
-              'attachment',
+              'attachment',  // Field name must match multer configuration
               attachmentFile.path,
               filename: attachmentFile.path.split('/').last,
             ),
@@ -1261,7 +1333,7 @@ class ApiService {
       print('[DELETE] Attempting to delete order: $orderId');
 
       final response = await http.delete(
-        Uri.parse('$baseUrl/orders/$orderId'),
+        Uri.parse('$baseUrl/api/orders/$orderId'),
         headers: await _headers(),
       );
 

@@ -148,9 +148,9 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                                       top: Radius.circular(8),
                                     ),
                                     image: DecorationImage(
-                                      image: NetworkImage(
-                                        ImageUtils.getGridUrl(product.imageUrl),
-                                      ),
+                                      image: product.imageUrl == null
+                                          ? const AssetImage('assets/images/placeholder.png')
+                                          : NetworkImage(ImageUtils.getGridUrl(product.imageUrl)) as ImageProvider,
                                       fit: BoxFit.cover,
                                     ),
                                   ),

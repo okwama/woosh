@@ -30,7 +30,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   final List<String> _leaveTypes = [
     'Sick Leave',
     'Annual Leave',
-    'Leave Request'
+    'Parental Leave'
   ];
 
   @override
@@ -99,15 +99,16 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       return;
     }
 
-    if (_selectedLeaveType == 'Sick Leave' && !_isFileAttached) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please attach a document for sick leave'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+if ((_selectedLeaveType == 'Sick Leave' || _selectedLeaveType == 'Parental Leave') && !_isFileAttached) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Please attach a document for sick or paternal leave'),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return;
+}
+
 
     setState(() {
       _isLoading = true;
@@ -254,7 +255,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                           : null,
                     ),
                     const SizedBox(height: 16),
-                    if (_selectedLeaveType == 'Sick Leave') ...[
+                    if (_selectedLeaveType == 'Sick Leave' || _selectedLeaveType == 'Parental Leave') ...[
                       ElevatedButton.icon(
                         onPressed: _pickFile,
                         icon: const Icon(Icons.attach_file),

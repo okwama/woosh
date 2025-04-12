@@ -84,12 +84,26 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
   }
 
   Widget buildSubmitButton() {
+    final primaryColor = const Color(0xFFC69C6D); // Using the app's primary color
+    
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : () => onSubmit(),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
         child: _isSubmitting
-            ? const CircularProgressIndicator()
+            ? const SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
             : const Text('Submit Report'),
       ),
     );
@@ -191,22 +205,24 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
   }
 
   Widget build(BuildContext context) {
+    final primaryColor = const Color(0xFFC69C6D); // App's primary color (brown/gold)
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('${(widget as BaseReportPage).reportType.name} Report'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            buildOutletInfo(),
-            const SizedBox(height: 16),
+            // Removed outlet info card as requested
             buildReportForm(),
             const SizedBox(height: 16),
             buildSubmitButton(),
-            const SizedBox(height: 16),
-            buildCheckoutButton(),
+            // Removed checkout button as requested
           ],
         ),
       ),

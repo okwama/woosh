@@ -13,46 +13,92 @@ class ProductDetailPage extends StatefulWidget {
   final Order? order;
 
   const ProductDetailPage({
-    Key? key,
+    super.key,
     required this.outlet,
     required this.product,
     this.order,
-  }) : super(key: key);
+  });
 
   @override
   _ProductDetailPageState createState() => _ProductDetailPageState();
 }
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
-  final _formKey = GlobalKey<FormState>();
   int _quantity = 1;
 
   void _addToCart() {
-    if (_formKey.currentState!.validate()) {
-      final cartController = Get.find<CartController>();
-      cartController.addToCart(widget.product, _quantity);
-      
-      Get.snackbar(
-        'Success',
-        'Added to cart',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
+    // Directly add to cart since we don't have form fields to validate
+    final cartController = Get.find<CartController>();
+    print(
+        'Adding product to cart: ${widget.product.name} (ID: ${widget.product.id}) Qty: $_quantity');
+    cartController.addToCart(widget.product, _quantity);
 
-      Get.to(() => CartPage(
+    Get.snackbar(
+      'Success',
+      'Added to cart',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
+
+    Get.off(
+      () => CartPage(
         outlet: widget.outlet,
         order: widget.order,
-      ));
-    }
+      ),
+      preventDuplicates: true,
+      transition: Transition.rightToLeft,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final cartController = Get.find<CartController>();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.product.name),
+        actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                onPressed: () => Get.off(
+                  () => CartPage(
+                    outlet: widget.outlet,
+                    order: widget.order,
+                  ),
+                  preventDuplicates: true,
+                  transition: Transition.rightToLeft,
+                ),
+              ),
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Obx(() => cartController.items.isNotEmpty
+                    ? Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '${cartController.items.length}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 10),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : const SizedBox.shrink()),
+              ),
+            ],
+          ),
+        ],
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -62,9 +108,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             height: MediaQuery.of(context).size.height * 0.35,
             decoration: BoxDecoration(
               image: DecorationImage(
-                image: NetworkImage(
-                  ImageUtils.getDetailUrl(widget.product.imageUrl),
-                ),
+                image: widget.product.imageUrl == null
+                    ? const AssetImage('assets/images/ben.png')
+                    : NetworkImage(
+                            ImageUtils.getDetailUrl(widget.product.imageUrl))
+                        as ImageProvider,
                 fit: BoxFit.cover,
               ),
             ),
@@ -97,7 +145,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '\$${widget.product.price.toStringAsFixed(2)}',
+                        '\KEs${widget.product.price.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -106,7 +154,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       ),
                       Container(
                         decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -121,7 +170,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                               iconSize: 20,
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
                               child: Text(
                                 '$_quantity',
                                 style: const TextStyle(

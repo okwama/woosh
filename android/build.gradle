@@ -41,6 +41,11 @@ subprojects {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
+                lintOptions {
+                    checkReleaseBuilds false
+                    abortOnError false
+                    warning "MissingPermission" // This will suppress the specific warning
+                }
             }
         }
     }

@@ -3,6 +3,8 @@ const prisma = new PrismaClient();
 
 // Create order with order items
 const createOrder = async (req, res) => {
+  // Increase transaction timeout for complex operations
+  const timeout = 30000; // 30 seconds
   console.log('Request Body:', req.body); // Log the request body here
 
   const { outletId, orderItems } = req.body;
@@ -60,56 +62,60 @@ const createOrder = async (req, res) => {
       }
     }
 
-    // Create order with order items in a transaction
-    const order = await prisma.$transaction(async (prisma) => {
-      // Create the order first
-      const newOrder = await prisma.order.create({
-        data: {
-          userId,
-          outletId,
-        },
-      });
-
-      // Create order items and update product stock
-      for (const item of orderItems) {
-        await prisma.orderItem.create({
+    // Create order with order items in a transaction with increased timeout
+    const order = await prisma.$transaction(
+      async (prisma) => {
+        // Create the order first
+        const newOrder = await prisma.order.create({
           data: {
-            orderId: newOrder.id,
-            productId: item.productId,
-            quantity: item.quantity,
+            userId,
+            outletId,
           },
         });
 
-        // Update product stock
-        await prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            currentStock: {
-              decrement: item.quantity,
+        // Create order items and update product stock
+        for (const item of orderItems) {
+          await prisma.orderItem.create({
+            data: {
+              orderId: newOrder.id,
+              productId: item.productId,
+              quantity: item.quantity,
+            },
+          });
+
+          // Update product stock
+          await prisma.product.update({
+            where: { id: item.productId },
+            data: {
+              currentStock: {
+                decrement: item.quantity,
+              },
+            },
+          });
+        }
+
+        // Return the complete order with all relations
+        return prisma.order.findUnique({
+          where: { id: newOrder.id },
+          include: {
+            orderItems: {
+              include: {
+                product: true,
+              },
+            },
+            outlet: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                phoneNumber: true,
+              },
             },
           },
         });
-      }
-
-      // Return the complete order with all relations
-      return prisma.order.findUnique({
-        where: { id: newOrder.id },
-        include: {
-          orderItems: {
-            include: {
-              product: true,
-            },
-          },
-          outlet: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              phoneNumber: true,
-            },
-          },
-        },
-      });
+    },
+    {
+      timeout, // Apply the transaction timeout of 30 seconds
     });
 
     res.status(201).json({

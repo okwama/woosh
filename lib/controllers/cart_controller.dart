@@ -21,15 +21,26 @@ class CartController extends GetxController {
       );
 
   void addToCart(Product product, int quantity) {
+    print('Adding to cart: ${product.name}, ID: ${product.id}, Quantity: $quantity');
+    print('Current cart items: ${_items.length}');
+    
     final existingIndex = _items.indexWhere(
       (item) => item.product.id == product.id,
     );
+    print('Existing index: $existingIndex');
 
     if (existingIndex >= 0) {
+      print('Updating existing item');
       _items[existingIndex].quantity += quantity;
       _items.refresh();
     } else {
+      print('Adding new item');
       _items.add(CartItem(product: product, quantity: quantity));
+    }
+    
+    print('Cart items after adding: ${_items.length}');
+    for (var item in _items) {
+      print('- ${item.product.name}: ${item.quantity}');
     }
   }
 

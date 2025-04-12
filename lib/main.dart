@@ -7,19 +7,54 @@ import 'package:woosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/controllers/cart_controller.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
+
 
 // Custom color scheme
-const Color primaryBlack = Color(0xFFDAA520);
+const Color primaryBlack = Color(
+    0xFFF1AD1A); // Changed to primary gradient color for theme compatibility
 const Color secondaryGrey = Color.fromARGB(255, 0, 0, 0);
 const Color accentGrey = Color(0xFF666666);
-const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
-const Color backgroundColor = Color(0xFFFDFBD4);
+const Color lightGrey = Color.fromARGB(255, 255, 255, 255);
+const Color backgroundColor = Color.fromARGB(255, 255, 255, 255);
 
+// Custom gradients
+const LinearGradient primaryGradient = LinearGradient(
+  colors: [
+    Color(0xFFF1AD1A),
+    Color(0xFFFFD46E),
+    Color(0xFFDE9F2D),
+  ],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+
+Future<void> requestPermissions() async {
+  if (Platform.isAndroid) {
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+
+    // Request location permission
+    await Permission.location.request();
+
+    // Request camera permission if needed
+    await Permission.camera.request();
+
+    // Request notification permission for Android 13+
+    if (androidInfo.version.sdkInt >= 33) {
+      await Permission.notification.request();
+    }
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init(); // Initialize GetStorage
+  await requestPermissions(); // Request permissions before app starts
   Get.put(AuthController()); // Initialize AuthController
+  Get.put(CartController()); // Initialize CartController
   runApp(MyApp());
 }
 
@@ -35,6 +70,9 @@ class MyApp extends StatelessWidget {
       title: 'Whoosh',
       defaultTransition: Transition.cupertino, // Smoother transitions
       transitionDuration: const Duration(milliseconds: 200),
+      popGesture: true, // Enable swipe to go back
+      defaultGlobalState: true, // Enable global state management
+      navigatorKey: Get.key, // Use GetX's navigator key
       theme: ThemeData(
         primaryColor: primaryBlack,
         scaffoldBackgroundColor: backgroundColor,
@@ -44,19 +82,19 @@ class MyApp extends StatelessWidget {
           surface: Color(0xFFFDFBD4),
           background: backgroundColor,
           error: Colors.red,
-          onPrimary: Color(0xFFFDFBD4),
-          onSecondary: Color(0xFFFDFBD4),
+          onPrimary: Color.fromARGB(255, 255, 255, 255),
+          onSecondary: Color.fromARGB(255, 255, 255, 255),
           onSurface: primaryBlack,
           onBackground: primaryBlack,
-          onError: Color(0xFFFDFBD4),
+          onError: Color.fromARGB(255, 255, 255, 255),
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: primaryBlack,
-          foregroundColor: Color(0xFFFDFBD4),
+          foregroundColor: Color.fromARGB(255, 255, 255, 255),
           elevation: 0,
         ),
         cardTheme: CardTheme(
-          color: const Color(0xFFFDFBD4),
+          color: const Color.fromARGB(255, 255, 255, 255),
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -65,7 +103,7 @@ class MyApp extends StatelessWidget {
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryBlack,
-            foregroundColor: const Color(0xFFFDFBD4),
+            foregroundColor: const Color.fromARGB(255, 255, 255, 255),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -79,14 +117,15 @@ class MyApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFFDFBD4),
+          fillColor: const Color.fromARGB(255, 255, 255, 255),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: lightGrey),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: lightGrey),
+            borderSide:
+                const BorderSide(color: Color.fromARGB(255, 194, 193, 193)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),

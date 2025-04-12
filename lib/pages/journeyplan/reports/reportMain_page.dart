@@ -1,16 +1,16 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
-import 'package:woosh/models/report/visibilityReport_model.dart';
-import 'package:woosh/models/report/feedbackReport_model.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:woosh/pages/journeyplan/reports/product_availability_page.dart';
+import 'package:woosh/pages/journeyplan/reports/visibility_activity_page.dart';
+import 'package:woosh/pages/journeyplan/reports/feedback_page.dart';
+import 'package:woosh/utils/config.dart';
 
+/// Main Reports Selection Page with card-based UI
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
   final VoidCallback? onAllReportsSubmitted;
@@ -26,526 +26,49 @@ class ReportsOrdersPage extends StatefulWidget {
 }
 
 class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
-  final _commentController = TextEditingController();
-  final _quantityController = TextEditingController();
-  final _apiService = ApiService();
-  bool _isSubmitting = false;
-  bool _isLoading = true;
-  Product? _selectedProduct;
-  File? _imageFile;
-  String? _imageUrl;
-  ReportType _selectedReportType = ReportType.PRODUCT_AVAILABILITY;
-  List<Product> _products = [];
+  bool _isLoading = false;
   List<Report> _submittedReports = [];
   bool _isCheckingOut = false;
-
+  
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    // No need to load reports on init as this page is for updating reports
   }
 
-  Future<void> _loadProducts() async {
-    try {
-      final products = await ApiService.getProducts();
-      setState(() {
-        _products = products;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading products: $e')),
-        );
-      }
-    }
-  }
+  // This page doesn't need to fetch reports as it's for updating reports only
 
-  Future<void> _refreshData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      // Reload products
-      await _loadProducts();
-
-      // Load any existing reports for this journey
-      try {
-        final reports = await _apiService.getReports(
-          journeyPlanId: widget.journeyPlan.id,
-        );
-        setState(() {
-          _submittedReports = reports;
-        });
-      } catch (e) {
-        print('Error loading existing reports: $e');
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reports refreshed')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    _quantityController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final pickedFile =
-          await ImagePicker().pickImage(source: ImageSource.camera);
-      if (pickedFile == null) return;
-
-      setState(() {
-        _imageFile = File(pickedFile.path);
-        _imageUrl = null;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
-      }
-    }
-  }
-
-  Future<String?> _uploadImage() async {
-    if (_imageFile == null) return null;
-
-    try {
-      final imageUrl = await ApiService.uploadImage(_imageFile!);
-      setState(() => _imageUrl = imageUrl);
-      return imageUrl;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading image: $e')),
-        );
-      }
-      return null;
-    }
-  }
-
-  Future<void> _submitReport() async {
-    if (_isSubmitting) return;
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      String? imageUrl = await _uploadImage();
-
-      Report report;
-      switch (_selectedReportType) {
-        case ReportType.PRODUCT_AVAILABILITY:
-          report = Report(
-            type: ReportType.PRODUCT_AVAILABILITY,
-            journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
-            productReport: ProductReport(
-              reportId: 0,
-              productName: _selectedProduct?.name,
-              quantity: int.tryParse(_quantityController.text),
-              comment: _commentController.text,
-            ),
-          );
-          break;
-        case ReportType.VISIBILITY_ACTIVITY:
-          report = Report(
-            type: ReportType.VISIBILITY_ACTIVITY,
-            journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
-            visibilityReport: VisibilityReport(
-              reportId: 0,
-              comment: _commentController.text,
-              imageUrl: imageUrl,
-            ),
-          );
-          break;
-        case ReportType.FEEDBACK:
-          report = Report(
-            type: ReportType.FEEDBACK,
-            journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
-            feedbackReport: FeedbackReport(
-              reportId: 0,
-              comment: _commentController.text,
-            ),
-          );
-          break;
-      }
-
-      await _apiService.submitReport(report);
-
-      setState(() {
-        _submittedReports.add(report);
-        _resetForm();
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report submitted successfully')),
-      );
-
-      // Check if all required reports are submitted
-      if (_areAllReportsSubmitted()) {
-        widget.onAllReportsSubmitted?.call();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting report: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
-    }
-  }
-
-  bool _areAllReportsSubmitted() {
-    // Check if at least one report of each type has been submitted
-    bool hasProductReport =
-        _submittedReports.any((r) => r.type == ReportType.PRODUCT_AVAILABILITY);
-    bool hasVisibilityReport =
-        _submittedReports.any((r) => r.type == ReportType.VISIBILITY_ACTIVITY);
-    bool hasFeedbackReport =
-        _submittedReports.any((r) => r.type == ReportType.FEEDBACK);
-
-    return hasProductReport && hasVisibilityReport && hasFeedbackReport;
-  }
-
-  void _resetForm() {
-    _commentController.clear();
-    _quantityController.clear();
-    _selectedProduct = null;
-    _imageFile = null;
-    _imageUrl = null;
-  }
-
-  Widget _buildReportForm() {
-    switch (_selectedReportType) {
-      case ReportType.PRODUCT_AVAILABILITY:
-        return Column(
-          children: [
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_products.isEmpty)
-              const Center(
-                child: Text(
-                  'No products available',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              )
-            else
-              DropdownButtonFormField<Product>(
-                value: _selectedProduct,
-                decoration: const InputDecoration(
-                  labelText: 'Select Product',
-                  border: OutlineInputBorder(),
-                ),
-                items: _products.map((product) {
-                  return DropdownMenuItem(
-                    value: product,
-                    child: Text(product.name),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedProduct = value);
-                },
-              ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _commentController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Comment',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        );
-
-      case ReportType.VISIBILITY_ACTIVITY:
-        return Column(
-          children: [
-            Center(
-              child: _imageFile != null || _imageUrl != null
-                  ? Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        _imageFile != null
-                            ? Image.file(
-                                _imageFile!,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              )
-                            : Image.network(
-                                _imageUrl!,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            setState(() {
-                              _imageFile = null;
-                              _imageUrl = null;
-                            });
-                          },
-                        ),
-                      ],
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: _pickImage,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Take Photo'),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _commentController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Comment',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        );
-
-      case ReportType.FEEDBACK:
-        return TextField(
-          controller: _commentController,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Feedback',
-            hintText: 'Enter your feedback here...',
-            border: OutlineInputBorder(),
-          ),
-        );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reports'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _refreshData,
-          ),
-        ],
+  void _navigateToProductAvailability() {
+    Get.to(
+      () => ProductAvailabilityPage(
+        journeyPlan: widget.journeyPlan,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Outlet Info Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.store, size: 24),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            widget.journeyPlan.outlet.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.journeyPlan.outlet.address,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+    );
+  }
 
-            // Report Type Selection
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Report Type',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<ReportType>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ReportType.PRODUCT_AVAILABILITY,
-                          label: Text('Product Availability'),
-                          icon: Icon(Icons.inventory),
-                        ),
-                        ButtonSegment(
-                          value: ReportType.VISIBILITY_ACTIVITY,
-                          label: Text('Visibility Activity'),
-                          icon: Icon(Icons.photo_camera),
-                        ),
-                        ButtonSegment(
-                          value: ReportType.FEEDBACK,
-                          label: Text('Feedback'),
-                          icon: Icon(Icons.feedback),
-                        ),
-                      ],
-                      selected: {_selectedReportType},
-                      onSelectionChanged: (Set<ReportType> newSelection) {
-                        setState(() {
-                          _selectedReportType = newSelection.first;
-                          _resetForm();
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+  void _navigateToVisibilityActivity() {
+    Get.to(
+      () => VisibilityActivityPage(
+        journeyPlan: widget.journeyPlan,
+      ),
+    );
+  }
 
-            // Report Form
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildReportForm(),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submitReport,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: _isSubmitting
-                            ? const CircularProgressIndicator(
-                                color: Colors.white)
-                            : const Text('Submit Report'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Checkout Button
-            const SizedBox(height: 24),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Complete Visit',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'When you have completed all required tasks, check out to mark this visit as complete.',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isCheckingOut ? null : _confirmCheckout,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        icon: const Icon(Icons.check_circle),
-                        label: _isCheckingOut
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                ),
-                              )
-                            : const Text('CHECK OUT'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+  void _navigateToFeedback() {
+    Get.to(
+      () => FeedbackPage(
+        journeyPlan: widget.journeyPlan,
       ),
     );
   }
 
   Future<void> _confirmCheckout() async {
-    if (_isCheckingOut) return;
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Checkout'),
         content: const Text(
-          'Are you sure you want to check out from this location? This will mark your visit as complete.',
+          'Are you sure you want to complete this visit?',
         ),
         actions: [
           TextButton(
@@ -558,85 +81,260 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
-            child: const Text('CHECK OUT'),
+            child: const Text('Complete'),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await _processCheckout();
+      await _checkOut();
     }
   }
 
-  Future<void> _processCheckout() async {
+  Future<void> _checkOut() async {
+    if (_isCheckingOut) return;
+
     setState(() {
       _isCheckingOut = true;
     });
 
     try {
-      // Get current position
-      print('CHECKOUT: Starting checkout process...');
-      print('CHECKOUT: Getting current position...');
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+      // Update journey plan status to completed
+      Map<String, dynamic> updateData = {
+        'journeyId': widget.journeyPlan.id!,
+        'outletId': widget.journeyPlan.outlet.id,
+        'status': JourneyPlan.statusCompleted,
+        'checkoutTime': DateTime.now().toIso8601String(),
+      };
+      
+      // Make API call to update journey plan
+      final response = await http.post(
+        Uri.parse('${Config.baseUrl}/api/journey-plans/update'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${GetStorage().read('token')}',
+        },
+        body: json.encode(updateData),
       );
-
-      print(
-          'CHECKOUT: Position obtained: ${position.latitude}, ${position.longitude}');
-      print('CHECKOUT: Accuracy: ${position.accuracy} meters');
-      print('CHECKOUT: Timestamp: ${DateTime.now().toIso8601String()}');
-      print('CHECKOUT: Journey ID: ${widget.journeyPlan.id}');
-      print('CHECKOUT: Outlet ID: ${widget.journeyPlan.outlet.id}');
-
-      // Update journey plan with checkout information
-      print('CHECKOUT: Sending data to API...');
-      final response = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
-        status: JourneyPlan.statusCompleted,
-        checkoutTime: DateTime.now(),
-        checkoutLatitude: position.latitude,
-        checkoutLongitude: position.longitude,
-      );
-
-      print('CHECKOUT: API response received:');
-      print('CHECKOUT: Updated Journey Plan ID: ${response.id}');
-      print('CHECKOUT: New Status: ${response.statusText}');
-      print('CHECKOUT: Checkout Time: ${response.checkoutTime}');
-      print('CHECKOUT: Checkout Latitude: ${response.checkoutLatitude}');
-      print('CHECKOUT: Checkout Longitude: ${response.checkoutLongitude}');
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update journey plan');
+      }
+      
+      if (widget.onAllReportsSubmitted != null) {
+        widget.onAllReportsSubmitted!();
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Checkout completed successfully'),
+            content: Text('Visit completed successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-
-        // Call the callback if provided
-        widget.onAllReportsSubmitted?.call();
-
-        // Navigate back after successful checkout
-        Navigator.of(context).pop();
+        Navigator.pop(context);
       }
     } catch (e) {
-      print('CHECKOUT ERROR: ${e.toString()}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error during checkout: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
+      print('Error checking out: $e');
       if (mounted) {
         setState(() {
           _isCheckingOut = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to complete visit: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reports'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          // No refresh button needed as this page is for updating reports only
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Outlet info card - more compact
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.store, size: 20, color: Color(0xFFC69C6D)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.journeyPlan.outlet.name,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  widget.journeyPlan.outlet.address,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Select Report Type',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _buildReportCard(
+                          title: 'Product Availability',
+                          icon: Icons.inventory,
+                          color: Colors.blue,
+                          onTap: _navigateToProductAvailability,
+                          submittedCount: _submittedReports
+                              .where((r) => r.type == ReportType.PRODUCT_AVAILABILITY)
+                              .length,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildReportCard(
+                          title: 'Visibility Activity',
+                          icon: Icons.visibility,
+                          color: Colors.orange,
+                          onTap: _navigateToVisibilityActivity,
+                          submittedCount: _submittedReports
+                              .where((r) => r.type == ReportType.VISIBILITY_ACTIVITY)
+                              .length,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildReportCard(
+                          title: 'Feedback',
+                          icon: Icons.feedback,
+                          color: Colors.green,
+                          onTap: _navigateToFeedback,
+                          submittedCount: _submittedReports
+                              .where((r) => r.type == ReportType.FEEDBACK)
+                              .length,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isCheckingOut ? null : _confirmCheckout,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC69C6D),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.check_circle, size: 18),
+                      label: _isCheckingOut
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Complete Visit'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildReportCard({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required int submittedCount,
+  }) {
+    final primaryColor = Theme.of(context).primaryColor;
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 28,
+                color: color,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: submittedCount > 0 ? Colors.green : Color(0xFFE0E0E0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        submittedCount > 0 ? '$submittedCount Submitted' : 'Not Submitted',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: submittedCount > 0 ? Colors.white : Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 14, color: primaryColor),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
