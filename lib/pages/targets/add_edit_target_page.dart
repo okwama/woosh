@@ -14,11 +14,11 @@ class AddEditTargetPage extends StatefulWidget {
 }
 
 class _AddEditTargetPageState extends State<AddEditTargetPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _targetValueController = TextEditingController();
-  final _currentValueController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _targetValueController = TextEditingController();
+  final TextEditingController _currentValueController = TextEditingController();
 
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 30));
@@ -54,6 +54,38 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
     super.dispose();
   }
 
+  String? _validateTitle(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter a title';
+    }
+    return null;
+  }
+
+  String? _validateTargetValue(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter a target value';
+    }
+    if (int.tryParse(value) == null || int.parse(value) <= 0) {
+      return 'Please enter a valid number greater than 0';
+    }
+    return null;
+  }
+
+  String? _validateCurrentValue(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter current progress';
+    }
+    if (int.tryParse(value) == null || int.parse(value) < 0) {
+      return 'Please enter a valid number';
+    }
+    final currentValue = int.parse(value);
+    final targetValue = int.tryParse(_targetValueController.text) ?? 0;
+    if (currentValue > targetValue) {
+      return 'Current value cannot exceed target value';
+    }
+    return null;
+  }
+
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
     final initialDate = isStartDate ? _startDate : _endDate;
     final DateTime? picked = await showDatePicker(
@@ -81,9 +113,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
   }
 
   Future<void> _saveTarget() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
 
@@ -226,12 +256,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                         labelText: 'Title',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a title';
-                        }
-                        return null;
-                      },
+                      validator: _validateTitle,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -289,16 +314,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a target value';
-                              }
-                              if (int.tryParse(value) == null ||
-                                  int.parse(value) <= 0) {
-                                return 'Please enter a valid number greater than 0';
-                              }
-                              return null;
-                            },
+                            validator: _validateTargetValue,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -310,16 +326,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter current progress';
-                              }
-                              if (int.tryParse(value) == null ||
-                                  int.parse(value) < 0) {
-                                return 'Please enter a valid number';
-                              }
-                              return null;
-                            },
+                            validator: _validateCurrentValue,
                           ),
                         ),
                       ],

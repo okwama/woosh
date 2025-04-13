@@ -218,7 +218,11 @@ class _HomePageState extends State<HomePage> {
                       subtitle: '$userName\n$userPhone',
                       icon: Icons.person,
                       onTap: () {
-                        Get.to(() => ProfilePage());
+                        Get.to(
+                          () => ProfilePage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
@@ -226,49 +230,77 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
                       onTap: () {
-                        Get.to(() => const JourneyPlansPage())?.then((_) => _loadPendingJourneyPlans());
+                        Get.to(
+                          () => const JourneyPlansPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        )?.then((_) => _loadPendingJourneyPlans());
                       },
                     ),
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,
                       onTap: () {
-                        Get.to(() => const ViewClientPage());
+                        Get.to(
+                          () => const ViewClientPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
                       title: 'Notice Board',
                       icon: Icons.notifications,
                       onTap: () {
-                        Get.to(() => const NoticeBoardPage());
+                        Get.to(
+                          () => const NoticeBoardPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
                       title: 'Add/Edit Order',
                       icon: Icons.edit,
                       onTap: () {
-                        Get.to(() => const ViewClientPage(forOrderCreation: true));
+                        Get.to(
+                          () => const ViewClientPage(forOrderCreation: true),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
-                      title: 'View Order',
-                      icon: Icons.view_list,
+                      title: 'View Orders',
+                      icon: Icons.shopping_cart,
                       onTap: () {
-                        Get.to(() => const ViewOrdersPage());
+                        Get.to(
+                          () => const ViewOrdersPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
-                      title: 'View Targets',
-                      icon: Icons.view_timeline_sharp,
+                      title: 'Targets',
+                      icon: Icons.track_changes,
                       onTap: () {
-                        Get.to(() => const TargetsPage());
+                        Get.to(
+                          () => const TargetsPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                     MenuTile(
-                      title: 'Leave Application',
-                      icon: Icons.post_add_outlined,
+                      title: 'Leave',
+                      icon: Icons.event_busy,
                       onTap: () {
-                        Get.to(() => const LeaveApplicationPage());
+                        Get.to(
+                          () => const LeaveApplicationPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                   ],

@@ -1,7 +1,7 @@
 class Config {
-  static const String baseUrl = 'https://github-com-okwama-woosh-api.vercel.app';
+  static const String baseUrl = 'http://147.182.202.116:3000';
   static const String apiVersion = 'v1';
-  static const String imageBaseUrl = 'https://github-com-okwama-woosh-api.vercel.app/uploads';
+  static const String imageBaseUrl = 'http://147.182.202.116:3000/uploads';
   
   // API Endpoints
   static const String loginEndpoint = '/auth/login';

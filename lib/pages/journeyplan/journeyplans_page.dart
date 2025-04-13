@@ -298,10 +298,13 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                   child: _journeyPlans.isEmpty
                       ? const Center(child: Text('No journey plans found'))
                       : ListView.builder(
+                          key: const PageStorageKey('journey_plans_list'),
                           itemCount: _journeyPlans.length,
                           itemBuilder: (context, index) {
                             final journeyPlan = _journeyPlans[index];
                             return Card(
+                              key: ValueKey(
+                                  'journey_plan_${journeyPlan.id}_$index'),
                               margin: const EdgeInsets.symmetric(
                                 horizontal: 8.0,
                                 vertical: 4.0,

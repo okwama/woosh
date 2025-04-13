@@ -15,7 +15,7 @@ class LeaveApplicationPage extends StatefulWidget {
 }
 
 class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
-  final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _startDateController = TextEditingController();
   final TextEditingController _endDateController = TextEditingController();
   final TextEditingController _reasonController = TextEditingController();
@@ -27,11 +27,10 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   String? _error;
   bool _isFileAttached = false;
 
-  final List<String> _leaveTypes = [
-    'Sick Leave',
-    'Annual Leave',
-    'Leave Request'
-  ];
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
+
+  final List<String> _leaveTypes = ['Annual', 'Sick', 'Emergency', 'Other'];
 
   @override
   void dispose() {
@@ -54,8 +53,10 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       setState(() {
         if (isStartDate) {
           _startDateController.text = formattedDate;
+          _startDate = picked;
         } else {
           _endDateController.text = formattedDate;
+          _endDate = picked;
         }
       });
     }
@@ -94,12 +95,37 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
     }
   }
 
-  Future<void> _submitLeaveApplication() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  String? _validateLeaveType(String? value) {
+    return value == null || value.isEmpty ? 'Please select a leave type' : null;
+  }
 
-    if (_selectedLeaveType == 'Sick Leave' && !_isFileAttached) {
+  String? _validateReason(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please provide a reason for your leave';
+    }
+    if (value.length < 10) {
+      return 'Please provide a more detailed reason';
+    }
+    return null;
+  }
+
+  bool _validateDates() {
+    if (_endDate.isBefore(_startDate)) {
+      setState(() => _error = 'End date cannot be before start date');
+      return false;
+    }
+    if (_startDate.isBefore(DateTime.now())) {
+      setState(() => _error = 'Start date cannot be in the past');
+      return false;
+    }
+    setState(() => _error = null);
+    return true;
+  }
+
+  Future<void> _submitLeaveApplication() async {
+    if (!_formKey.currentState!.validate() || !_validateDates()) return;
+
+    if (_selectedLeaveType == 'Sick' && !_isFileAttached) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please attach a document for sick leave'),
@@ -201,8 +227,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                           child: Text(type),
                         );
                       }).toList(),
-                      validator: (value) =>
-                          value == null ? 'Please select a leave type' : null,
+                      validator: _validateLeaveType,
                       onChanged: (value) {
                         setState(() {
                           _selectedLeaveType = value;
@@ -249,12 +274,10 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 3,
-                      validator: (value) => value?.isEmpty == true
-                          ? 'Please enter a reason'
-                          : null,
+                      validator: _validateReason,
                     ),
                     const SizedBox(height: 16),
-                    if (_selectedLeaveType == 'Sick Leave') ...[
+                    if (_selectedLeaveType == 'Sick') ...[
                       ElevatedButton.icon(
                         onPressed: _pickFile,
                         icon: const Icon(Icons.attach_file),

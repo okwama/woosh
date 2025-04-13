@@ -82,11 +82,13 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
                   : RefreshIndicator(
                       onRefresh: _loadLeaves,
                       child: ListView.builder(
+                        key: const PageStorageKey('leave_requests_list'),
                         padding: const EdgeInsets.all(16),
                         itemCount: _leaves.length,
                         itemBuilder: (context, index) {
                           final leave = _leaves[index];
                           return Card(
+                            key: ValueKey('leave_${leave.id}_$index'),
                             margin: const EdgeInsets.only(bottom: 16),
                             child: Padding(
                               padding: const EdgeInsets.all(16),

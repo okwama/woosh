@@ -7,12 +7,17 @@ class ImageUtils {
     bool progressive = true,
   }) {
     if (originalUrl == null || originalUrl.isEmpty) {
-      return 'https://via.placeholder.com/$width';
+      return 'https://via.placeholder.com/$width'; // Placeholder image
     }
 
-    // If URL already has transformations, return as is
+    // If URL already contains ImageKit transformations, return it as is
     if (originalUrl.contains('tr=')) {
       return originalUrl;
+    }
+
+    // If the URL is already complete (starts with http:// or https://), no need to prepend base URL
+    if (originalUrl.startsWith('http://') || originalUrl.startsWith('https://')) {
+      return originalUrl; // Return the full URL as is
     }
 
     // Add ImageKit transformations

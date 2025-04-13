@@ -175,6 +175,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                           ),
                         )
                       : ListView.builder(
+                          key: const PageStorageKey('orders_list'),
                           controller: _scrollController,
                           padding: const EdgeInsets.all(8),
                           itemCount: _orders.length + (_hasMore ? 1 : 0),
@@ -195,6 +196,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                 : null;
 
                             return Card(
+                              key: ValueKey('order_${order.id}_$index'),
                               child: ListTile(
                                 title: Text(firstOrderItem?.product?.name ??
                                     'No products'),

@@ -7,7 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:get/get.dart' hide FormData, MultipartFile;  // Hide conflicting imports
+import 'package:get/get.dart'
+    hide FormData, MultipartFile; // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/noticeboard_model.dart';
@@ -78,7 +79,8 @@ class ApiService {
     return box.read<String>('token');
   }
 
-  static Future<Map<String, String>> _headers([String? additionalContentType]) async {
+  static Future<Map<String, String>> _headers(
+      [String? additionalContentType]) async {
     final token = _getAuthToken();
     return {
       'Content-Type': additionalContentType ?? 'application/json',
@@ -693,16 +695,17 @@ class ApiService {
   }
 
   // Create a new order
-  static Future<void> createOrder({
+  static Future<Order> createOrder({
     required int outletId,
     required List<Map<String, dynamic>> items,
   }) async {
     try {
-      await _initDioHeaders();  // Initialize headers before making request
+      await _initDioHeaders();
 
       final requestBody = {
         'outletId': outletId,
-        'items': items,
+        'orderItems':
+            items, // Changed from 'items' to 'orderItems' to match backend
       };
 
       print('Creating order with body: $requestBody');
@@ -713,11 +716,18 @@ class ApiService {
         body: jsonEncode(requestBody),
       );
 
-      if (response.statusCode != 201) {
-        throw Exception('Failed to create order');
+      if (response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return Order.fromJson(responseData['data']);
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to create order');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to create order: ${response.statusCode}');
       }
-
-      print('Order created successfully');
     } catch (e) {
       print('Error creating order: $e');
       rethrow;
@@ -727,8 +737,7 @@ class ApiService {
   // Update an existing order
   static Future<Order> updateOrder({
     required int orderId,
-    required List<Map<String, dynamic>>
-        orderItems, // Now an array of order items
+    required List<Map<String, dynamic>> orderItems,
   }) async {
     try {
       final token = _getAuthToken();
@@ -740,23 +749,25 @@ class ApiService {
         Uri.parse('$baseUrl/orders/$orderId'),
         headers: await _headers(),
         body: jsonEncode({
-          'orderItems': orderItems, // Send orderItems array for update
+          'orderItems': orderItems,
         }),
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final responseData = jsonDecode(response.body);
         if (responseData['success'] == true) {
           return Order.fromJson(responseData['data']);
         } else {
           throw Exception(responseData['error'] ?? 'Failed to update order');
         }
       } else {
-        throw Exception('Failed to update order: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to update order: ${response.statusCode}');
       }
     } catch (e) {
       print('Error updating order: $e');
-      throw Exception('Failed to update order');
+      throw Exception('Failed to update order: $e');
     }
   }
 
@@ -1289,7 +1300,8 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        final errorMsg = json.decode(response.body)['message'] ?? 'Failed to fetch profile data';
+        final errorMsg = json.decode(response.body)['message'] ??
+            'Failed to fetch profile data';
         throw Exception(errorMsg);
       }
 
@@ -1305,7 +1317,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(
+      Map<String, dynamic> data) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/users/profile'),
@@ -1324,17 +1337,19 @@ class ApiService {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/profile/photo'), // Removed /api prefix to match backend route
+        Uri.parse(
+            '$baseUrl/profile/photo'), // Removed /api prefix to match backend route
       );
-      
-      request.headers.addAll(await _headers()..remove('Content-Type'));
+
+      request.headers.addAll(await _headers()
+        ..remove('Content-Type'));
 
       if (kIsWeb) {
         // For web, XFile provides bytes directly
         final bytes = await photo.readAsBytes();
         request.files.add(
           http.MultipartFile.fromBytes(
-            'photo',  // Field name must match multer configuration
+            'photo', // Field name must match multer configuration
             bytes,
             filename: photo.name,
             contentType: MediaType('image', photo.name.split('.').last),
@@ -1344,7 +1359,7 @@ class ApiService {
         // For mobile platforms
         request.files.add(
           await http.MultipartFile.fromPath(
-            'photo',  // Field name must match multer configuration
+            'photo', // Field name must match multer configuration
             photo.path,
             contentType: MediaType('image', photo.path.split('.').last),
           ),
@@ -1354,18 +1369,20 @@ class ApiService {
       print('Sending multipart request for profile photo update');
       final streamedResponse = await request.send();
       print('Response status code: ${streamedResponse.statusCode}');
-      
+
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       if (response.statusCode != 200) {
-        final errorMsg = response.statusCode == 404 
-          ? 'Profile photo upload endpoint not found. Please check API configuration.' 
-          : (json.decode(response.body)['message'] ?? 'Failed to update profile photo');
+        final errorMsg = response.statusCode == 404
+            ? 'Profile photo upload endpoint not found. Please check API configuration.'
+            : (json.decode(response.body)['message'] ??
+                'Failed to update profile photo');
         throw Exception(errorMsg);
       }
-      
+
       final responseData = json.decode(response.body);
-      if (responseData['user'] != null && responseData['user']['photoUrl'] != null) {
+      if (responseData['user'] != null &&
+          responseData['user']['photoUrl'] != null) {
         return responseData['user']['photoUrl'];
       }
       throw Exception('Invalid response format from server');

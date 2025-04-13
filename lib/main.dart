@@ -8,13 +8,12 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 
-// Custom color scheme
-const Color primaryBlack = Color(0xFFDAA520);
-const Color secondaryGrey = Color.fromARGB(255, 0, 0, 0);
+// 🎨 Updated color scheme with clearer naming
+const Color goldColor = Color(0xFFDAA520);
+const Color blackColor = Color.fromARGB(255, 0, 0, 0);
 const Color accentGrey = Color(0xFF666666);
 const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
-const Color backgroundColor = Color(0xFFFDFBD4);
-
+const Color appBackground = Color.fromARGB(255, 251, 249, 249);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,30 +32,30 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Whoosh',
-      defaultTransition: Transition.cupertino, // Smoother transitions
+      defaultTransition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 200),
       theme: ThemeData(
-        primaryColor: primaryBlack,
-        scaffoldBackgroundColor: backgroundColor,
+        primaryColor: goldColor,
+        scaffoldBackgroundColor: appBackground,
         colorScheme: const ColorScheme.light(
-          primary: primaryBlack,
-          secondary: secondaryGrey,
+          primary: goldColor,
+          secondary: blackColor,
           surface: Color(0xFFFDFBD4),
-          background: backgroundColor,
+          background: appBackground,
           error: Colors.red,
           onPrimary: Color(0xFFFDFBD4),
-          onSecondary: Color(0xFFFDFBD4),
-          onSurface: primaryBlack,
-          onBackground: primaryBlack,
-          onError: Color(0xFFFDFBD4),
+          onSecondary: Color.fromARGB(255, 252, 252, 252),
+          onSurface: goldColor,
+          onBackground: Color.fromARGB(255, 252, 252, 252),
+          onError: Color.fromARGB(255, 255, 255, 255),
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: primaryBlack,
-          foregroundColor: Color(0xFFFDFBD4),
+          backgroundColor: goldColor,
+          foregroundColor: Color.fromARGB(255, 255, 255, 255),
           elevation: 0,
         ),
         cardTheme: CardTheme(
-          color: const Color(0xFFFDFBD4),
+          color: const Color.fromARGB(255, 255, 255, 255),
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -64,8 +63,8 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: primaryBlack,
-            foregroundColor: const Color(0xFFFDFBD4),
+            backgroundColor: goldColor,
+            foregroundColor: const Color.fromARGB(255, 255, 255, 255),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
@@ -74,23 +73,23 @@ class MyApp extends StatelessWidget {
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: primaryBlack,
+            foregroundColor: goldColor,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFFDFBD4),
+          fillColor: const Color.fromARGB(255, 255, 255, 255),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: lightGrey),
+            borderSide: const BorderSide(color: Color.fromARGB(255, 156, 156, 153)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: lightGrey),
+            borderSide: const BorderSide(color: Color.fromARGB(255, 188, 188, 188)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: primaryBlack),
+            borderSide: const BorderSide(color: goldColor),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -106,8 +105,7 @@ class MyApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ),
       ),
-      home:
-          Obx(() => authController.isLoggedIn.value ? HomePage() : LoginPage()),
+      home: Obx(() => authController.isLoggedIn.value ? HomePage() : LoginPage()),
       getPages: [
         GetPage(name: '/login', page: () => LoginPage()),
         GetPage(name: '/home', page: () => HomePage()),

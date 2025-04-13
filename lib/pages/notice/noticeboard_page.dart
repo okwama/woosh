@@ -338,10 +338,15 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                         });
                       },
                       child: ListView.builder(
+                        key: const PageStorageKey('notices_list'),
                         padding: const EdgeInsets.all(16.0),
                         itemCount: snapshot.data!.length,
                         itemBuilder: (context, index) {
-                          return _buildNoticeCard(snapshot.data![index]);
+                          final notice = snapshot.data![index];
+                          return Card(
+                            key: ValueKey('notice_${notice.id}_$index'),
+                            child: _buildNoticeCard(notice),
+                          );
                         },
                       ),
                     );

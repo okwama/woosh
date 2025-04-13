@@ -15,7 +15,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthController _authController = Get.find<AuthController>();
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -25,6 +25,26 @@ class _LoginPageState extends State<LoginPage> {
     _phoneNumberController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String? _validatePhoneNumber(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Phone number is required';
+    }
+    if (!RegExp(r'^\d{10,12}$').hasMatch(value)) {
+      return 'Enter a valid phone number';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    return null;
   }
 
   void _showToast(String message, bool isError) {
@@ -167,15 +187,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 16),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter your phone number';
-        }
-        if (!GetUtils.isPhoneNumber(value)) {
-          return 'Please enter a valid phone number';
-        }
-        return null;
-      },
+      validator: _validatePhoneNumber,
     );
   }
 
@@ -202,15 +214,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 16),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please enter your password';
-        }
-        if (value.length < 6) {
-          return 'Password must be at least 6 characters';
-        }
-        return null;
-      },
+      validator: _validatePassword,
     );
   }
 

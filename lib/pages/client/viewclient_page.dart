@@ -229,12 +229,14 @@ class _ViewClientPageState extends State<ViewClientPage> {
                         : RefreshIndicator(
                             onRefresh: _loadOutlets,
                             child: ListView.builder(
+                              key: const PageStorageKey('outlets_list'),
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: _getFilteredOutlets().length,
                               itemBuilder: (context, index) {
                                 final outlet = _getFilteredOutlets()[index];
                                 return Card(
+                                  key: ValueKey('outlet_${outlet.id}_$index'),
                                   margin: const EdgeInsets.only(bottom: 12),
                                   elevation: 2,
                                   shape: RoundedRectangleBorder(
