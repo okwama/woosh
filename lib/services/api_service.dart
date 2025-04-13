@@ -1403,4 +1403,41 @@ class ApiService {
       print('Error during logout: $e');
     }
   }
+
+  // Create a new outlet/client
+  static Future<Outlet> createOutlet({
+    required String name,
+    required String address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/outlets'),
+        headers: await _headers(),
+        body: jsonEncode({
+          'name': name,
+          'address': address,
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return Outlet.fromJson(jsonDecode(response.body));
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to create outlet: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error in createOutlet: $e');
+      throw Exception('An error occurred while creating the outlet: $e');
+    }
+  }
 }

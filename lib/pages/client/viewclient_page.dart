@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
+import 'package:woosh/pages/client/addclient_page.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
@@ -333,6 +334,18 @@ class _ViewClientPageState extends State<ViewClientPage> {
                           ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddClientPage(),
+            ),
+          ).then((_) => _loadOutlets()); // Refresh list after returning
+        },
+        backgroundColor: Theme.of(context).primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
