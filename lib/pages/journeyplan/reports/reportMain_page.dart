@@ -422,31 +422,87 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    SegmentedButton<ReportType>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ReportType.PRODUCT_AVAILABILITY,
-                          label: Text('Product Availability'),
-                          icon: Icon(Icons.inventory),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedReportType =
+                                ReportType.PRODUCT_AVAILABILITY;
+                            _resetForm();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _selectedReportType ==
+                                  ReportType.PRODUCT_AVAILABILITY
+                              ? Theme.of(context).primaryColor
+                              : Colors.grey.shade200,
+                          foregroundColor: _selectedReportType ==
+                                  ReportType.PRODUCT_AVAILABILITY
+                              ? Colors.white
+                              : Colors.black87,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
                         ),
-                        ButtonSegment(
-                          value: ReportType.VISIBILITY_ACTIVITY,
-                          label: Text('Visibility Activity'),
-                          icon: Icon(Icons.photo_camera),
+                        icon: const Icon(Icons.inventory),
+                        label: const Text('Product Availability'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedReportType =
+                                ReportType.VISIBILITY_ACTIVITY;
+                            _resetForm();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _selectedReportType ==
+                                  ReportType.VISIBILITY_ACTIVITY
+                              ? Theme.of(context).primaryColor
+                              : Colors.grey.shade200,
+                          foregroundColor: _selectedReportType ==
+                                  ReportType.VISIBILITY_ACTIVITY
+                              ? Colors.white
+                              : Colors.black87,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
                         ),
-                        ButtonSegment(
-                          value: ReportType.FEEDBACK,
-                          label: Text('Feedback'),
-                          icon: Icon(Icons.feedback),
+                        icon: const Icon(Icons.photo_camera),
+                        label: const Text('Visibility Activity'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _selectedReportType = ReportType.FEEDBACK;
+                            _resetForm();
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _selectedReportType == ReportType.FEEDBACK
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey.shade200,
+                          foregroundColor:
+                              _selectedReportType == ReportType.FEEDBACK
+                                  ? Colors.white
+                                  : Colors.black87,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
                         ),
-                      ],
-                      selected: {_selectedReportType},
-                      onSelectionChanged: (Set<ReportType> newSelection) {
-                        setState(() {
-                          _selectedReportType = newSelection.first;
-                          _resetForm();
-                        });
-                      },
+                        icon: const Icon(Icons.feedback),
+                        label: const Text('Feedback'),
+                      ),
                     ),
                   ],
                 ),

@@ -7,13 +7,7 @@ import 'package:woosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
-
-// 🎨 Updated color scheme with clearer naming
-const Color goldColor = Color(0xFFDAA520);
-const Color blackColor = Color.fromARGB(255, 0, 0, 0);
-const Color accentGrey = Color(0xFF666666);
-const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
-const Color appBackground = Color.fromARGB(255, 251, 249, 249);
+import 'package:woosh/utils/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,22 +29,23 @@ class MyApp extends StatelessWidget {
       defaultTransition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 200),
       theme: ThemeData(
-        primaryColor: goldColor,
+        primaryColor:
+            goldMiddle2, // Use goldMiddle2 as primary color (most similar to previous gold)
         scaffoldBackgroundColor: appBackground,
-        colorScheme: const ColorScheme.light(
-          primary: goldColor,
+        colorScheme: ColorScheme.light(
+          primary: goldMiddle2,
           secondary: blackColor,
           surface: Color(0xFFFDFBD4),
           background: appBackground,
           error: Colors.red,
           onPrimary: Color(0xFFFDFBD4),
           onSecondary: Color.fromARGB(255, 252, 252, 252),
-          onSurface: goldColor,
+          onSurface: goldMiddle2,
           onBackground: Color.fromARGB(255, 252, 252, 252),
           onError: Color.fromARGB(255, 255, 255, 255),
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: goldColor,
+        appBarTheme: AppBarTheme(
+          backgroundColor: goldMiddle2,
           foregroundColor: Color.fromARGB(255, 255, 255, 255),
           elevation: 0,
         ),
@@ -63,7 +58,7 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: goldColor,
+            backgroundColor: goldMiddle2,
             foregroundColor: const Color.fromARGB(255, 255, 255, 255),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
@@ -73,7 +68,7 @@ class MyApp extends StatelessWidget {
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            foregroundColor: goldColor,
+            foregroundColor: goldMiddle2,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -81,15 +76,17 @@ class MyApp extends StatelessWidget {
           fillColor: const Color.fromARGB(255, 255, 255, 255),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color.fromARGB(255, 156, 156, 153)),
+            borderSide:
+                const BorderSide(color: Color.fromARGB(255, 156, 156, 153)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color.fromARGB(255, 188, 188, 188)),
+            borderSide:
+                const BorderSide(color: Color.fromARGB(255, 188, 188, 188)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: goldColor),
+            borderSide: BorderSide(color: goldMiddle2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -105,7 +102,8 @@ class MyApp extends StatelessWidget {
           Theme.of(context).textTheme,
         ),
       ),
-      home: Obx(() => authController.isLoggedIn.value ? HomePage() : LoginPage()),
+      home:
+          Obx(() => authController.isLoggedIn.value ? HomePage() : LoginPage()),
       getPages: [
         GetPage(name: '/login', page: () => LoginPage()),
         GetPage(name: '/home', page: () => HomePage()),

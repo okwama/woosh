@@ -2,10 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:woosh/models/target_model.dart';
+import 'package:woosh/models/order_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/target_service.dart';
 import 'package:woosh/pages/targets/add_edit_target_page.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/gradient_widgets.dart';
 
 class TargetsPage extends StatefulWidget {
   const TargetsPage({super.key});
@@ -18,15 +24,20 @@ class _TargetsPageState extends State<TargetsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<Target> _targets = [];
+  List<Order> _userOrders = [];
   bool _isLoading = true;
+  bool _isLoadingOrders = true;
   String? _errorMessage;
   String _sortOption = 'endDate'; // Default sort by end date
+  int _totalItemsSold = 0;
+  DateTime _twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadTargets();
+    _loadUserOrders();
   }
 
   @override
@@ -42,7 +53,7 @@ class _TargetsPageState extends State<TargetsPage>
     });
 
     try {
-      final targets = await ApiService.getTargets();
+      final targets = await TargetService.getTargets();
       setState(() {
         _targets = targets;
         _isLoading = false;
@@ -53,6 +64,34 @@ class _TargetsPageState extends State<TargetsPage>
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadUserOrders() async {
+    setState(() {
+      _isLoadingOrders = true;
+    });
+
+    try {
+      final salesData = await TargetService.getSalesData();
+
+      setState(() {
+        _totalItemsSold = salesData['totalItemsSold'];
+        _userOrders = salesData['recentOrders'];
+        _isLoadingOrders = false;
+      });
+    } catch (e) {
+      print('Error loading orders: $e');
+      setState(() {
+        _isLoadingOrders = false;
+      });
+    }
+  }
+
+  Future<void> _refreshData() async {
+    await Future.wait([
+      _loadTargets(),
+      _loadUserOrders(),
+    ]);
   }
 
   // Filter targets by status
@@ -114,8 +153,8 @@ class _TargetsPageState extends State<TargetsPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Targets'),
+      appBar: GradientAppBar(
+        title: 'Products Sold Targets',
         actions: [
           IconButton(
             icon: const Icon(Icons.sort),
@@ -124,7 +163,7 @@ class _TargetsPageState extends State<TargetsPage>
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadTargets,
+            onPressed: _refreshData,
             tooltip: 'Refresh',
           ),
         ],
@@ -138,7 +177,7 @@ class _TargetsPageState extends State<TargetsPage>
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: GradientCircularProgressIndicator())
           : _errorMessage != null
               ? Center(
                   child: Column(
@@ -150,8 +189,8 @@ class _TargetsPageState extends State<TargetsPage>
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadTargets,
+                      GoldGradientButton(
+                        onPressed: _refreshData,
                         child: const Text('Retry'),
                       ),
                     ],
@@ -175,7 +214,7 @@ class _TargetsPageState extends State<TargetsPage>
                     ),
                   ],
                 ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: GradientFAB(
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -185,65 +224,81 @@ class _TargetsPageState extends State<TargetsPage>
           );
 
           if (result == true) {
-            _loadTargets();
+            _refreshData();
           }
         },
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
       ),
     );
   }
 
   Widget _buildSummaryCard() {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            CircularPercentIndicator(
-              radius: 45.0,
-              lineWidth: 10.0,
-              percent: _overallProgress / 100,
-              center: Text(
-                "${_overallProgress.toStringAsFixed(0)}%",
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16.0),
+    return GradientBorderCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(12.0),
+      margin: const EdgeInsets.all(6.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6.0),
+            child: Text(
+              'Products sold targets are tracked every two weeks',
+              style: TextStyle(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey[600],
               ),
-              progressColor: Theme.of(context).primaryColor,
-              backgroundColor: Colors.grey[300]!,
-              circularStrokeCap: CircularStrokeCap.round,
-              animation: true,
-              animationDuration: 1500,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Overall Progress',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+          ),
+          Row(
+            children: [
+              CircularPercentIndicator(
+                radius: 35.0,
+                lineWidth: 8.0,
+                percent: _overallProgress / 100,
+                center: GradientText(
+                  "${_overallProgress.toStringAsFixed(0)}%",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.0,
+                  ),
+                ),
+                backgroundColor: Colors.grey[300]!,
+                progressColor: goldMiddle2,
+                circularStrokeCap: CircularStrokeCap.round,
+                animation: true,
+                animationDuration: 1500,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Overall Progress',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildStatItem(Icons.check_circle, Colors.green,
-                          _completedCount.toString(), 'Completed'),
-                      _buildStatItem(Icons.pending, Colors.orange,
-                          _activeCount.toString(), 'Active'),
-                      _buildStatItem(Icons.upcoming, Colors.blue,
-                          _upcomingCount.toString(), 'Upcoming'),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _buildStatItem(Icons.check_circle, Colors.green,
+                            _completedCount.toString(), 'Completed'),
+                        _buildStatItem(Icons.pending, Colors.orange,
+                            _activeCount.toString(), 'Active'),
+                        _buildStatItem(Icons.upcoming, Colors.blue,
+                            _upcomingCount.toString(), 'Upcoming'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -253,8 +308,8 @@ class _TargetsPageState extends State<TargetsPage>
     return Expanded(
       child: Row(
         children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 4),
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 2),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -263,14 +318,14 @@ class _TargetsPageState extends State<TargetsPage>
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: color,
-                  fontSize: 16,
+                  fontSize: 14,
                 ),
               ),
               Text(
                 label,
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: 12,
+                  fontSize: 10,
                 ),
               ),
             ],
@@ -358,13 +413,17 @@ class _TargetsPageState extends State<TargetsPage>
     }
 
     return RefreshIndicator(
-      onRefresh: _loadTargets,
+      onRefresh: _refreshData,
       child: AnimationLimiter(
         child: ListView.builder(
           padding: const EdgeInsets.all(8.0),
-          itemCount: targets.length,
+          itemCount: targets.length + 1, // +1 for the sales data card
           itemBuilder: (context, index) {
-            final target = targets[index];
+            if (index == 0) {
+              return _buildSalesDataCard();
+            }
+
+            final target = targets[index - 1];
             return AnimationConfiguration.staggeredList(
               position: index,
               duration: const Duration(milliseconds: 375),
@@ -381,18 +440,78 @@ class _TargetsPageState extends State<TargetsPage>
     );
   }
 
+  Widget _buildSalesDataCard() {
+    return Card(
+      margin: const EdgeInsets.all(6.0),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.shopping_cart,
+                    color: Theme.of(context).primaryColor, size: 16),
+                const SizedBox(width: 6),
+                const Text(
+                  'My Sales Activity',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _isLoadingOrders
+                ? const Center(
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.0),
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Items sold in the last two weeks:',
+                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$_totalItemsSold items',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'From ${_userOrders.where((o) => o.createdAt.isAfter(_twoWeeksAgo)).length} orders',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                      ),
+                    ],
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTargetCard(Target target) {
     final dateFormatter = DateFormat('MMM d, yyyy');
     final progress = target.completionPercentage;
     final daysLeft = target.endDate.difference(DateTime.now()).inDays;
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 3.0),
       elevation: 2,
       child: InkWell(
         onTap: () => _openTargetDetails(target),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -403,7 +522,7 @@ class _TargetsPageState extends State<TargetsPage>
                     child: Text(
                       target.title,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
@@ -412,89 +531,89 @@ class _TargetsPageState extends State<TargetsPage>
                   ),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: target.statusColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      gradient: goldGradient,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       target.typeText,
-                      style: TextStyle(
-                        color: target.statusColor,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 10,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               if (target.description.isNotEmpty) ...[
                 Text(
                   target.description,
-                  style: TextStyle(color: Colors.grey[700]),
+                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
               ],
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                  Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
                     '${dateFormatter.format(target.startDate)} - ${dateFormatter.format(target.endDate)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
                   ),
                   const Spacer(),
                   if (!target.isCompleted &&
                       !target.isOverdue() &&
                       daysLeft >= 0) ...[
-                    Icon(Icons.timer, size: 14, color: Colors.blue[400]),
-                    const SizedBox(width: 4),
+                    Icon(Icons.timer, size: 12, color: Colors.blue[400]),
+                    const SizedBox(width: 3),
                     Text(
                       '$daysLeft days left',
                       style: TextStyle(
                           color: Colors.blue[400],
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold),
                     ),
                   ],
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   CircularPercentIndicator(
-                    radius: 25.0,
-                    lineWidth: 5.0,
+                    radius: 20.0,
+                    lineWidth: 4.0,
                     percent: progress / 100,
-                    center: Text(
+                    center: GradientText(
                       "${progress.toStringAsFixed(0)}%",
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 10.0),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 9.0,
+                      ),
                     ),
-                    progressColor: target.statusColor,
+                    progressColor: goldMiddle2,
                     backgroundColor: Colors.grey[300]!,
                     circularStrokeCap: CircularStrokeCap.round,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Progress: ${target.currentValue} / ${target.targetValue}',
-                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 12),
                         ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
+                        const SizedBox(height: 3),
+                        GradientLinearProgressIndicator(
                           value: progress / 100,
-                          backgroundColor: Colors.grey[300],
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(target.statusColor),
-                          minHeight: 8,
-                          borderRadius: BorderRadius.circular(4),
+                          height: 6.0,
+                          borderRadius: 3.0,
                         ),
                       ],
                     ),
@@ -502,25 +621,25 @@ class _TargetsPageState extends State<TargetsPage>
                 ],
               ),
               if (target.isOverdue() && !target.isCompleted) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(3),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.warning_amber_rounded,
-                          color: Colors.red, size: 16),
-                      const SizedBox(width: 4),
+                          color: Colors.red, size: 12),
+                      const SizedBox(width: 3),
                       Text(
                         'Overdue by ${DateTime.now().difference(target.endDate).inDays} days',
                         style: const TextStyle(
                             color: Colors.red,
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -528,14 +647,28 @@ class _TargetsPageState extends State<TargetsPage>
                 ),
               ],
               if (!target.isCompleted) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton.icon(
-                      icon: const Icon(Icons.update),
+                      icon: ShaderMask(
+                        shaderCallback: (bounds) =>
+                            goldGradient.createShader(bounds),
+                        child: const Icon(Icons.update,
+                            size: 14, color: Colors.white),
+                      ),
                       onPressed: () => _updateProgress(target),
-                      label: const Text('Update Progress'),
+                      label: GradientText(
+                        'Update Progress',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
                   ],
                 ),
@@ -556,7 +689,7 @@ class _TargetsPageState extends State<TargetsPage>
     );
 
     if (result == true) {
-      _loadTargets();
+      _refreshData();
     }
   }
 
@@ -568,7 +701,7 @@ class _TargetsPageState extends State<TargetsPage>
     final result = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Update Progress'),
+        title: const GradientText('Update Progress'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -590,7 +723,7 @@ class _TargetsPageState extends State<TargetsPage>
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          GoldGradientButton(
             onPressed: () {
               final value = int.tryParse(progressController.text) ?? 0;
               Navigator.pop(context, value);
@@ -603,8 +736,8 @@ class _TargetsPageState extends State<TargetsPage>
 
     if (result != null) {
       try {
-        await ApiService.updateTargetProgress(target.id!, result);
-        _loadTargets();
+        await TargetService.updateTargetProgress(target.id!, result);
+        _refreshData();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Progress updated successfully')),

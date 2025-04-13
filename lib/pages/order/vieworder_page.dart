@@ -107,26 +107,54 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
       );
 
       if (confirmed == true) {
-        await ApiService.deleteOrder(order.id);
-        Get.snackbar(
-          'Success',
-          'Order deleted successfully',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
-        );
-        _refreshOrders();
+        final result = await ApiService.deleteOrder(order.id);
+        if (result) {
+          Get.snackbar(
+            'Success',
+            'Order deleted successfully',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 3),
+          );
+          _refreshOrders();
+        } else {
+          Get.snackbar(
+            'Warning',
+            'Order was not deleted',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 3),
+          );
+        }
       }
     } catch (e) {
+      String errorMessage = 'Failed to delete order';
+
+      // Check for specific error types
+      if (e.toString().contains('404') || e.toString().contains('Not found')) {
+        errorMessage = 'Order not found or already deleted';
+      } else if (e.toString().contains('401') ||
+          e.toString().contains('Unauthorized')) {
+        errorMessage = 'Authorization error. Please login again';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error. Check your connection';
+      }
+
       Get.snackbar(
         'Error',
-        'Failed to delete order',
+        errorMessage,
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
         duration: const Duration(seconds: 3),
       );
+
+      // If order not found, refresh the list anyway
+      if (errorMessage.contains('not found')) {
+        _refreshOrders();
+      }
     }
   }
 

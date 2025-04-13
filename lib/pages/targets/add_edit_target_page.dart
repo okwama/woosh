@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:woosh/models/target_model.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/target_service.dart';
 import 'package:get_storage/get_storage.dart';
 
 class AddEditTargetPage extends StatefulWidget {
@@ -117,82 +117,75 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
 
     setState(() => _isSubmitting = true);
 
+    final userId = GetStorage().read<int>('userId') ?? 1;
+
     try {
-      // Get user ID from storage
-      final storage = GetStorage();
-      final userId = storage.read('userId');
-
-      if (userId == null) {
-        throw Exception('User ID not found, please log in again');
-      }
-
-      final targetValue = int.parse(_targetValueController.text);
-      final currentValue = int.parse(_currentValueController.text);
-
-      // Create target object
-      final target = Target(
-        id: widget.target?.id,
-        title: _titleController.text,
-        description: _descriptionController.text,
-        type: _selectedType,
-        userId: userId,
-        targetValue: targetValue,
-        currentValue: currentValue,
-        startDate: _startDate,
-        endDate: _endDate,
-        isCompleted: _isCompleted,
-      );
-
-      // Save or update target
       if (widget.target == null) {
-        await ApiService.createTarget(target);
+        // Create new target
+        final newTarget = Target(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          type: _selectedType,
+          userId: userId,
+          targetValue: int.parse(_targetValueController.text),
+          currentValue: int.parse(_currentValueController.text),
+          startDate: _startDate,
+          endDate: _endDate,
+        );
+
+        await TargetService.createTarget(newTarget);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Target created successfully')),
           );
+          Navigator.pop(context, true); // Return success
         }
       } else {
-        await ApiService.updateTarget(target);
+        // Update existing target
+        final updatedTarget = widget.target!.copyWith(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          type: _selectedType,
+          targetValue: int.parse(_targetValueController.text),
+          currentValue: int.parse(_currentValueController.text),
+          startDate: _startDate,
+          endDate: _endDate,
+        );
+
+        await TargetService.updateTarget(updatedTarget);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Target updated successfully')),
           );
+          Navigator.pop(context, true); // Return success
         }
-      }
-
-      if (mounted) {
-        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
       }
     }
   }
 
   Future<void> _deleteTarget() async {
-    if (widget.target == null || widget.target!.id == null) return;
+    if (widget.target == null) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Target'),
-        content: const Text(
-            'Are you sure you want to delete this target? This action cannot be undone.'),
+        content: const Text('Are you sure you want to delete this target?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
         ],
@@ -204,22 +197,19 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      await ApiService.deleteTarget(widget.target!.id!);
+      await TargetService.deleteTarget(widget.target!.id!);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Target deleted successfully')),
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context, true); // Return success
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting target: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
       }
     }
   }
@@ -268,41 +258,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                       maxLines: 3,
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<TargetType>(
-                      value: _selectedType,
-                      decoration: const InputDecoration(
-                        labelText: 'Target Type',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: TargetType.values.map((type) {
-                        String label;
-                        switch (type) {
-                          case TargetType.SALES:
-                            label = 'Sales';
-                            break;
-                          case TargetType.VISITS:
-                            label = 'Visits';
-                            break;
-                          case TargetType.PRODUCT_PLACEMENT:
-                            label = 'Product Placement';
-                            break;
-                          case TargetType.CUSTOM:
-                            label = 'Custom';
-                            break;
-                        }
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(label),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _selectedType = value;
-                          });
-                        }
-                      },
-                    ),
+                    _buildTypeDropdown(),
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -387,6 +343,39 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildTypeDropdown() {
+    return DropdownButtonFormField<TargetType>(
+      value: _selectedType,
+      decoration: const InputDecoration(
+        labelText: 'Target Type',
+        border: OutlineInputBorder(),
+        helperText: 'Products sold targets are tracked every two weeks',
+      ),
+      items: [
+        DropdownMenuItem(
+          value: TargetType.SALES,
+          child: Row(
+            children: [
+              Icon(Icons.inventory, color: Colors.blue[700]),
+              const SizedBox(width: 8),
+              const Text('Products Sold'),
+            ],
+          ),
+        ),
+        // Other target types have been removed
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedType = value;
+          });
+        }
+      },
+      validator: (value) =>
+          value == null ? 'Please select a target type' : null,
     );
   }
 }

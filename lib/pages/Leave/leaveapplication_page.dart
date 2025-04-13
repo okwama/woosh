@@ -30,7 +30,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 1));
 
-  final List<String> _leaveTypes = ['Annual', 'Sick', 'Emergency', 'Other'];
+  final List<String> _leaveTypes = ['Annual', 'Sick', 'Paternal'];
 
   @override
   void dispose() {
@@ -125,10 +125,12 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   Future<void> _submitLeaveApplication() async {
     if (!_formKey.currentState!.validate() || !_validateDates()) return;
 
-    if (_selectedLeaveType == 'Sick' && !_isFileAttached) {
+    if ((_selectedLeaveType == 'Sick' || _selectedLeaveType == 'Paternal') &&
+        !_isFileAttached) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please attach a document for sick leave'),
+        SnackBar(
+          content: Text(
+              'Please attach a document for ${_selectedLeaveType?.toLowerCase()} leave'),
           backgroundColor: Colors.red,
         ),
       );
@@ -277,11 +279,13 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                       validator: _validateReason,
                     ),
                     const SizedBox(height: 16),
-                    if (_selectedLeaveType == 'Sick') ...[
+                    if (_selectedLeaveType == 'Sick' ||
+                        _selectedLeaveType == 'Paternal') ...[
                       ElevatedButton.icon(
                         onPressed: _pickFile,
                         icon: const Icon(Icons.attach_file),
-                        label: const Text('Attach Document'),
+                        label: Text(
+                            'Attach Document (Required for ${_selectedLeaveType ?? ""} Leave)'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,

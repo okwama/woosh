@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-enum TargetType { SALES, VISITS, PRODUCT_PLACEMENT, CUSTOM }
+enum TargetType {
+  SALES,
+}
 
 class Target {
   final int? id;
@@ -44,13 +46,7 @@ class Target {
   String get typeText {
     switch (type) {
       case TargetType.SALES:
-        return 'Sales';
-      case TargetType.VISITS:
-        return 'Visits';
-      case TargetType.PRODUCT_PLACEMENT:
-        return 'Product Placement';
-      case TargetType.CUSTOM:
-        return 'Custom';
+        return 'Products Sold';
       default:
         return 'Unknown';
     }
@@ -132,14 +128,18 @@ class Target {
     switch (typeStr) {
       case 'SALES':
         return TargetType.SALES;
-      case 'VISITS':
-        return TargetType.VISITS;
-      case 'PRODUCT_PLACEMENT':
-        return TargetType.PRODUCT_PLACEMENT;
-      case 'CUSTOM':
-        return TargetType.CUSTOM;
       default:
-        return TargetType.CUSTOM;
+        return TargetType.SALES;
+    }
+  }
+}
+
+// Extension to get display text
+extension TargetTypeExtension on TargetType {
+  String get displayText {
+    switch (this) {
+      case TargetType.SALES:
+        return 'Products Sold';
     }
   }
 }
