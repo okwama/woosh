@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class AddClientPage extends StatefulWidget {
-  const AddClientPage({Key? key}) : super(key: key);
+  const AddClientPage({super.key});
 
   @override
   State<AddClientPage> createState() => _AddClientPageState();
@@ -14,12 +15,68 @@ class _AddClientPageState extends State<AddClientPage> {
   final _addressController = TextEditingController();
   bool _isLoading = false;
   String? _error;
+  Position? _currentPosition;
+  bool _isLocationLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Get location when page loads, so it's ready when user submits
+    _getCurrentPosition();
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _addressController.dispose();
     super.dispose();
+  }
+
+  // Method to get the current device position
+  Future<void> _getCurrentPosition() async {
+    setState(() {
+      _isLocationLoading = true;
+    });
+
+    try {
+      // Check permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions denied');
+          return;
+        }
+      }
+
+      // Check if services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Location services disabled');
+        return;
+      }
+
+      // Get position
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // Store position for later use
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+          _isLocationLoading = false;
+        });
+        print('Got position: ${position.latitude}, ${position.longitude}');
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+      if (mounted) {
+        setState(() {
+          _isLocationLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _submitForm() async {
@@ -31,9 +88,22 @@ class _AddClientPageState extends State<AddClientPage> {
     });
 
     try {
+      // Try to get location if not already available
+      if (_currentPosition == null) {
+        try {
+          await _getCurrentPosition();
+        } catch (e) {
+          print('Failed to get location on submit: $e');
+          // Continue with submission even if location fails
+        }
+      }
+
       await ApiService.createOutlet(
         name: _nameController.text,
         address: _addressController.text,
+        // Include coordinates if available
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
       );
 
       if (mounted) {
