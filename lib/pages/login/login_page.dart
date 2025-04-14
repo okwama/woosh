@@ -116,7 +116,8 @@ class _LoginPageState extends State<LoginPage> {
                         shape: BoxShape.circle,
                       ),
                       padding: const EdgeInsets.all(15),
-                      child: Image.asset('assets/ben.png', fit: BoxFit.contain),
+                      child: Image.asset('assets/images/svg.png',
+                          fit: BoxFit.contain),
                     ),
                   ),
                 ),
@@ -180,7 +181,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildPoweredByFooter(),
+      bottomNavigationBar: _buildPoweredByFooter(context),
     );
   }
 
@@ -245,25 +246,31 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildLoginButton() {
-    return SizedBox(
-      height: 50,
-      child: _isLoading
-          ? const Center(child: GradientCircularProgressIndicator())
-          : GoldGradientButton(
-              onPressed: _login,
-              borderRadius: 8,
-              child: const Text(
-                'Sign In',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+Widget _buildLoginButton() {
+  return SizedBox(
+    height: 50,
+    child: _isLoading
+        ? Center(
+            child: Transform.scale(
+              scale: 0.9, // Adjust the scale to reduce the size
+              child: const GradientCircularProgressIndicator(), // Assuming this is your custom widget
+            ),
+          )
+        : GoldGradientButton(
+            onPressed: _login,
+            borderRadius: 8,
+            child: const Text(
+              'Sign In',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
-    );
-  }
+          ),
+  );
+}
+
 
   Widget _buildSignUpRow() {
     return Row(
@@ -290,25 +297,82 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildPoweredByFooter() {
+  Widget _buildPoweredByFooter(BuildContext context) {
+    final year = DateTime.now().year;
+
     return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+      color: appBackground,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Powered by',
-            style: TextStyle(
-              color: Color(0xFF666666),
-              fontSize: 12,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Powered by ',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).primaryColor,
+                      Colors.orange,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Cit Logistics',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.verified,
+                size: 16,
+                color: Colors.orange,
+              ),
+            ],
           ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.copyright,
+                size: 10,
+                color: Colors.grey[600],
+              ),
+              const SizedBox(width: 2),
+              Text(
+                '$year Management System',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
           Text(
-            'Woosh Inc',
+            'Version 1.0.0',
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF444444),
+              color: Colors.grey[400],
+              fontSize: 9,
             ),
           ),
         ],

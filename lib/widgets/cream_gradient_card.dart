@@ -11,14 +11,14 @@ class CreamGradientCard extends StatelessWidget {
   final double elevation;
 
   const CreamGradientCard({
-    Key? key,
+    super.key,
     required this.child,
     this.borderWidth = 2.0,
     this.borderRadius = 12.0,
     this.padding = const EdgeInsets.all(16.0),
     this.margin = const EdgeInsets.all(8.0),
     this.elevation = 2.0,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

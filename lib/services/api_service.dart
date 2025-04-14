@@ -778,7 +778,6 @@ class ApiService {
     return token != null;
   }
 
- 
   static Future<Leave> submitLeaveApplication({
     required String leaveType,
     required String startDate,
@@ -1043,6 +1042,128 @@ class ApiService {
     } catch (e) {
       handleNetworkError(e);
       rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        print('PASSWORD UPDATE ERROR: No authentication token found');
+        return {
+          'success': false,
+          'message': 'Authentication required. Please log in again.'
+        };
+      }
+
+      // Debug log
+      print('PASSWORD UPDATE: Making request to $baseUrl/profile/password');
+
+      final headers = await _headers();
+      // Debug log - sanitized version
+      print(
+          'PASSWORD UPDATE: Using authorization header: ${headers.containsKey('Authorization') ? 'Yes' : 'No'}');
+
+      final body = {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      };
+      // Debug log - don't log the actual password values
+      print(
+          'PASSWORD UPDATE: Sending request with fields: ${body.keys.toString()}');
+
+      try {
+        final response = await http
+            .post(
+          Uri.parse('$baseUrl/profile/password'),
+          headers: headers,
+          body: json.encode(body),
+        )
+            .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            print('PASSWORD UPDATE ERROR: Request timeout');
+            throw Exception("Connection timeout");
+          },
+        );
+
+        // Debug log
+        print('PASSWORD UPDATE: Response status code: ${response.statusCode}');
+        if (response.body.isNotEmpty) {
+          print(
+              'PASSWORD UPDATE: Response body length: ${response.body.length}');
+          print(
+              'PASSWORD UPDATE: Response body sample: ${response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body}');
+        } else {
+          print('PASSWORD UPDATE: Response body is empty');
+        }
+
+        // Handle HTTP status codes
+        switch (response.statusCode) {
+          case 200:
+            return {
+              'success': true,
+              'message': 'Password updated successfully'
+            };
+          case 400:
+            final Map<String, dynamic> errorData = json.decode(response.body);
+            return {
+              'success': false,
+              'message': errorData['message'] ??
+                  'Invalid request. Please check your inputs.'
+            };
+          case 401:
+            print(
+                'PASSWORD UPDATE: Unauthorized - Token may be invalid or expired');
+            return {
+              'success': false,
+              'message': 'Session expired. Please log in again.'
+            };
+          case 404:
+            print(
+                'PASSWORD UPDATE: Endpoint not found - Route may be incorrect');
+            return {
+              'success': false,
+              'message':
+                  'Password update service not available. Please try again later.'
+            };
+          default:
+            try {
+              final Map<String, dynamic> errorData = json.decode(response.body);
+              return {
+                'success': false,
+                'message': errorData['message'] ??
+                    'Failed to update password (Status ${response.statusCode})'
+              };
+            } catch (e) {
+              return {
+                'success': false,
+                'message':
+                    'Failed to update password (Status ${response.statusCode})'
+              };
+            }
+        }
+      } catch (e) {
+        print('PASSWORD UPDATE ERROR: HTTP request error: $e');
+        return {
+          'success': false,
+          'message':
+              'Connection error: ${e.toString().replaceAll('Exception:', '')}'
+        };
+      }
+    } catch (e) {
+      // Log the specific error
+      print('PASSWORD UPDATE ERROR: $e');
+      handleNetworkError(e);
+      return {
+        'success': false,
+        'message': 'Network error: Please check your internet connection'
+      };
     }
   }
 

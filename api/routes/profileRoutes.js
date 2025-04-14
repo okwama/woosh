@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const { auth } = require('../middleware/auth');
-const { updateProfilePhoto, getProfile } = require('../controllers/profileController');
+const { updateProfilePhoto, getProfile, updatePassword } = require('../controllers/profileController');
 
 // Configure multer for memory storage
 const upload = multer({
@@ -26,5 +26,6 @@ const upload = multer({
 // Routes
 router.get('/profile', auth, getProfile);
 router.post('/profile/photo', auth, upload.single('photo'), updateProfilePhoto);
+router.post('/profile/password', auth, updatePassword);
 
 module.exports = router;

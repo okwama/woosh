@@ -8,13 +8,18 @@ import 'package:woosh/models/user_model.dart';
 
 class ProfileController extends GetxController {
   final storage = GetStorage();
-  
+
   Rx<XFile?> selectedImage = Rx<XFile?>(null);
   RxBool isLoading = false.obs;
   RxString userName = ''.obs;
   RxString userEmail = ''.obs;
   RxString userPhone = ''.obs;
   RxString photoUrl = ''.obs;
+
+  // Password update fields
+  final RxBool isPasswordUpdating = false.obs;
+  final RxString passwordError = ''.obs;
+  final RxString passwordSuccess = ''.obs;
 
   @override
   void onInit() {
@@ -37,7 +42,7 @@ class ProfileController extends GetxController {
     try {
       final response = await ApiService.getProfile();
       final userData = response['user'];
-      
+
       if (userData != null) {
         userName.value = userData['name'] ?? '';
         userEmail.value = userData['email'] ?? '';
@@ -46,7 +51,7 @@ class ProfileController extends GetxController {
 
         // Update storage with full user data
         storage.write('user', userData);
-        
+
         print('Profile data loaded: ${userData.toString()}'); // Debug log
       } else {
         throw Exception('Invalid user data received');
@@ -70,7 +75,7 @@ class ProfileController extends GetxController {
         source: ImageSource.gallery,
         imageQuality: 80,
       );
-      
+
       if (image != null) {
         selectedImage.value = image;
         await updateProfilePhoto();
@@ -89,16 +94,17 @@ class ProfileController extends GetxController {
 
     try {
       isLoading.value = true;
-      
+
       // Pass XFile directly to handle both web and mobile platforms
-      final photoUrl = await ApiService.updateProfilePhoto(selectedImage.value!);
+      final photoUrl =
+          await ApiService.updateProfilePhoto(selectedImage.value!);
       this.photoUrl.value = photoUrl;
-      
+
       // Update storage
       final storedUser = storage.read('user') as Map<String, dynamic>? ?? {};
       storedUser['photoUrl'] = photoUrl;
       storage.write('user', storedUser);
-      
+
       Get.snackbar(
         'Success',
         'Profile photo updated successfully',
@@ -114,6 +120,68 @@ class ProfileController extends GetxController {
       );
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    try {
+      // Reset status messages
+      passwordError.value = '';
+      passwordSuccess.value = '';
+      isPasswordUpdating.value = true;
+
+      print('PROFILE CONTROLLER: Starting password update process');
+
+      // Validate passwords
+      if (currentPassword.isEmpty ||
+          newPassword.isEmpty ||
+          confirmPassword.isEmpty) {
+        passwordError.value = 'All fields are required';
+        print('PROFILE CONTROLLER: Validation failed - Empty fields');
+        return;
+      }
+
+      if (newPassword != confirmPassword) {
+        passwordError.value = 'New passwords do not match';
+        print('PROFILE CONTROLLER: Validation failed - Passwords do not match');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        passwordError.value = 'Password must be at least 8 characters long';
+        print('PROFILE CONTROLLER: Validation failed - Password too short');
+        return;
+      }
+
+      print('PROFILE CONTROLLER: Validation passed, calling API service');
+
+      // Call API to update password
+      final result = await ApiService.updatePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+        confirmPassword: confirmPassword,
+      );
+
+      print('PROFILE CONTROLLER: API response received: $result');
+
+      if (result['success']) {
+        passwordSuccess.value = result['message'];
+        print('PROFILE CONTROLLER: Password update successful');
+      } else {
+        passwordError.value = result['message'];
+        print(
+            'PROFILE CONTROLLER: Password update failed: ${result['message']}');
+      }
+    } catch (e) {
+      print('PROFILE CONTROLLER: Exception during password update: $e');
+      passwordError.value = 'An error occurred: ${e.toString()}';
+    } finally {
+      isPasswordUpdating.value = false;
+      print('PROFILE CONTROLLER: Password update process completed');
     }
   }
 }
