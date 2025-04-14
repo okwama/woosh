@@ -35,7 +35,8 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.light(
           primary: goldMiddle2,
           secondary: blackColor,
-          surface: Color(0xFFFDFBD4),
+          surface:
+              Color(0xFFF4EBD0), // Update surface color to match background
           background: appBackground,
           error: Colors.red,
           onPrimary: Color(0xFFFDFBD4),

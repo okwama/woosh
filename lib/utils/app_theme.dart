@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 const Color blackColor = Color.fromARGB(255, 0, 0, 0);
 const Color accentGrey = Color(0xFF666666);
 const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
-const Color appBackground = Color.fromARGB(255, 240, 238, 238);
+const Color appBackground = Color(0xFFF4EBD0);
 
 // Gold Gradient Colors
 const Color goldStart = Color(0xFFAE8625);
@@ -121,6 +121,57 @@ class GoldGradientButton extends StatelessWidget {
           ),
         ),
         child: child,
+      ),
+    );
+  }
+}
+
+// A Card with cream background and gradient border
+class CreamGradientCard extends StatelessWidget {
+  final Widget child;
+  final double borderWidth;
+  final double borderRadius;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final double elevation;
+
+  const CreamGradientCard({
+    super.key,
+    required this.child,
+    this.borderWidth = 2.0,
+    this.borderRadius = 12.0,
+    this.padding = const EdgeInsets.all(16.0),
+    this.margin = const EdgeInsets.all(8.0),
+    this.elevation = 2.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        gradient: goldGradient,
+        boxShadow: elevation > 0
+            ? [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: elevation,
+                  offset: Offset(0, elevation / 2),
+                )
+              ]
+            : null,
+      ),
+      child: Container(
+        margin: EdgeInsets.all(borderWidth),
+        decoration: BoxDecoration(
+          color: appBackground,
+          borderRadius: BorderRadius.circular(borderRadius - borderWidth),
+        ),
+        child: Padding(
+          padding: padding,
+          child: child,
+        ),
       ),
     );
   }

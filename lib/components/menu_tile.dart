@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:woosh/utils/app_theme.dart';
 
 class MenuTile extends StatelessWidget {
   final String title;
-  final Color backgroundColor = const Color(0xFFFDFBD4);  
   final IconData icon;
   final VoidCallback onTap;
   final int? badgeCount;
@@ -21,6 +21,7 @@ class MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
+      margin: const EdgeInsets.all(4),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -28,10 +29,13 @@ class MenuTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 32,
-                color: Theme.of(context).primaryColor,
+              ShaderMask(
+                shaderCallback: (bounds) => goldGradient.createShader(bounds),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -54,7 +58,7 @@ class MenuTile extends StatelessWidget {
                   child: Text(
                     badgeCount.toString(),
                     style: const TextStyle(
-                      color: Color(0xFFFDFBD4),
+                      color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),

@@ -9,9 +9,10 @@ import 'package:woosh/pages/targets/add_edit_target_page.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/utils/app_theme.dart' hide CreamGradientCard;
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:woosh/widgets/cream_gradient_card.dart';
 
 class TargetsPage extends StatefulWidget {
   const TargetsPage({super.key});
@@ -233,7 +234,7 @@ class _TargetsPageState extends State<TargetsPage>
   }
 
   Widget _buildSummaryCard() {
-    return GradientBorderCard(
+    return CreamGradientCard(
       borderWidth: 1.5,
       padding: const EdgeInsets.all(12.0),
       margin: const EdgeInsets.all(6.0),

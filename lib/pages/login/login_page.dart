@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_widgets.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -91,7 +93,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      backgroundColor: appBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -103,20 +105,28 @@ class _LoginPageState extends State<LoginPage> {
                 // Logo
                 Center(
                   child: Container(
-                      height: 120,
-                      width: 120,
-                      margin: const EdgeInsets.only(bottom: 40),
-                      child:
-                          Image.asset('assets/ben.png', fit: BoxFit.contain)),
+                    height: 120,
+                    width: 120,
+                    margin: const EdgeInsets.only(bottom: 40),
+                    decoration: GradientDecoration.goldCircular(),
+                    padding: const EdgeInsets.all(2.0),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(15),
+                      child: Image.asset('assets/ben.png', fit: BoxFit.contain),
+                    ),
+                  ),
                 ),
 
                 // Welcome Text
-                const Text(
+                GradientText(
                   'Woosh',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFDB9C2E),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -225,10 +235,9 @@ class _LoginPageState extends State<LoginPage> {
         onPressed: () {
           Get.toNamed('/forgot-password');
         },
-        child: const Text(
+        child: GradientText(
           'Forgot Password?',
-          style: TextStyle(
-            color: Color(0xFFDAA520),
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -239,33 +248,20 @@ class _LoginPageState extends State<LoginPage> {
   Widget _buildLoginButton() {
     return SizedBox(
       height: 50,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _login,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFDAA520),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          elevation: 2,
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
-              )
-            : const Text(
-                'SIGN IN',
+      child: _isLoading
+          ? const Center(child: GradientCircularProgressIndicator())
+          : GoldGradientButton(
+              onPressed: _login,
+              borderRadius: 8,
+              child: const Text(
+                'Sign In',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
-      ),
+            ),
     );
   }
 
@@ -274,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Text(
-          "Don't have an account? ",
+          'Don\'t have an account? ',
           style: TextStyle(
             color: Color(0xFF666666),
           ),
@@ -283,10 +279,9 @@ class _LoginPageState extends State<LoginPage> {
           onTap: () {
             Get.toNamed('/register');
           },
-          child: const Text(
-            'Contact Us',
-            style: TextStyle(
-              color: Color(0xFFDAA520),
+          child: GradientText(
+            'Sign Up',
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -297,78 +292,23 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildPoweredByFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-      color: Colors.white,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      height: 50,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Powered by ',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 12,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor,
-                      Colors.orange,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'Cit Logistics',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.verified,
-                size: 16,
-                color: Colors.orange,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.copyright,
-                size: 10,
-                color: Colors.grey[600],
-              ),
-              const SizedBox(width: 2),
-              Text(
-                '${DateTime.now().year} Management System',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
           Text(
-            'Version 1.0.0',
+            'Powered by',
             style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 9,
+              color: Color(0xFF666666),
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            'Woosh Inc',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF444444),
             ),
           ),
         ],

@@ -7,6 +7,9 @@ import 'package:woosh/pages/login/login_page.dart';
 import 'package:woosh/pages/order/vieworder_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/gradient_widgets.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -79,14 +82,15 @@ class _HomePageState extends State<HomePage> {
       final shouldLogout = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Logout'),
+          title: GradientText('Logout',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
           content: const Text('Are you sure you want to logout?'),
           actions: [
             TextButton(
               onPressed: () => Get.back(result: false),
               child: const Text('Cancel'),
             ),
-            TextButton(
+            GoldGradientButton(
               onPressed: () => Get.back(result: true),
               child: const Text('Logout'),
             ),
@@ -101,7 +105,7 @@ class _HomePageState extends State<HomePage> {
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: CircularProgressIndicator(),
+          child: GradientCircularProgressIndicator(),
         ),
       );
 
@@ -137,10 +141,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Moonsun Ltd'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Color(0xFFFDFBD4),
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Moonsun Ltd',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
