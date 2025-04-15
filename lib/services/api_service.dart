@@ -1242,6 +1242,9 @@ class ApiService {
   static Future<Outlet> createOutlet({
     required String name,
     required String address,
+    String? kraPin,
+    String? email,
+    String? phone,
     double? latitude,
     double? longitude,
   }) async {
@@ -1257,6 +1260,9 @@ class ApiService {
         body: jsonEncode({
           'name': name,
           'address': address,
+          if (kraPin != null) 'kraPin': kraPin,
+          if (email != null) 'email': email,
+          if (phone != null) 'phone': phone,
           if (latitude != null) 'latitude': latitude,
           if (longitude != null) 'longitude': longitude,
         }),

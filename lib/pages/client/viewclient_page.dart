@@ -4,14 +4,15 @@ import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/pages/client/addclient_page.dart';
+import 'package:woosh/pages/client/clientdetails.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
 
   const ViewClientPage({
-    Key? key,
+    super.key,
     this.forOrderCreation = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ViewClientPage> createState() => _ViewClientPageState();
@@ -260,7 +261,15 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                           }
                                         });
                                       } else {
-                                        // TODO: Navigate to outlet details
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                ClientDetailsPage(
+                                              outlet: outlet,
+                                            ),
+                                          ),
+                                        );
                                       }
                                     },
                                     borderRadius: BorderRadius.circular(12),

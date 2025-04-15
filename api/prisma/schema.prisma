@@ -43,11 +43,16 @@ model Outlet {
   address      String
   latitude     Float?
   longitude    Float?
-  
+  balance      String?
+  email        String?
+  phone        String?
+  kraPin       String?
   journeyPlans JourneyPlan[]
   orders       Order[]
   products     Product[]
   reports      Report[]
+
+  
 }
 
 model Order {

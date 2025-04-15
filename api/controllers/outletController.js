@@ -8,6 +8,7 @@ const getOutlets = async (req, res) => {
       select: {
         id: true,
         name: true,
+        balance: true,
         address: true,
         latitude: true,
         longitude: true,
@@ -22,7 +23,7 @@ const getOutlets = async (req, res) => {
 
 // Create a new outlet
 const createOutlet = async (req, res) => {
-  const { name, address, latitude, longitude } = req.body;
+  const { name, address, latitude, longitude, balance, email, phone, kraPin } = req.body;
 
   if (!name || !address) {
     return res.status(400).json({ error: 'Name and address are required' });
@@ -33,6 +34,10 @@ const createOutlet = async (req, res) => {
       data: {
         name,
         address,
+        ...(balance && { balance }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(kraPin && { kraPin }),
         latitude,
         longitude,
       },
@@ -47,7 +52,7 @@ const createOutlet = async (req, res) => {
 // Update an outlet
 const updateOutlet = async (req, res) => {
   const { id } = req.params;
-  const { name, address, latitude, longitude } = req.body;
+  const { name, address, latitude, longitude, balance, email, phone, kraPin } = req.body;
 
   if (!name || !address) {
     return res.status(400).json({ error: 'Name and address are required' });
@@ -59,6 +64,10 @@ const updateOutlet = async (req, res) => {
       data: {
         name,
         address,
+        ...(balance && { balance }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(kraPin && { kraPin }),
         latitude,
         longitude,
           },

@@ -12,6 +12,9 @@ class AddClientPage extends StatefulWidget {
 class _AddClientPageState extends State<AddClientPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _kraPinController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   bool _isLoading = false;
   String? _error;
@@ -28,6 +31,9 @@ class _AddClientPageState extends State<AddClientPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _kraPinController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -101,6 +107,9 @@ class _AddClientPageState extends State<AddClientPage> {
       await ApiService.createOutlet(
         name: _nameController.text,
         address: _addressController.text,
+        kraPin: _kraPinController.text.isEmpty ? null : _kraPinController.text,
+        email: _emailController.text.isEmpty ? null : _emailController.text,
+        phone: _phoneController.text.isEmpty ? null : _phoneController.text,
         // Include coordinates if available
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
@@ -159,7 +168,31 @@ class _AddClientPageState extends State<AddClientPage> {
                           ? 'Please enter client name'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _kraPinController,
+                      decoration: const InputDecoration(
+                        labelText: 'KRA PIN',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _addressController,
                       decoration: const InputDecoration(
