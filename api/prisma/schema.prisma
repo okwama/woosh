@@ -13,10 +13,10 @@ model User {
   email        String        @unique
   phoneNumber  String        @unique
   password     String
-  photoUrl     String?       @default("")
   role         String        @default("USER")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  photoUrl     String?       @default("")
   journeyPlans JourneyPlan[]
   orders       Order[]
   reports      Report[]
@@ -45,38 +45,36 @@ model Outlet {
   longitude    Float?
   balance      String?
   email        String?
-  phone        String?
   kraPin       String?
+  phone        String?
   journeyPlans JourneyPlan[]
   orders       Order[]
   products     Product[]
   reports      Report[]
-
-  
 }
 
 model Order {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  outletId  Int
-  outlet    Outlet   @relation(fields: [outletId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  reports   Report[]
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  outletId   Int
+  outlet     Outlet      @relation(fields: [outletId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
   orderItems OrderItem[] @relation("OrderToOrderItem")
+  reports    Report[]
 
   @@index([userId], map: "Order_userId_fkey")
   @@index([outletId], map: "Order_outletId_fkey")
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   orderId   Int
   productId Int
-  quantity  Int      // quantity per product in that order
-  order     Order    @relation("OrderToOrderItem", fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  order     Order   @relation("OrderToOrderItem", fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
@@ -160,21 +158,21 @@ model VisibilityReport {
 }
 
 model Product {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   name          String
   description   String?
   price         Float
   currentStock  Int
   reorderPoint  Int
-  orderQuantity Int      @default(0)
-  imageUrl      String?  @default("")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  orderQuantity Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   outletId      Int
-  outlet        Outlet   @relation(fields: [outletId], references: [id])
+  imageUrl      String?     @default("")
+  OrderItem     OrderItem[]
+  outlet        Outlet      @relation(fields: [outletId], references: [id])
 
   @@index([outletId], map: "Product_outletId_fkey")
-  OrderItem OrderItem[]
 }
 
 model Leave {

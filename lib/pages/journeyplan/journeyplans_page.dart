@@ -296,7 +296,19 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: _journeyPlans.isEmpty
-                      ? const Center(child: Text('No journey plans found'))
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_location_alt_rounded,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                              Text('No journey plans found'),
+                            ],
+                          ),
+                        )
                       : ListView.builder(
                           key: const PageStorageKey('journey_plans_list'),
                           itemCount: _journeyPlans.length,

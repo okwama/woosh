@@ -146,6 +146,13 @@ class ApiService {
 
       if (handledResponse.statusCode == 200) {
         final List<dynamic> data = json.decode(handledResponse.body);
+        // Debug the raw data from API
+        print('DEBUG - Raw outlets data: $data');
+        if (data.isNotEmpty) {
+          print('DEBUG - First outlet balance: ${data[0]['balance']}');
+          print(
+              'DEBUG - First outlet balance type: ${data[0]['balance'].runtimeType}');
+        }
         return data.map((json) => Outlet.fromJson(json)).toList();
       } else {
         throw Exception(

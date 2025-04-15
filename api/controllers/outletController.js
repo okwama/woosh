@@ -14,7 +14,14 @@ const getOutlets = async (req, res) => {
         longitude: true,
       },
     });
-    res.status(200).json(outlets);
+    
+    // Keep balance as a string for client compatibility
+    const formattedOutlets = outlets.map(outlet => ({
+      ...outlet,
+      // No conversion needed - balance remains a string
+    }));
+    
+    res.status(200).json(formattedOutlets);
   } catch (error) {
     console.error('Error fetching outlets:', error);
     res.status(500).json({ error: 'Failed to fetch outlets' });
@@ -34,7 +41,7 @@ const createOutlet = async (req, res) => {
       data: {
         name,
         address,
-        ...(balance && { balance }),
+        ...(balance !== undefined && { balance: balance.toString() }),
         ...(email && { email }),
         ...(phone && { phone }),
         ...(kraPin && { kraPin }),
@@ -64,7 +71,7 @@ const updateOutlet = async (req, res) => {
       data: {
         name,
         address,
-        ...(balance && { balance }),
+        ...(balance !== undefined && { balance: balance.toString() }),
         ...(email && { email }),
         ...(phone && { phone }),
         ...(kraPin && { kraPin }),
