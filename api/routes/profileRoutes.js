@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const { auth } = require('../middleware/auth');
 const { updateProfilePhoto, getProfile, updatePassword } = require('../controllers/profileController');
-
+const { isManager } = require('../middleware/isManager');
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,8 +24,8 @@ const upload = multer({
 });
 
 // Routes
-router.get('/profile', auth, getProfile);
-router.post('/profile/photo', auth, upload.single('photo'), updateProfilePhoto);
-router.post('/profile/password', auth, updatePassword);
+router.get('/profile', auth,isManager, getProfile);
+router.post('/profile/photo', auth,isManager, upload.single('photo'), updateProfilePhoto);
+router.post('/profile/password', auth,isManager, updatePassword);
 
 module.exports = router;

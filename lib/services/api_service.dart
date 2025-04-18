@@ -1287,4 +1287,49 @@ class ApiService {
       throw Exception('An error occurred while creating the outlet: $e');
     }
   }
+
+  // Get current user's assigned office information
+  static Future<Map<String, dynamic>> getCurrentUserOffice() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception('User is not authenticated');
+      }
+
+      try {
+        // Get all offices from the office endpoint
+        final response = await http
+            .get(
+              Uri.parse('$baseUrl/office'),
+              headers: await _headers(),
+            )
+            .timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          final List<dynamic> offices = jsonDecode(response.body);
+
+          // For now, just return the first office if any exists
+          if (offices.isNotEmpty) {
+            return offices[0];
+          }
+        }
+      } catch (apiError) {
+        // Log the API error, but continue to provide fallback data
+        print('API error: $apiError');
+      }
+
+      // Return default office data if the endpoint fails or no offices found
+      return {
+        'id': 1,
+        'name': 'Main Office',
+        'address': 'Company Headquarters',
+        'latitude': 0.0,
+        'longitude': 0.0
+      };
+    } catch (e) {
+      print('Error fetching user office: $e');
+      handleNetworkError(e);
+      throw Exception('Failed to load user office information');
+    }
+  }
 }

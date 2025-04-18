@@ -76,7 +76,18 @@ class _LoginPageState extends State<LoginPage> {
 
       if (result['success']) {
         _authController.isLoggedIn.value = true;
-        Get.offAllNamed('/home');
+
+        // Get user role from the result
+        final user = result['user'];
+        final userRole = user?['role'] ?? '';
+
+        // Redirect based on role
+        if (userRole.toString().toLowerCase() == 'manager') {
+          Get.offAllNamed('/manager-home');
+        } else {
+          Get.offAllNamed('/home');
+        }
+
         _showToast('Login successful', false);
       } else {
         _showToast(result['message'] ?? 'Login failed', true);
@@ -246,31 +257,31 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-Widget _buildLoginButton() {
-  return SizedBox(
-    height: 50,
-    child: _isLoading
-        ? Center(
-            child: Transform.scale(
-              scale: 0.9, // Adjust the scale to reduce the size
-              child: const GradientCircularProgressIndicator(), // Assuming this is your custom widget
-            ),
-          )
-        : GoldGradientButton(
-            onPressed: _login,
-            borderRadius: 8,
-            child: const Text(
-              'Sign In',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+  Widget _buildLoginButton() {
+    return SizedBox(
+      height: 50,
+      child: _isLoading
+          ? Center(
+              child: Transform.scale(
+                scale: 0.9, // Adjust the scale to reduce the size
+                child:
+                    const GradientCircularProgressIndicator(), // Assuming this is your custom widget
+              ),
+            )
+          : GoldGradientButton(
+              onPressed: _login,
+              borderRadius: 8,
+              child: const Text(
+                'Sign In',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
-          ),
-  );
-}
-
+    );
+  }
 
   Widget _buildSignUpRow() {
     return Row(

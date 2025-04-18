@@ -22,9 +22,18 @@ model User {
   reports      Report[]
   tokens       Token[]
   leaves       Leave[]
-
+  Manager Manager?
   @@map("users")
 }
+model Manager {
+  id         Int               @id @default(autoincrement())
+  userId     Int               @unique
+  department String?
+  user       User              @relation(fields: [userId], references: [id])
+  checkins   ManagerCheckin[]
+  @@map("managers")
+}
+
 
 model Token {
   id        Int      @id @default(autoincrement())
@@ -52,6 +61,32 @@ model Outlet {
   products     Product[]
   reports      Report[]
 }
+model Office {
+  id        Int               @id @default(autoincrement())
+  name      String
+  address   String
+  latitude  Float?
+  longitude Float?
+  checkins  ManagerCheckin[]
+}
+model ManagerCheckin {
+  id         Int      @id @default(autoincrement())
+  managerId  Int
+  officeId   Int
+  date       DateTime
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+  latitude   Float?
+  longitude  Float?
+  notes      String?
+  qrCodeHash  String   // New field for QR validation
+  manager    Manager  @relation(fields: [managerId], references: [id])
+  office     Office   @relation(fields: [officeId], references: [id])
+
+  @@index([managerId])
+  @@index([officeId])
+}
+
 
 model Order {
   id         Int         @id @default(autoincrement())
@@ -196,4 +231,9 @@ enum ReportType {
   PRODUCT_AVAILABILITY
   VISIBILITY_ACTIVITY
   FEEDBACK
+}
+enum Role {
+  ADMIN
+  MANAGER
+  USER
 }

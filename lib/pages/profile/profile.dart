@@ -63,57 +63,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                   ),
                 ),
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   // Profile Image Section
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).primaryColor,
-                            width: 2,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: controller.photoUrl.value.isNotEmpty
-                              ? Image.network(
-                                  controller.photoUrl.value,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.person, size: 60),
-                                )
-                              : const Icon(Icons.person, size: 60),
-                        ),
-                      ),
-                      if (controller.isLoading.value)
-                        const Positioned.fill(
-                          child: CircularProgressIndicator(),
-                        ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.camera_alt,
-                                color: Colors.white),
-                            onPressed: controller.pickImage,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 40),
+                  _buildProfileImageSection(),
+                  // Role Badge
+                  const SizedBox(height: 12),
+                  _buildRoleBadge(),
+                  const SizedBox(height: 32),
                   // Profile Info Cards
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
                       children: [
                         _buildInfoCard(
@@ -122,44 +81,22 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                           label: 'Name',
                           value: controller.userName.value,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         _buildInfoCard(
                           context,
                           icon: Icons.email,
                           label: 'Email',
                           value: controller.userEmail.value,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         _buildInfoCard(
                           context,
                           icon: Icons.phone,
                           label: 'Phone',
                           value: controller.userPhone.value,
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  // Password Change Link
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            // Navigate to Change Password page
-                            Get.to(() => const ChangePasswordPage());
-                          },
-                          child: Text(
-                            'Change Password',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ),
-                        ),
+                        const SizedBox(height: 24),
+                        _buildActionButtons(),
                       ],
                     ),
                   ),
@@ -172,6 +109,123 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildProfileImageSection() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Theme.of(context).primaryColor,
+              width: 3,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: controller.photoUrl.value.isNotEmpty
+                ? Image.network(
+                    controller.photoUrl.value,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.person, size: 60, color: Colors.grey),
+                  )
+                : Container(
+                    color: Colors.grey.shade200,
+                    child:
+                        const Icon(Icons.person, size: 60, color: Colors.grey),
+                  ),
+          ),
+        ),
+        if (controller.isLoading.value)
+          const Positioned.fill(
+            child: CircularProgressIndicator(),
+          ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+              onPressed: controller.pickImage,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleBadge() {
+    // Determine role and badge color based on user data
+    final String role =
+        controller.userRole.value.isEmpty ? 'Guard' : controller.userRole.value;
+
+    final Color badgeColor =
+        role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin'
+            ? Colors.red.shade700
+            : role.toLowerCase() == 'manager'
+                ? Colors.blue.shade700
+                : Colors.green.shade700;
+
+    final IconData roleIcon =
+        role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin'
+            ? Icons.supervised_user_circle
+            : role.toLowerCase() == 'manager'
+                ? Icons.manage_accounts
+                : Icons.security;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: badgeColor.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(roleIcon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            role.toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInfoCard(
     BuildContext context, {
     required IconData icon,
@@ -179,25 +233,28 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     required String value,
   }) {
     return Card(
-      elevation: 1,
+      elevation: 2,
       margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
                 color: Theme.of(context).primaryColor,
-                size: 18,
+                size: 20,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,11 +266,11 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       fontSize: 13,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
-                    value,
+                    value.isEmpty ? 'Not provided' : value,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -223,6 +280,60 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Column(
+      children: [
+        Card(
+          elevation: 2,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            onTap: () {
+              Get.to(() => const ChangePasswordPage());
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.lock_outline,
+                      color: Theme.of(context).primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Change Password',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -15,6 +15,7 @@ class ProfileController extends GetxController {
   RxString userEmail = ''.obs;
   RxString userPhone = ''.obs;
   RxString photoUrl = ''.obs;
+  RxString userRole = ''.obs;
 
   // Password update fields
   final RxBool isPasswordUpdating = false.obs;
@@ -35,6 +36,7 @@ class ProfileController extends GetxController {
       userEmail.value = userData['email'] ?? '';
       userPhone.value = userData['phoneNumber'] ?? '';
       photoUrl.value = userData['photoUrl'] ?? '';
+      userRole.value = userData['role'] ?? '';
     }
   }
 
@@ -48,6 +50,7 @@ class ProfileController extends GetxController {
         userEmail.value = userData['email'] ?? '';
         userPhone.value = userData['phoneNumber'] ?? '';
         photoUrl.value = userData['photoUrl'] ?? '';
+        userRole.value = userData['role'] ?? '';
 
         // Update storage with full user data
         storage.write('user', userData);

@@ -9,6 +9,7 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/inactivity_timer.dart';
+import 'package:woosh/pages/managers/managerHome.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -107,11 +108,28 @@ class MyApp extends StatelessWidget {
             Theme.of(context).textTheme,
           ),
         ),
-        home: Obx(
-            () => authController.isLoggedIn.value ? HomePage() : LoginPage()),
+        home: Obx(() {
+          if (!authController.isLoggedIn.value) {
+            return LoginPage();
+          } else {
+            // Check user role
+            final box = GetStorage();
+            final user = box.read('user');
+            final userRole = user != null && user is Map<String, dynamic>
+                ? user['role']?.toString().toLowerCase() ?? ''
+                : '';
+
+            if (userRole == 'manager') {
+              return const ManagerHomePage();
+            } else {
+              return HomePage();
+            }
+          }
+        }),
         getPages: [
-          GetPage(name: '/login', page: () => LoginPage()),
+          GetPage(name: '/login', page: () => const LoginPage()),
           GetPage(name: '/home', page: () => HomePage()),
+          GetPage(name: '/manager-home', page: () => const ManagerHomePage()),
           GetPage(name: '/no_connection', page: () => const NoConnectionPage()),
         ],
       ),
