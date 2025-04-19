@@ -197,14 +197,14 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 4),
                   Obx(() => Text(
-                        '\$${(item.product.price ?? 0).toStringAsFixed(2)} × ${item.quantity.value}',
+                        '\Ksh${(item.product.price ?? 0).toStringAsFixed(2)} × ${item.quantity.value}',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
                         ),
                       )),
                   Obx(() => Text(
-                        'Total: \$${((item.product.price ?? 0) * item.quantity.value).toStringAsFixed(2)}',
+                        'Total: \Ksh${((item.product.price ?? 0) * item.quantity.value).toStringAsFixed(2)}',
                         style: TextStyle(
                           color: Theme.of(context).primaryColor,
                           fontWeight: FontWeight.bold,
@@ -287,7 +287,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Subtotal'),
-                Text('\$${subtotal.toStringAsFixed(2)}'),
+                Text('\Ksh${subtotal.toStringAsFixed(2)}'),
               ],
             ),
             const SizedBox(height: 8),
@@ -295,7 +295,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Tax (10%)'),
-                Text('\$${tax.toStringAsFixed(2)}'),
+                Text('\Ksh${tax.toStringAsFixed(2)}'),
               ],
             ),
             const Divider(height: 16),
@@ -310,7 +310,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                 ),
                 Text(
-                  '\$${total.toStringAsFixed(2)}',
+                  '\Ksh${total.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

@@ -111,7 +111,7 @@ const login = async (req, res) => {
     // Check if user exists
     const user = await prisma.user.findFirst({
       where: { phoneNumber },
-      include: { Manager: true }
+      // include: { Manager: true }
     });
     
     if (!user) {

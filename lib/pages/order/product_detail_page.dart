@@ -13,11 +13,11 @@ class ProductDetailPage extends StatefulWidget {
   final Order? order;
 
   const ProductDetailPage({
-    Key? key,
+    super.key,
     required this.outlet,
     required this.product,
     this.order,
-  }) : super(key: key);
+  });
 
   @override
   _ProductDetailPageState createState() => _ProductDetailPageState();
@@ -240,12 +240,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          '\$${(widget.product.price ?? 0).toStringAsFixed(2)}',
-                          style: TextStyle(
+                          'Ksh ${(widget.product.price ?? 0).toStringAsFixed(2)}', // Ensures 2 decimal places
+                            style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).primaryColor,
-                          ),
+                        ),
+
                         ),
                         Container(
                           decoration: BoxDecoration(

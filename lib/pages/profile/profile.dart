@@ -4,6 +4,8 @@ import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -37,11 +39,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Profile',
         centerTitle: true,
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

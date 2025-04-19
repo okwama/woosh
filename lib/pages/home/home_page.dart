@@ -143,7 +143,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'Moonsun Ltd',
+        title: 'Woosh',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

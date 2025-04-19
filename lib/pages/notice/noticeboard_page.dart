@@ -268,13 +268,13 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    'Stay updated with the latest announcements',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
+                  // Text(
+                  //   'Stay updated with the latest announcements',
+                  //   style: TextStyle(
+                  //     fontSize: 14,
+                  //     color: Colors.white.withOpacity(0.8),
+                  //   ),
+                  // ),
                 ],
               ),
             ),

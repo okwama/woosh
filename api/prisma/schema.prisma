@@ -22,7 +22,7 @@ model User {
   reports      Report[]
   tokens       Token[]
   leaves       Leave[]
-  Manager Manager?
+  Manager      Manager?
   @@map("users")
 }
 model Manager {

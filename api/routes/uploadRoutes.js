@@ -3,10 +3,10 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { uploadImage } = require('../controllers/uploadController');
 const { auth } = require('../middleware/auth');
+const { anyUser } = require('../middleware/roleAuth');
 const ImageKit = require('imagekit');
 const multer = require('multer');
 const path = require('path');
-const { isManager } = require('../middleware/isManager');
 // Configure ImageKit
 const imagekit = new ImageKit({
   publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
@@ -31,7 +31,7 @@ const upload = multer({
 }).single('attachment');
 
 // Image upload route - protected
-router.post('/upload-image', auth,isManager, uploadImage);
+router.post('/upload-image', auth, anyUser, uploadImage);
 
 // Test ImageKit connectivity - GET endpoint
 router.get('/test-imagekit', async (req, res) => {
