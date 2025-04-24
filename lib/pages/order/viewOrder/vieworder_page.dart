@@ -4,6 +4,8 @@ import 'package:woosh/pages/order/viewOrder/orderDetail.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ViewOrdersPage extends StatefulWidget {
   const ViewOrdersPage({super.key});
@@ -19,6 +21,13 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
   int _page = 1;
   static const int _limit = 10;
   bool _hasMore = true;
+
+  final currencyFormat = NumberFormat.currency(
+  locale: 'en_KE',
+  symbol: 'Ksh ',
+  decimalDigits: 2,
+);
+
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -133,10 +142,9 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Orders'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'My Orders',
       ),
       body: _error != null && _orders.isEmpty
           ? Center(
@@ -256,6 +264,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                               FontWeight.w600,
                                                         ),
                                                       ),
+                                                      
                                                     ),
                                                     Text(
                                                       DateFormat('MMM d, h:mm a')
@@ -266,64 +275,77 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                         fontSize: 12,
                                                       ),
                                                     ),
+                                                    
                                                   ],
                                                 ),
                                                 const SizedBox(height: 12),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      '${order.outlet.name}',
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        color: Color.fromARGB(
+                                                            255, 4, 4, 4),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                                 // Main product preview
-                                                if (firstItem != null)
-                                                  Row(
-                                                    children: [
-                                                      Container(
-                                                        width: 60,
-                                                        height: 60,
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.grey
-                                                              .shade200,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(8),
-                                                        ),
-                                                        child: Icon(
-                                                          Icons.shopping_bag,
-                                                          color: Theme.of(
-                                                                  context)
-                                                              .primaryColor,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              firstItem.product
-                                                                      ?.name ??
-                                                                  'Product',
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                height: 4),
-                                                            Text(
-                                                              '${firstItem.quantity} × \Ksh ${firstItem.product?.price.toStringAsFixed(2) ?? '0.00'}',
-                                                              style:
-                                                                  const TextStyle(
-                                                                color: Colors
-                                                                    .grey,
-                                                                fontSize: 12,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
+                                                // if (firstItem != null)
+                                                //   Row(
+                                                //     children: [
+                                                //       Container(
+                                                //         width: 60,
+                                                //         height: 60,
+                                                //         decoration: BoxDecoration(
+                                                //           color: Colors.grey
+                                                //               .shade200,
+                                                //           borderRadius:
+                                                //               BorderRadius
+                                                //                   .circular(8),
+                                                //         ),
+                                                //         child: Icon(
+                                                //           Icons.shopping_bag,
+                                                //           color: Theme.of(
+                                                //                   context)
+                                                //               .primaryColor,
+                                                //         ),
+                                                //       ),
+                                                //       const SizedBox(width: 12),
+                                                //       Expanded(
+                                                //         child: Column(
+                                                //           crossAxisAlignment:
+                                                //               CrossAxisAlignment
+                                                //                   .start,
+                                                //           children: [
+                                                //             Text(
+                                                //               firstItem.product
+                                                //                       ?.name ??
+                                                //                   'Product',
+                                                //               style:
+                                                //                   const TextStyle(
+                                                //                 fontWeight:
+                                                //                     FontWeight
+                                                //                         .w500,
+                                                //               ),
+                                                //             ),
+                                                //             const SizedBox(
+                                                //                 height: 4),
+                                                //             Text(
+                                                //               '${firstItem.quantity} × \Ksh ${firstItem.product?.price.toStringAsFixed(2) ?? '0.00'}',
+                                                //               style:
+                                                //                   const TextStyle(
+                                                //                 color: Colors
+                                                //                     .grey,
+                                                //                 fontSize: 12,
+                                                //               ),
+                                                //             ),
+                                                //           ],
+                                                //         ),
+                                                //       ),
+                                                //     ],
+                                                //   ),
                                                 const SizedBox(height: 12),
                                                 // Order summary
                                                 Container(
@@ -354,17 +376,17 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                           ),
                                                           const SizedBox(
                                                               height: 4),
-                                                          Text(
-                                                            order.outlet.name,
-                                                            style: const TextStyle(
-                                                                fontSize: 12,
-                                                                color:
-                                                                    Colors.grey),
-                                                          ),
+                                                          // Text(
+                                                          //   order.outlet.name,
+                                                          //   style: const TextStyle(
+                                                          //       fontSize: 12,
+                                                          //       color:
+                                                          //           Color.fromARGB(255, 4, 4, 4)),
+                                                          // ),
                                                         ],
                                                       ),
                                                       Text(
-                                                        '\Ksh ${totalPrice.toStringAsFixed(2)}',
+                                                        currencyFormat.format(totalPrice),
                                                         style: TextStyle(
                                                           fontWeight:
                                                               FontWeight.bold,
@@ -382,37 +404,37 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                   mainAxisAlignment:
                                                       MainAxisAlignment.end,
                                                   children: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          _deleteOrder(order),
-                                                      style: TextButton.styleFrom(
-                                                        foregroundColor:
-                                                            Colors.red,
-                                                      ),
-                                                      child: const Text('Delete'),
-                                                    ),
+                                                    // TextButton(
+                                                    //   onPressed: () =>
+                                                    //       _deleteOrder(order),
+                                                    //   style: TextButton.styleFrom(
+                                                    //     foregroundColor:
+                                                    //         Colors.red,
+                                                    //   ),
+                                                    //   child: const Text('Delete'),
+                                                    // ),
                                                     const SizedBox(width: 8),
-                                                    ElevatedButton(
-                                                      onPressed: () {
-                                                        Get.to(
-                                                          () => OrderDetailPage(
-                                                              order: order),
-                                                          transition: Transition
-                                                              .rightToLeft,
-                                                        );
-                                                      },
-                                                      style: ElevatedButton
-                                                          .styleFrom(
-                                                        backgroundColor: Theme.of(
-                                                                context)
-                                                            .primaryColor,
-                                                      ),
-                                                      child: const Text(
-                                                          'View Details',
-                                                          style: TextStyle(
-                                                              color:
-                                                                  Colors.white)),
-                                                    ),
+                                                    // ElevatedButton(
+                                                    //   onPressed: () {
+                                                    //     Get.to(
+                                                    //       () => OrderDetailPage(
+                                                    //           order: order),
+                                                    //       transition: Transition
+                                                    //           .rightToLeft,
+                                                    //     );
+                                                    //   },
+                                                    //   style: ElevatedButton
+                                                    //       .styleFrom(
+                                                    //     backgroundColor: Theme.of(
+                                                    //             context)
+                                                    //         .primaryColor,
+                                                    //   ),
+                                                    //   child: const Text(
+                                                    //       'View Details',
+                                                    //       style: TextStyle(
+                                                    //           color:
+                                                    //               Colors.white)),
+                                                    // ),
                                                   ],
                                                 ),
                                               ],
