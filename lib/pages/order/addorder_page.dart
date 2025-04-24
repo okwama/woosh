@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/pages/order/products_grid_page.dart';
+import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 
 class AddOrderPage extends StatefulWidget {
@@ -11,10 +11,10 @@ class AddOrderPage extends StatefulWidget {
   final Order? order;
 
   const AddOrderPage({
-    Key? key,
+    super.key,
     required this.outlet,
     this.order,
-  }) : super(key: key);
+  });
 
   @override
   _AddOrderPageState createState() => _AddOrderPageState();

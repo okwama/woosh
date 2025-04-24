@@ -2,7 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 exports.checkIn = async (req, res) => {
-  const { officeId, latitude, longitude, notes, qrCodeHash } = req.body;
+  const { outletId, latitude, longitude, notes } = req.body;
   const managerId = req.user.id; // Extracted from token in middleware
 
   try {
@@ -17,24 +17,23 @@ exports.checkIn = async (req, res) => {
       return res.status(400).json({ message: 'Already checked in today' });
     }
 
-    const office = await prisma.office.findUnique({
-      where: { id: officeId },
+    const outlet = await prisma.outlet.findUnique({
+      where: { id: outletId },
     });
 
-    if (!office || office.qrCodeHash !== qrCodeHash) {
-      return res.status(400).json({ message: 'Invalid QR code for this office' });
+    if (!outlet) {
+      return res.status(400).json({ message: 'Invalid outlet ID' });
     }
 
     const checkin = await prisma.managerCheckin.create({
       data: {
         managerId,
-        officeId,
+        outletId,
         date: today,
         checkInAt: new Date(),
         latitude,
         longitude,
         notes,
-        qrCodeHash,
       },
     });
 

@@ -9,7 +9,6 @@ class CheckInService {
   static const String _baseUrl = '${Config.baseUrl}/api';
   static final _storage = GetStorage();
 
-  /// Helper to get auth headers
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = _storage.read<String>('token');
     return {
@@ -18,33 +17,10 @@ class CheckInService {
     };
   }
 
-  /// Verify office QR code validity
-  static Future<bool> verifyQRCode(String qrCode, int officeId) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/manager/verify-qr'),
-        headers: await _getAuthHeaders(),
-        body: jsonEncode({
-          'qrCode': qrCode,
-          'officeId': officeId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['isValid'] ?? false;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Get office location coordinates
-  static Future<Map<String, double>> getOfficeLocation(int officeId) async {
+  static Future<Map<String, double>> getOutletLocation(int outletId) async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/offices/$officeId/location'),
+        Uri.parse('$_baseUrl/outlets/$outletId/location'),
         headers: await _getAuthHeaders(),
       );
 
@@ -55,35 +31,26 @@ class CheckInService {
           'longitude': data['longitude']?.toDouble() ?? 0.0,
         };
       }
-      throw Exception('Failed to fetch office location');
+      throw Exception('Failed to fetch outlet location');
     } catch (e) {
       throw Exception('Location fetch failed: ${e.toString()}');
     }
   }
 
-  /// Handle manager check-in with QR validation
   static Future<Map<String, dynamic>> checkIn({
-    required int officeId,
+    required int outletId,
     required double latitude,
     required double longitude,
-    required String qrCodeHash,
     String? notes,
   }) async {
     try {
-      // First verify the QR code
-      final isValid = await verifyQRCode(qrCodeHash, officeId);
-      if (!isValid) {
-        throw Exception('Invalid QR code for this office');
-      }
-
       final response = await http.post(
         Uri.parse('$_baseUrl/manager/check-in'),
         headers: await _getAuthHeaders(),
         body: jsonEncode({
-          'officeId': officeId,
+          'outletId': outletId,
           'latitude': latitude,
           'longitude': longitude,
-          'qrCodeHash': qrCodeHash,
           if (notes != null) 'notes': notes,
         }),
       );
@@ -99,7 +66,6 @@ class CheckInService {
     }
   }
 
-  /// Handle manager check-out
   static Future<Map<String, dynamic>> checkOut() async {
     try {
       final response = await http.post(
@@ -118,34 +84,22 @@ class CheckInService {
     }
   }
 
-  /// Create a safe CheckInStatus object from any response
   static CheckInStatus _createSafeStatus(dynamic data) {
-    if (data == null) {
-      print('⚠️ Data is null, returning default status');
-      return CheckInStatus(isCheckedIn: false);
-    }
+    if (data == null) return CheckInStatus(isCheckedIn: false);
 
-    // For raw strings like "true" or "false"
     if (data is String) {
-      print('⚠️ Data is a string: $data');
       try {
         final bool value = data.toLowerCase() == 'true';
         return CheckInStatus(isCheckedIn: value);
-      } catch (e) {
-        print('❌ Error parsing string data: $e');
+      } catch (_) {
         return CheckInStatus(isCheckedIn: false);
       }
     }
 
-    // For maps/json objects
     if (data is Map<String, dynamic>) {
-      print('✅ Data is a Map, using fromJson');
       try {
         return CheckInStatus.fromJson(data);
-      } catch (e) {
-        print('❌ Error creating CheckInStatus from Map: $e');
-
-        // If the error is in parsing isCheckedIn, try a direct approach
+      } catch (_) {
         try {
           final dynamic rawValue = data['isCheckedIn'];
           final bool isCheckedIn = rawValue is bool
@@ -159,91 +113,64 @@ class CheckInService {
             checkInTime: data['checkInTime'] != null
                 ? DateTime.parse(data['checkInTime'])
                 : null,
-            officeId: data['officeId'] != null
-                ? int.tryParse(data['officeId'].toString())
+            outletId: data['outletId'] != null
+                ? int.tryParse(data['outletId'].toString())
                 : null,
-            officeName: data['officeName']?.toString(),
+            outletName: data['outletName']?.toString(),
           );
-        } catch (e2) {
-          print('❌ Second attempt also failed: $e2');
+        } catch (_) {
           return CheckInStatus(isCheckedIn: false);
         }
       }
     }
 
-    print('⚠️ Unknown data type: ${data.runtimeType}');
     return CheckInStatus(isCheckedIn: false);
   }
 
-  /// Get today's check-in status with shift details - improved with timeout and retries
   static Future<CheckInStatus> getTodayStatus() async {
     int retries = 3;
 
     while (retries > 0) {
       try {
-        print('📊 Starting getTodayStatus... (retries left: $retries)');
         final token = _storage.read<String>('token');
         if (token == null) {
-          print('❌ No token found, returning default status');
           return CheckInStatus(isCheckedIn: false);
         }
 
-        // Try different URL formats to see which one works
         final urls = [
           '$_baseUrl/manager/today-status',
           '${Config.baseUrl}/api/manager/today-status',
         ];
 
-        final urlToUse =
-            urls[3 - retries]; // Use a different URL format for each retry
-        print('🔄 Making API request to $urlToUse');
-
+        final urlToUse = urls[3 - retries];
         final headers = await _getAuthHeaders();
-        print('🔑 Using headers: $headers');
 
-        // Use a timeout to avoid hanging
         final response = await http
             .get(
           Uri.parse(urlToUse),
           headers: headers,
         )
             .timeout(Duration(seconds: 10), onTimeout: () {
-          print('⏱️ Request timed out');
           throw TimeoutException('Request timed out');
         });
 
-        print('📩 Response status: ${response.statusCode}');
-        print('📩 Response body: ${response.body}');
-
         if (response.statusCode == 200) {
           if (response.body.isEmpty) {
-            print('⚠️ Response body is empty');
             return CheckInStatus(isCheckedIn: false);
           }
 
           try {
-            // Try to decode as JSON first
             final data = jsonDecode(response.body);
-            print('🔍 Decoded JSON: $data');
-
-            // Use our safe creation method
             return _createSafeStatus(data);
-          } catch (e) {
-            print('❌ JSON parsing error: $e');
-
-            // If JSON fails, try to use the raw response
+          } catch (_) {
             return _createSafeStatus(response.body);
           }
         } else {
-          print('❌ HTTP error: ${response.statusCode}');
           return CheckInStatus(isCheckedIn: false);
         }
-      } catch (e) {
-        print('❌ Status check failed: ${e.toString()}');
+      } catch (_) {
         retries--;
-
         if (retries > 0) {
-          print('🔄 Retrying...');
           await Future.delayed(Duration(seconds: 1));
         } else {
           return CheckInStatus(isCheckedIn: false);
@@ -254,7 +181,6 @@ class CheckInService {
     return CheckInStatus(isCheckedIn: false);
   }
 
-  /// Get check-in history with pagination
   static Future<PaginatedCheckIns> getCheckInHistory({
     int page = 1,
     int limit = 20,
@@ -279,18 +205,17 @@ class CheckInService {
 class CheckInStatus {
   final bool isCheckedIn;
   final DateTime? checkInTime;
-  final int? officeId;
-  final String? officeName;
+  final int? outletId;
+  final String? outletName;
 
   CheckInStatus({
     this.isCheckedIn = false,
     this.checkInTime,
-    this.officeId,
-    this.officeName,
+    this.outletId,
+    this.outletName,
   });
 
   factory CheckInStatus.fromJson(Map<String, dynamic> json) {
-    // Handle various possible types for isCheckedIn
     bool parseIsCheckedIn() {
       final value = json['isCheckedIn'];
       if (value == null) return false;
@@ -305,8 +230,8 @@ class CheckInStatus {
       checkInTime: json['checkInTime'] != null
           ? DateTime.parse(json['checkInTime'])
           : null,
-      officeId: json['officeId'],
-      officeName: json['officeName'],
+      outletId: json['outletId'],
+      outletName: json['outletName'],
     );
   }
 }
@@ -338,14 +263,14 @@ class PaginatedCheckIns {
 class CheckInRecord {
   final DateTime checkInTime;
   final DateTime? checkOutTime;
-  final String officeName;
-  final String officeAddress;
+  final String outletName;
+  final String outletAddress;
 
   CheckInRecord({
     required this.checkInTime,
     this.checkOutTime,
-    required this.officeName,
-    required this.officeAddress,
+    required this.outletName,
+    required this.outletAddress,
   });
 
   factory CheckInRecord.fromJson(Map<String, dynamic> json) {
@@ -354,8 +279,8 @@ class CheckInRecord {
       checkOutTime: json['checkOutTime'] != null
           ? DateTime.parse(json['checkOutTime'])
           : null,
-      officeName: json['officeName'],
-      officeAddress: json['officeAddress'],
+      outletName: json['outletName'],
+      outletAddress: json['outletAddress'],
     );
   }
 }

@@ -4,7 +4,7 @@ import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/pages/order/product_detail_page.dart';
+import 'package:woosh/pages/order/product/product_detail_page.dart';
 import 'package:woosh/utils/image_utils.dart';
 
 class ProductsGridPage extends StatefulWidget {

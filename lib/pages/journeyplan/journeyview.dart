@@ -14,6 +14,8 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
 import 'package:woosh/services/universal_file.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -1030,10 +1032,9 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     final dateFormatter = DateFormat('MMM dd, yyyy');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Journey Check-In'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Journey Check-In',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1198,7 +1199,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                         : 'Check-in Location',
                                     _isFetchingLocation
                                         ? 'Fetching location...'
-                                        : _currentAddress ?? 'Location not available',
+                                        : _currentAddress ??
+                                            'Location not available',
                                     Icons.my_location,
                                   ),
                                   if (_currentPosition != null) ...[

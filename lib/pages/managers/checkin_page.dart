@@ -5,7 +5,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:camera/camera.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:woosh/services/api_service.dart';
@@ -18,7 +17,7 @@ class CheckInConstants {
       50000000.0; // Increased to cover large distances during testing
   static const Duration locationUpdateInterval = Duration(seconds: 10);
   static const Duration locationFastUpdateInterval = Duration(seconds: 5);
-  static const String qrCodePrefix = 'OFFICE_';
+  // static const String qrCodePrefix = 'OFFICE_';
 }
 
 // Services
@@ -78,85 +77,9 @@ class LocationService {
   }
 }
 
-class QRScanner extends StatefulWidget {
-  final Function(String) onQRCodeScanned;
-  final Function() onClose;
-
-  const QRScanner({
-    super.key,
-    required this.onQRCodeScanned,
-    required this.onClose,
-  });
-
-  @override
-  State<QRScanner> createState() => _QRScannerState();
-}
-
-class _QRScannerState extends State<QRScanner> {
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
-  String? scanResult;
-
-  @override
-  void dispose() {
-    controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan Office QR Code'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: widget.onClose,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            flex: 5,
-            child: QRView(
-              key: qrKey,
-              onQRViewCreated: _onQRViewCreated,
-              overlay: QrScannerOverlayShape(
-                borderColor: Colors.blue,
-                borderRadius: 10,
-                borderLength: 30,
-                borderWidth: 10,
-                cutOutSize: MediaQuery.of(context).size.width * 0.8,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Center(
-              child: Text(
-                'Align the QR code within the frame to scan',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-    controller.scannedDataStream.listen((scanData) {
-      if (scanData.code != null && scanResult == null) {
-        setState(() {
-          scanResult = scanData.code;
-        });
-        widget.onQRCodeScanned(scanData.code!);
-      }
-    });
-  }
-}
+// class QRScanner extends StatefulWidget {
+//   final Function(String) onQRCodeScanned;
+//   final Function() onClose;
 
 class CameraCapture extends StatefulWidget {
   final Function(XFile) onImageCaptured;
@@ -386,15 +309,15 @@ class GridPainter extends CustomPainter {
 }
 
 class ManagerCheckInCard extends StatefulWidget {
-  final int officeId;
-  final String officeName;
-  final String officeAddress;
+  final int outletId;
+  final String outletName;
+  final String outletAddress;
 
   const ManagerCheckInCard({
     super.key,
-    required this.officeId,
-    required this.officeName,
-    required this.officeAddress,
+    required this.outletId,
+    required this.outletName,
+    required this.outletAddress,
   });
 
   @override
@@ -407,18 +330,13 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
   String _currentAddress = 'Detecting location...';
   bool _isFetchingLocation = false;
   bool _isWithinGeofence = false;
-  double _distanceToOffice = 0.0;
+  double _distanceToOutlet = 0.0;
 
   // Check-in state
   bool _isCheckedIn = false;
   bool _isProcessing = false;
   DateTime? _checkInTime;
   StreamSubscription<Position>? _positionStream;
-
-  // QR Scanner state
-  bool _showQRScanner = false;
-  String? _qrScanError;
-  String? _scannedQRCode;
 
   // Camera state
   bool _showCamera = false;
@@ -561,10 +479,10 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     if (_currentPosition == null) return false;
 
     try {
-      // Get office location from API
+      // Get outlet location from API
       final response = await http
           .get(
-        Uri.parse('${ApiService.baseUrl}/office/${widget.officeId}'),
+        Uri.parse('${ApiService.baseUrl}/outlets/${widget.outletId}/location'),
         headers: await _getAuthHeaders(),
       )
           .timeout(
@@ -575,29 +493,29 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to get office location');
+        throw Exception('Failed to get outlet location');
       }
 
       final data = json.decode(response.body);
-      final officeLat = data['latitude']?.toDouble() ?? 0.0;
-      final officeLon = data['longitude']?.toDouble() ?? 0.0;
+      final outletLat = data['latitude']?.toDouble() ?? 0.0;
+      final outletLon = data['longitude']?.toDouble() ?? 0.0;
 
-      print('Office coordinates: Lat $officeLat, Lon $officeLon');
+      print('Outlet coordinates: Lat $outletLat, Lon $outletLon');
       print(
           'Current coordinates: Lat ${_currentPosition!.latitude}, Lon ${_currentPosition!.longitude}');
 
-      _distanceToOffice = LocationService.calculateDistance(
+      _distanceToOutlet = LocationService.calculateDistance(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
-        officeLat,
-        officeLon,
+        outletLat,
+        outletLon,
       );
 
       print(
-          'Distance to office: $_distanceToOffice meters (Radius: ${CheckInConstants.geofenceRadius} meters)');
+          'Distance to outlet: $_distanceToOutlet meters (Radius: ${CheckInConstants.geofenceRadius} meters)');
 
       final isWithinRange =
-          _distanceToOffice <= CheckInConstants.geofenceRadius;
+          _distanceToOutlet <= CheckInConstants.geofenceRadius;
 
       if (mounted) {
         setState(() => _isWithinGeofence = isWithinRange);
@@ -622,57 +540,15 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
   Future<void> _handleCheckIn() async {
     if (!await _checkGeofence()) {
       _showErrorSnackbar(
-          'You must be within ${CheckInConstants.geofenceRadius}m of the office to check in');
+          'You must be within ${CheckInConstants.geofenceRadius}m of the outlet to check in');
       return;
     }
 
-    setState(() {
-      _showQRScanner = true;
-      _qrScanError = null;
-    });
-  }
-
-  void _handleQRCodeScanned(String qrCode) async {
-    try {
-      // Verify QR code with API
-      final verifyResponse = await http.post(
-        Uri.parse('${ApiService.baseUrl}/checkin/verify-qr'),
-        headers: await _getAuthHeaders(),
-        body: json.encode({
-          'qrCode': qrCode,
-          'officeId': widget.officeId,
-        }),
-      );
-
-      if (verifyResponse.statusCode != 200) {
-        final errorData = json.decode(verifyResponse.body);
-        setState(
-            () => _qrScanError = errorData['message'] ?? 'Invalid QR code');
-        return;
-      }
-
-      // QR code verified, proceed to camera
-      setState(() {
-        _scannedQRCode = qrCode;
-        _showQRScanner = false;
-        _showCamera = true;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      // If the API verification fails, check locally
-      if (!qrCode
-          .startsWith('${CheckInConstants.qrCodePrefix}${widget.officeId}_')) {
-        setState(() => _qrScanError = 'Invalid office QR code');
-        return;
-      }
-
-      setState(() {
-        _scannedQRCode = qrCode;
-        _showQRScanner = false;
-        _showCamera = true;
-      });
+    if (_isCheckedIn) {
+      _showErrorSnackbar('You are already checked in');
+      return;
     }
+    _showCamera = true;
   }
 
   void _handleImageCaptured(XFile image) async {
@@ -696,13 +572,10 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
           'attachment', _capturedImage!.path));
 
       // Add check-in data
-      request.fields['officeId'] = widget.officeId.toString();
+      request.fields['outletId'] = widget.outletId.toString();
       if (_currentPosition != null) {
         request.fields['latitude'] = _currentPosition!.latitude.toString();
         request.fields['longitude'] = _currentPosition!.longitude.toString();
-      }
-      if (_scannedQRCode != null) {
-        request.fields['qrCodeHash'] = _scannedQRCode!;
       }
 
       // Upload the image with timeout
@@ -730,10 +603,9 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
         Uri.parse('${ApiService.baseUrl}/checkin'),
         headers: await _getAuthHeaders(),
         body: json.encode({
-          'officeId': widget.officeId,
+          'outletId': widget.outletId,
           'latitude': _currentPosition?.latitude,
           'longitude': _currentPosition?.longitude,
-          'qrCodeHash': _scannedQRCode,
           'imageUrl': imageUrl,
         }),
       )
@@ -779,7 +651,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
         Uri.parse('${ApiService.baseUrl}/checkin/checkout'),
         headers: await _getAuthHeaders(),
         body: json.encode({
-          'officeId': widget.officeId,
+          'outletId': widget.outletId,
           'checkOutTime': DateTime.now().toIso8601String(),
         }),
       )
@@ -796,7 +668,6 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
             _isCheckedIn = false;
             _checkInTime = null;
             _capturedImage = null;
-            _scannedQRCode = null;
           });
           _showSuccessSnackbar('Checked out successfully');
         }
@@ -849,19 +720,11 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showQRScanner) {
-      return QRScanner(
-        onQRCodeScanned: _handleQRCodeScanned,
-        onClose: () => setState(() => _showQRScanner = false),
-      );
-    }
-
     if (_showCamera) {
       return CameraCapture(
         onImageCaptured: _handleImageCaptured,
         onCancel: () => setState(() {
           _showCamera = false;
-          _scannedQRCode = null;
         }),
       );
     }
@@ -880,7 +743,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildOfficeHeader(),
+                _buildOutletHeader(),
                 const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -949,11 +812,11 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     );
   }
 
-  Widget _buildOfficeHeader() {
+  Widget _buildOutletHeader() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Icon(Icons.business, size: 16),
+        const Icon(Icons.store, size: 16),
         const SizedBox(width: 6),
         Expanded(
           child: Column(
@@ -961,7 +824,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                widget.officeName,
+                widget.outletName,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -970,7 +833,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                widget.officeAddress,
+                widget.outletAddress,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       fontSize: 11,
                     ),
@@ -1035,17 +898,17 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
         ),
         TextButton(
           onPressed: _isFetchingLocation ? null : _getCurrentPosition,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            minimumSize: const Size(0, 24),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
           child: Text(
             _isFetchingLocation ? 'Updating...' : 'Refresh',
             style: TextStyle(
               fontSize: 11,
               color: Colors.blue.shade700,
             ),
-          ),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            minimumSize: const Size(0, 24),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ],
@@ -1072,7 +935,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              _formatDistance(_distanceToOffice),
+              _formatDistance(_distanceToOutlet),
               style: TextStyle(
                 color: _isWithinGeofence ? Colors.green : Colors.orange,
                 fontSize: 10,
@@ -1111,7 +974,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
                     ? 'PROCESSING...'
                     : !_isWithinGeofence
                         ? 'TOO FAR'
-                        : 'SCAN & PHOTO',
+                        : 'CHECK IN & PHOTO',
                 style: const TextStyle(fontSize: 12),
               ),
               style: ElevatedButton.styleFrom(
@@ -1222,27 +1085,27 @@ class CheckInPage extends StatefulWidget {
 class _CheckInPageState extends State<CheckInPage> {
   bool _isLoading = true;
   String? _error;
-  Map<String, dynamic>? _officeData;
+  Map<String, dynamic>? _outletData;
 
   @override
   void initState() {
     super.initState();
-    _loadOfficeData();
+    _loadOutletData();
   }
 
-  Future<void> _loadOfficeData() async {
+  Future<void> _loadOutletData() async {
     try {
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      print('📍 Fetching office data from API...');
+      print('📍 Fetching outlet data from API...');
 
       // Call the actual API endpoint
       final response = await http
           .get(
-        Uri.parse('${ApiService.baseUrl}/office'),
+        Uri.parse('${ApiService.baseUrl}/outlets'),
         headers: await _getAuthHeaders(),
       )
           .timeout(
@@ -1252,57 +1115,106 @@ class _CheckInPageState extends State<CheckInPage> {
         },
       );
 
-      print('📍 Office API response status: ${response.statusCode}');
+      print('📍 Outlet API response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final responseBody = response.body;
-        print('📍 Office API response: $responseBody');
+        print('📍 Outlet API response: $responseBody');
 
-        final List<dynamic> offices = json.decode(responseBody);
-        print('📍 Found ${offices.length} offices');
+        final List<dynamic> outlets = json.decode(responseBody);
+        print('📍 Found ${outlets.length} outlets');
 
-        // For now, just use the first office if any exists
-        if (offices.isNotEmpty) {
-          final officeData = offices[0];
+        // For now, just use the first outlet if any exists
+        if (outlets.isNotEmpty) {
+          final outletData = outlets[0];
           print(
-              '📍 Using office: ${officeData['name']}, ID: ${officeData['id']}');
+              '📍 Using outlet: ${outletData['name']}, ID: ${outletData['id']}');
           print(
-              '📍 Office location: Lat ${officeData['latitude']}, Lon ${officeData['longitude']}');
+              '📍 Outlet location: Lat ${outletData['latitude']}, Lon ${outletData['longitude']}');
 
           setState(() {
-            _officeData = officeData;
+            _outletData = outletData;
             _isLoading = false;
           });
         } else {
-          _useFallbackOfficeData("No offices found in API response");
+          _useFallbackOutletData("No outlets found in API response");
         }
       } else {
         final errorMsg =
-            'Failed to load office data: Server returned ${response.statusCode}';
+            'Failed to load outlet data: Server returned ${response.statusCode}';
         print('📍 Error: $errorMsg');
-        _useFallbackOfficeData(errorMsg);
+        _useFallbackOutletData(errorMsg);
       }
     } catch (e) {
       _handleNetworkError(e);
-      final errorMsg = 'Failed to load office data: ${e.toString()}';
+      final errorMsg = 'Failed to load outlet data: ${e.toString()}';
       print('📍 Error: $errorMsg');
-      _useFallbackOfficeData(errorMsg);
+      _useFallbackOutletData(errorMsg);
     }
   }
 
-  // Use fallback office data for testing
-  void _useFallbackOfficeData(String reason) {
-    print('📍 Using fallback office data. Reason: $reason');
+  void _useFallbackOutletData(String reason) {
+    print('📍 Using fallback outlet data. Reason: $reason');
     setState(() {
-      _officeData = {
+      _outletData = {
         'id': 1,
-        'name': 'Test Office',
+        'name': 'Test Outlet',
         'address': 'Test Address for Development',
         'latitude': 0.0,
         'longitude': 0.0,
       };
       _isLoading = false;
     });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Check In'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadOutletData,
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadOutletData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_outletData == null) {
+      return const Center(
+        child: Text('No outlet assigned. Please contact your administrator.'),
+      );
+    }
+
+    return ManagerCheckInCard(
+      outletId: _outletData!['id'],
+      outletName: _outletData!['name'],
+      outletAddress: _outletData!['address'],
+    );
   }
 
   // Helper method to get auth headers
@@ -1327,55 +1239,5 @@ class _CheckInPageState extends State<CheckInPage> {
         ),
       );
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Check In'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadOfficeData,
-          ),
-        ],
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadOfficeData,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_officeData == null) {
-      return const Center(
-        child: Text('No office assigned. Please contact your administrator.'),
-      );
-    }
-
-    return ManagerCheckInCard(
-      officeId: _officeData!['id'],
-      officeName: _officeData!['name'],
-      officeAddress: _officeData!['address'],
-    );
   }
 }

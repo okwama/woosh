@@ -4,6 +4,8 @@ import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/pages/journeyplan/journeyview.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class JourneyPlansPage extends StatefulWidget {
   const JourneyPlansPage({super.key});
@@ -269,10 +271,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Journey Plans'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Journey Plans',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

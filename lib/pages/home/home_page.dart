@@ -4,7 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
-import 'package:woosh/pages/order/vieworder_page.dart';
+import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
 import 'package:woosh/utils/app_theme.dart';

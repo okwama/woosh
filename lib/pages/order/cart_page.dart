@@ -4,7 +4,7 @@ import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/pages/order/products_grid_page.dart';
+import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/utils/image_utils.dart';
 
 class CartPage extends StatefulWidget {
@@ -12,10 +12,10 @@ class CartPage extends StatefulWidget {
   final Order? order;
 
   const CartPage({
-    Key? key,
+    super.key,
     required this.outlet,
     this.order,
-  }) : super(key: key);
+  });
 
   @override
   State<CartPage> createState() => _CartPageState();

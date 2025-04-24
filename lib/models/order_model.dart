@@ -2,6 +2,8 @@ import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/user_model.dart';
 
+enum OrderStatus { PENDING, COMPLETED, CANCELLED }
+
 class Order {
   final int id;
   final int quantity;
@@ -20,6 +22,14 @@ class Order {
     required this.updatedAt,
     required this.orderItems,
   });
+
+  // Calculate total amount based on order items
+  double get totalAmount {
+    return orderItems.fold(0, (total, item) => total + item.totalPrice);
+  }
+
+  // Default status is PENDING
+  OrderStatus get status => OrderStatus.PENDING;
 
   factory Order.fromJson(Map<String, dynamic> json) {
     try {

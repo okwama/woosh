@@ -60,31 +60,24 @@ model Outlet {
   orders       Order[]
   products     Product[]
   reports      Report[]
+  checkins     ManagerCheckin[]
 }
-model Office {
-  id        Int               @id @default(autoincrement())
-  name      String
-  address   String
-  latitude  Float?
-  longitude Float?
-  checkins  ManagerCheckin[]
-}
+
 model ManagerCheckin {
   id         Int      @id @default(autoincrement())
   managerId  Int
-  officeId   Int
+  outletId   Int
   date       DateTime
   checkInAt  DateTime?
   checkOutAt DateTime?
   latitude   Float?
   longitude  Float?
   notes      String?
-  qrCodeHash  String   // New field for QR validation
   manager    Manager  @relation(fields: [managerId], references: [id])
-  office     Office   @relation(fields: [officeId], references: [id])
+  outlet     Outlet   @relation(fields: [outletId], references: [id])
 
   @@index([managerId])
-  @@index([officeId])
+  @@index([outletId])
 }
 
 
