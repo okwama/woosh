@@ -99,8 +99,8 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
     final report = Report(
       type: ReportType.PRODUCT_AVAILABILITY,
       journeyPlanId: widget.journeyPlan.id!,
-      userId: userId,
-      outletId: widget.journeyPlan.outletId,
+      salesRepId: userId,
+      clientId: widget.journeyPlan.client.id,
       productReport: ProductReport(
         reportId: 0, // This will be set by the backend
         productName: _selectedProduct!.name,
@@ -113,7 +113,7 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
   }
 
   @override
-  Widget buildReportForm() {
+  Widget buildReportForm() {  
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),

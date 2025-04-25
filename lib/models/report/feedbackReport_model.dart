@@ -17,11 +17,17 @@ class FeedbackReport {
     };
   }
 
-  factory FeedbackReport.fromJson(Map<String, dynamic> json) {
+  factory FeedbackReport.fromJson(dynamic jsonData) {
+    print('FeedbackReport.fromJson input: $jsonData (${jsonData.runtimeType})');
+
+    // Convert dynamic Map to Map<String, dynamic>
+    final map = Map<String, dynamic>.from(jsonData);
+
     return FeedbackReport(
-      reportId: json['reportId'],
-      comment: json['comment'],
-      createdAt: DateTime.parse(json['createdAt']),
+      reportId: map['reportId'],
+      comment: map['comment'],
+      createdAt:
+          map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
     );
   }
 }

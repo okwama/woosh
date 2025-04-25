@@ -111,8 +111,8 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
     final report = Report(
       type: ReportType.VISIBILITY_ACTIVITY,
       journeyPlanId: widget.journeyPlan.id!,
-      userId: userId,
-      outletId: widget.journeyPlan.outletId,
+      salesRepId: userId,
+      clientId: widget.journeyPlan.client.id,
       visibilityReport: VisibilityReport(
         reportId: 0, // This will be set by the backend
         comment: commentController.text,

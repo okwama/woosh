@@ -1,10 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Ensure userId is not null
-const getUserId = (req) => {
+// Ensure salesRepId is not null
+const getSalesRepId = (req) => {
   if (!req.user || !req.user.id) {
-    throw new Error('User authentication required');
+    throw new Error('SalesRep authentication required');
   }
   return req.user.id;
 };
@@ -12,27 +12,27 @@ const getUserId = (req) => {
 // Create a new journey plan
 const createJourneyPlan = async (req, res) => {
   try {
-    const { outletId, date, notes } = req.body;
-    const userId = req.user.id;
+    const { clientId, date, notes } = req.body;
+    const salesRepId = req.user.id;
 
-    console.log('Creating journey plan with:', { outletId, date, userId, notes });
+    console.log('Creating journey plan with:', { clientId, date, salesRepId, notes });
 
     // Input validation
-    if (!outletId) {
-      return res.status(400).json({ error: 'Missing required field: outletId' });
+    if (!clientId) {
+      return res.status(400).json({ error: 'Missing required field: clientId' });
     }
 
     if (!date) {
       return res.status(400).json({ error: 'Missing required field: date' });
     }
 
-    // Check if the outlet exists
-    const outlet = await prisma.outlet.findUnique({
-      where: { id: parseInt(outletId) },
+    // Check if the client exists
+    const client = await prisma.clients.findUnique({
+      where: { id: parseInt(clientId) },
     });
 
-    if (!outlet) {
-      return res.status(404).json({ error: 'Outlet not found' });
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
     }
 
     // Parse the date from ISO string
@@ -66,13 +66,13 @@ const createJourneyPlan = async (req, res) => {
       data: {
         date: journeyDate,
         time: time,
-        userId: userId,
-        outletId: parseInt(outletId),
+        userId: salesRepId,
+        clientId: parseInt(clientId),
         status: 0, // 0 for pending
         notes: notes,
       },
       include: {
-        outlet: true,
+        client: true,
       },
     });
 
@@ -87,16 +87,16 @@ const createJourneyPlan = async (req, res) => {
   }
 };
 
-// Get all journey plans for the authenticated user with outlet details
+// Get all journey plans for the authenticated sales rep with client details
 const getJourneyPlans = async (req, res) => {
   try {
-    const userId = getUserId(req);
+    const salesRepId = getSalesRepId(req);
     const { page = 1, limit = 10 } = req.query;
 
     const journeyPlans = await prisma.journeyPlan.findMany({
-      where: { userId },
+      where: { userId: salesRepId },
       include: {
-        outlet: true,
+        client: true,
       },
       orderBy: {
         date: 'desc'
@@ -106,7 +106,7 @@ const getJourneyPlans = async (req, res) => {
     });
 
     const totalJourneyPlans = await prisma.journeyPlan.count({
-      where: { userId },
+      where: { userId: salesRepId },
     });
 
     res.status(200).json({
@@ -122,7 +122,7 @@ const getJourneyPlans = async (req, res) => {
   } catch (error) {
     console.error('Error fetching journey plans:', error);
     
-    if (error.message === 'User authentication required') {
+    if (error.message === 'SalesRep authentication required') {
       return res.status(401).json({ error: 'Authentication required' });
     }
     
@@ -137,7 +137,7 @@ const getJourneyPlans = async (req, res) => {
 const updateJourneyPlan = async (req, res) => {
   const { journeyId } = req.params;
   const { 
-    outletId, 
+    clientId, 
     status, 
     checkInTime, 
     latitude, 
@@ -151,7 +151,7 @@ const updateJourneyPlan = async (req, res) => {
 
   // Log request details for debugging
   console.log('[CHECKOUT LOG] Updating journey plan:', { 
-    journeyId, outletId, status, checkInTime, 
+    journeyId, clientId, status, checkInTime, 
     latitude, longitude, imageUrl, notes,
     checkoutTime, checkoutLatitude, checkoutLongitude
   });
@@ -162,8 +162,8 @@ const updateJourneyPlan = async (req, res) => {
       return res.status(400).json({ error: 'Missing required field: journeyId' });
     }
 
-    // Get the authenticated user
-    const userId = req.user.id;
+    // Get the authenticated sales rep
+    const salesRepId = req.user.id;
 
     // Status mapping
     const STATUS_MAP = {
@@ -182,7 +182,7 @@ const updateJourneyPlan = async (req, res) => {
       4: 'cancelled'
     };
 
-    // Check if the journey plan exists and belongs to the user
+    // Check if the journey plan exists and belongs to the sales rep
     const existingJourneyPlan = await prisma.journeyPlan.findUnique({
       where: { id: parseInt(journeyId) },
     });
@@ -191,7 +191,7 @@ const updateJourneyPlan = async (req, res) => {
       return res.status(404).json({ error: 'Journey plan not found' });
     }
 
-    if (existingJourneyPlan.userId !== userId) {
+    if (existingJourneyPlan.userId !== salesRepId) {
       return res.status(403).json({ error: 'Unauthorized to update this journey plan' });
     }
 
@@ -211,14 +211,14 @@ const updateJourneyPlan = async (req, res) => {
       console.log(`[CHECKOUT LOG] Checkout Longitude: ${checkoutLongitude}`);
     }
 
-    // Validate if outlet exists
-    if (outletId) {
-      const outlet = await prisma.outlet.findUnique({
-        where: { id: parseInt(outletId) },
+    // Validate if client exists
+    if (clientId) {
+      const client = await prisma.clients.findUnique({
+        where: { id: parseInt(clientId) },
       });
 
-      if (!outlet) {
-        return res.status(400).json({ error: 'Outlet not found' });
+      if (!client) {
+        return res.status(400).json({ error: 'Client not found' });
       }
     }
 
@@ -235,14 +235,14 @@ const updateJourneyPlan = async (req, res) => {
         checkoutTime: checkoutTime ? new Date(checkoutTime) : existingJourneyPlan.checkoutTime,
         checkoutLatitude: checkoutLatitude || existingJourneyPlan.checkoutLatitude,
         checkoutLongitude: checkoutLongitude || existingJourneyPlan.checkoutLongitude,
-        outlet: outletId
+        client: clientId
           ? {
-              connect: { id: parseInt(outletId) },
+              connect: { id: parseInt(clientId) },
             }
           : undefined,
       },
       include: {
-        outlet: true,
+        client: true,
       },
     });
 

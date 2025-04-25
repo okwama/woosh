@@ -25,8 +25,8 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
     print('Journey Plan Details:');
     print('Journey Plan ID: ${widget.journeyPlan.id}');
     print(
-        'Journey Plan User ID: ${widget.journeyPlan.userId} (${widget.journeyPlan.userId.runtimeType})');
-    print('Journey Plan Outlet ID: ${widget.journeyPlan.outletId}');
+        'Journey Plan User ID: ${widget.journeyPlan.salesRepId} (${widget.journeyPlan.salesRepId.runtimeType})');
+    print('Journey Plan Client ID: ${widget.journeyPlan.client.id}');
 
     // Try to get user ID from storage for comparison
     final box = GetStorage();
@@ -38,7 +38,7 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
 
       // Compare user IDs
       final storedUserId = userData['id'];
-      final journeyUserId = widget.journeyPlan.userId;
+      final journeyUserId = widget.journeyPlan.salesRepId;
       print('User ID comparison:');
       print('Direct equality: ${storedUserId == journeyUserId}');
       print(
@@ -60,60 +60,67 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
       return;
     }
 
-    if (widget.journeyPlan.userId == null) {
-      print('DRASTIC DEBUG: NULL USER ID IN JOURNEY PLAN');
+    // Get the currently logged in salesRep from storage
+    final box = GetStorage();
+    final salesRepData = box.read('salesRep');
+
+    if (salesRepData == null) {
+      print('DRASTIC DEBUG: No salesRep data found in storage');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User ID not found in journey plan')),
+        const SnackBar(
+            content: Text('Authentication error: User data not found')),
       );
       return;
     }
 
-    // Get user ID from storage
-    final box = GetStorage();
-    final userData = box.read('user');
-    int? userIdToUse = widget.journeyPlan.userId;
+    // Extract the salesRep ID from the stored data
+    final int? salesRepId =
+        salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
 
-    // EMERGENCY FIX: Try to use the ID from storage if there's a mismatch
-    if (userData != null) {
-      final storedUserId = userData['id'];
-      print(
-          'DRASTIC DEBUG: User ID from storage: $storedUserId (${storedUserId.runtimeType})');
-      print(
-          'DRASTIC DEBUG: User ID from journey: $userIdToUse (${userIdToUse.runtimeType})');
-
-      // If they don't match, try to use the stored ID
-      if (storedUserId.toString() != userIdToUse.toString()) {
-        print('DRASTIC DEBUG: USER ID MISMATCH - Using ID from storage');
-        // Try to convert to int if possible
-        if (storedUserId is int) {
-          userIdToUse = storedUserId;
-        } else if (storedUserId is String) {
-          userIdToUse = int.tryParse(storedUserId) ?? userIdToUse;
-        } else {
-          userIdToUse = int.tryParse(storedUserId.toString()) ?? userIdToUse;
-        }
-        print(
-            'DRASTIC DEBUG: Using converted user ID: $userIdToUse (${userIdToUse.runtimeType})');
-      }
+    if (salesRepId == null) {
+      print('DRASTIC DEBUG: Could not determine salesRep ID from storage data');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Authentication error: User ID not found')),
+      );
+      return;
     }
 
     print('DRASTIC DEBUG: Creating report with:');
     print('Type: ${ReportType.FEEDBACK}');
     print('Journey Plan ID: ${widget.journeyPlan.id}');
-    print('User ID: $userIdToUse');
-    print('Outlet ID: ${widget.journeyPlan.outletId}');
+    print('SalesRep ID: $salesRepId');
+    print('Client ID: ${widget.journeyPlan.client.id}');
     print('Comment: ${commentController.text}');
 
     final report = Report(
       type: ReportType.FEEDBACK,
       journeyPlanId: widget.journeyPlan.id!,
-      userId: userIdToUse!,
-      outletId: widget.journeyPlan.outletId,
+      salesRepId: salesRepId,
+      clientId: widget.journeyPlan.client.id,
       feedbackReport: FeedbackReport(
         reportId: 0,
         comment: commentController.text,
       ),
     );
+
+    // Debug: Validate report object before submission
+    print('FEEDBACK REPORT DEBUG: Report type: ${report.type}');
+    print(
+        'FEEDBACK REPORT DEBUG: Report journeyPlanId: ${report.journeyPlanId}');
+    print('FEEDBACK REPORT DEBUG: Report salesRepId: ${report.salesRepId}');
+    print('FEEDBACK REPORT DEBUG: Report clientId: ${report.clientId}');
+
+    if (report.feedbackReport == null) {
+      print('FEEDBACK REPORT DEBUG: ERROR - feedbackReport field is null!');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Feedback details missing')),
+      );
+      return;
+    }
+
+    print(
+        'FEEDBACK REPORT DEBUG: FeedbackReport comment: ${report.feedbackReport!.comment}');
 
     print('DRASTIC DEBUG: Report created, submitting...');
     await submitReport(report);
@@ -128,7 +135,7 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Outlet: ${widget.journeyPlan.outlet.name}',
+              'Client: ${widget.journeyPlan.client.name}',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -136,7 +143,7 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Address: ${widget.journeyPlan.outlet.address}',
+              'Address: ${widget.journeyPlan.client.address}',
               style: TextStyle(
                 color: Colors.grey.shade600,
               ),

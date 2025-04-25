@@ -124,7 +124,62 @@ class ApiService {
     return null;
   }
 
-  // Fetch Outlets
+  // Fetch Clients (replaces fetchOutlets)
+  static Future<List<Client>> fetchClients() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http
+          .get(
+        Uri.parse(
+            '$baseUrl/outlets'), // Keep using /outlets endpoint until backend is updated
+        headers: await _headers(),
+      )
+          .timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception("Connection timeout");
+        },
+      );
+
+      final handledResponse = await _handleResponse(response);
+
+      if (handledResponse.statusCode == 200) {
+        final List<dynamic> data = json.decode(handledResponse.body);
+        return data.map((json) {
+          final outlet = Outlet.fromJson(json);
+          return Client(
+            id: outlet.id,
+            name: outlet.name,
+            address: outlet.address,
+            balance: outlet.balance,
+            latitude: outlet.latitude,
+            longitude: outlet.longitude,
+            email: outlet.email,
+            contact: outlet.contact,
+            taxPin: outlet.taxPin,
+            location: outlet.location,
+            clientType: outlet.clientType,
+            regionId: outlet.regionId ?? 0,
+            region: outlet.region ?? '',
+            countryId: outlet.countryId ?? 0,
+          );
+        }).toList();
+      } else {
+        throw Exception(
+            'Failed to load clients: ${handledResponse.statusCode}');
+      }
+    } catch (e) {
+      handleNetworkError(e);
+      rethrow;
+    }
+  }
+
+  // Keep fetchOutlets for backward compatibility
+  @Deprecated('Use fetchClients() instead')
   static Future<List<Outlet>> fetchOutlets() async {
     try {
       final token = _getAuthToken();
@@ -160,7 +215,7 @@ class ApiService {
   }
 
   // Create a Journey Plan
-  static Future<JourneyPlan> createJourneyPlan(int outletId, DateTime dateTime,
+  static Future<JourneyPlan> createJourneyPlan(int clientId, DateTime dateTime,
       {String? notes}) async {
     try {
       final token = _getAuthToken();
@@ -173,10 +228,10 @@ class ApiService {
           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
 
       print(
-          'Creating journey plan with outletId: $outletId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes');
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes');
 
       final Map<String, dynamic> requestBody = {
-        'outletId': outletId,
+        'clientId': clientId,
         'date': dateTime.toIso8601String(),
         'time': time,
       };
@@ -184,6 +239,9 @@ class ApiService {
       if (notes != null && notes.isNotEmpty) {
         requestBody['notes'] = notes;
       }
+
+      // Add debug logging
+      print('Journey plan request body: ${jsonEncode(requestBody)}');
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
@@ -262,7 +320,7 @@ class ApiService {
   // Update Journey Plan
   static Future<JourneyPlan> updateJourneyPlan({
     required int journeyId,
-    required int outletId,
+    required int clientId,
     int? status,
     DateTime? checkInTime,
     double? latitude,
@@ -306,7 +364,7 @@ class ApiService {
       }
 
       final body = {
-        'outletId': outletId,
+        'clientId': clientId,
         if (statusString != null) 'status': statusString,
         if (checkInTime != null) 'checkInTime': checkInTime.toIso8601String(),
         if (latitude != null) 'latitude': latitude,
@@ -319,16 +377,13 @@ class ApiService {
         if (checkoutLongitude != null) 'checkoutLongitude': checkoutLongitude,
       };
 
-      // Log the API request
-      if (checkoutTime != null) {
-        print('API REQUEST - CHECKOUT DATA:');
-        print('URL: $url');
-        print('Journey ID: $journeyId');
-        print('Status: $statusString');
-        print('Checkout Time: ${checkoutTime.toIso8601String()}');
-        print('Checkout Latitude: $checkoutLatitude');
-        print('Checkout Longitude: $checkoutLongitude');
-      }
+      // Log all API requests for debugging
+      print('API REQUEST - JOURNEY PLAN UPDATE:');
+      print('URL: $url');
+      print('Journey ID: $journeyId');
+      print('Client ID: $clientId');
+      print('Status: $statusString');
+      print('Request Body: ${jsonEncode(body)}');
 
       final response = await http.put(
         url,
@@ -336,14 +391,10 @@ class ApiService {
         body: jsonEncode(body),
       );
 
-      // Log the response
-      if (checkoutTime != null) {
-        print('API RESPONSE - CHECKOUT DATA:');
-        print('Status Code: ${response.statusCode}');
-        print('Response Body Length: ${response.body.length}');
-        print(
-            'First 100 chars of response: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...');
-      }
+      // Log all responses
+      print('API RESPONSE - JOURNEY PLAN UPDATE:');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final decodedJson = jsonDecode(response.body);
@@ -621,17 +672,96 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
+      // Debug logging
+      print('REPORT DEBUG: Preparing to submit report:');
+      print('REPORT DEBUG: Type: ${report.type.toString().split('.').last}');
+      print('REPORT DEBUG: JourneyPlanId: ${report.journeyPlanId}');
+      print('REPORT DEBUG: SalesRepId: ${report.salesRepId}');
+      print('REPORT DEBUG: ClientId: ${report.clientId}');
+
+      // Prepare request body according to server's expected format
+      // The server expects userId instead of salesRepId and a details field
+      final Map<String, dynamic> requestBody = {
+        'type': report.type.toString().split('.').last,
+        'journeyPlanId': report.journeyPlanId,
+        'userId': report.salesRepId, // Use salesRepId as userId for server
+        'clientId': report.clientId,
+      };
+
+      // Add details field based on report type
+      switch (report.type) {
+        case ReportType.PRODUCT_AVAILABILITY:
+          if (report.productReport == null) {
+            throw Exception('Product report details are missing');
+          }
+          requestBody['details'] = {
+            'productName': report.productReport!.productName,
+            'quantity': report.productReport!.quantity,
+            'comment': report.productReport!.comment,
+          };
+          break;
+        case ReportType.VISIBILITY_ACTIVITY:
+          if (report.visibilityReport == null) {
+            throw Exception('Visibility report details are missing');
+          }
+          requestBody['details'] = {
+            'comment': report.visibilityReport!.comment,
+            'imageUrl': report.visibilityReport!.imageUrl,
+          };
+          break;
+        case ReportType.FEEDBACK:
+          if (report.feedbackReport == null) {
+            throw Exception('Feedback report details are missing');
+          }
+          requestBody['details'] = {
+            'comment': report.feedbackReport!.comment,
+          };
+          break;
+      }
+
+      print('REPORT DEBUG: Request body: ${jsonEncode(requestBody)}');
+
       final response = await http.post(
         Uri.parse('$baseUrl/reports'),
         headers: await _headers(),
-        body: jsonEncode(report.toJson()),
+        body: jsonEncode(requestBody),
       );
 
+      print('REPORT DEBUG: Response status: ${response.statusCode}');
+      print('REPORT DEBUG: Response body: ${response.body}');
+
       if (response.statusCode == 201) {
+        // Parse the server response
         final data = jsonDecode(response.body);
-        return Report.fromJson(data);
+
+        // The server returns { report: {...}, specificReport: {...} }
+        // We need to merge these to create a single Report object
+        if (data['report'] != null && data['specificReport'] != null) {
+          // Copy the main report data
+          final Map<String, dynamic> mergedData = {...data['report']};
+
+          // Add the specific report type from the original request
+          // since it's not returned directly in the format we need
+          mergedData['type'] = report.type.toString().split('.').last;
+
+          // Add the specific report data
+          final String reportType = report.type.toString().split('.').last;
+          mergedData['specificReport'] = {
+            ...data['specificReport'],
+            'type': reportType // Make sure type is included
+          };
+
+          print('REPORT DEBUG: Merged data for parsing: $mergedData');
+          return Report.fromJson(mergedData);
+        } else {
+          // Handle unexpected response format
+          print('REPORT DEBUG: Unexpected response format: $data');
+          throw Exception('Unexpected response format from server');
+        }
       } else {
-        throw Exception('Failed to submit report: ${response.statusCode}');
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to submit report: ${response.statusCode} - ${errorBody['error'] ?? 'Unknown error'}');
       }
     } catch (e) {
       print('Error submitting report: $e');
@@ -641,8 +771,8 @@ class ApiService {
 
   Future<List<Report>> getReports({
     int? journeyPlanId,
-    int? outletId,
-    int? userId,
+    int? clientId,
+    int? salesRepId,
   }) async {
     try {
       final token = _getAuthToken();
@@ -654,8 +784,8 @@ class ApiService {
       final queryParams = <String, String>{};
       if (journeyPlanId != null)
         queryParams['journeyPlanId'] = journeyPlanId.toString();
-      if (outletId != null) queryParams['outletId'] = outletId.toString();
-      if (userId != null) queryParams['userId'] = userId.toString();
+      if (clientId != null) queryParams['clientId'] = clientId.toString();
+      if (salesRepId != null) queryParams['salesRepId'] = salesRepId.toString();
 
       final uri =
           Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);

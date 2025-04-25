@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/pages/journeyplan/journeyview.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
@@ -16,7 +16,7 @@ class JourneyPlansPage extends StatefulWidget {
 
 class _JourneyPlansPageState extends State<JourneyPlansPage> {
   bool _isLoading = false;
-  List<Outlet> _outlets = [];
+  List<Client> _clients = [];
   List<JourneyPlan> _journeyPlans = [];
   String? _errorMessage;
 
@@ -35,13 +35,13 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
 
     try {
-      // Load both outlets and journey plans
-      final outlets = await ApiService.fetchOutlets();
+      // Load both clients and journey plans
+      final clients = await ApiService.fetchClients();
       final journeyPlans = await ApiService.fetchJourneyPlans();
 
       if (mounted) {
         setState(() {
-          _outlets = outlets;
+          _clients = clients;
           _journeyPlans = journeyPlans;
           _isLoading = false;
         });
@@ -57,7 +57,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
   }
 
-  Future<void> _createJourneyPlan(int outletId, DateTime date,
+  Future<void> _createJourneyPlan(int clientId, DateTime date,
       {String? notes}) async {
     try {
       setState(() {
@@ -65,7 +65,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       });
 
       await ApiService.createJourneyPlan(
-        outletId,
+        clientId,
         date,
         notes: notes,
       );
@@ -93,10 +93,10 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
   }
 
-  void _showOutletSelectionDialog() {
+  void _showClientSelectionDialog() {
     DateTime selectedDate = DateTime.now();
     String searchQuery = '';
-    List<Outlet> filteredOutlets = _outlets;
+    List<Client> filteredClients = _clients;
     final TextEditingController notesController = TextEditingController();
 
     showDialog(
@@ -130,57 +130,24 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                         });
                       }
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            DateFormat('MMM dd, yyyy').format(selectedDate),
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const Icon(Icons.calendar_today),
-                        ],
-                      ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today),
+                        const SizedBox(width: 8),
+                        Text(DateFormat('MMM dd, yyyy').format(selectedDate)),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Agenda (Optional)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: notesController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Add any additional information',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 12.0, horizontal: 12.0),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Search Outlet',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
                   TextField(
                     onChanged: (value) {
                       setState(() {
                         searchQuery = value.toLowerCase();
-                        filteredOutlets = _outlets.where((outlet) {
-                          return outlet.name
+                        filteredClients = _clients.where((client) {
+                          return client.name
                                   .toLowerCase()
                                   .contains(searchQuery) ||
-                              outlet.address
+                              (client.address ?? '')
                                   .toLowerCase()
                                   .contains(searchQuery);
                         }).toList();
@@ -198,29 +165,29 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Select Outlet',
+                    'Select Client',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 200,
-                    child: _outlets.isEmpty
-                        ? const Center(child: Text('No outlets available'))
-                        : filteredOutlets.isEmpty
+                    child: _clients.isEmpty
+                        ? const Center(child: Text('No clients available'))
+                        : filteredClients.isEmpty
                             ? const Center(
-                                child: Text('No matching outlets found'))
+                                child: Text('No matching clients found'))
                             : ListView.builder(
                                 shrinkWrap: true,
-                                itemCount: filteredOutlets.length,
+                                itemCount: filteredClients.length,
                                 itemBuilder: (context, index) {
-                                  final outlet = filteredOutlets[index];
+                                  final client = filteredClients[index];
                                   return ListTile(
-                                    title: Text(outlet.name),
-                                    subtitle: Text(outlet.address),
+                                    title: Text(client.name),
+                                    subtitle: Text(client.address ?? ''),
                                     onTap: () {
                                       Navigator.pop(context);
                                       _createJourneyPlan(
-                                        outlet.id,
+                                        client.id,
                                         selectedDate,
                                         notes: notesController.text.trim(),
                                       );
@@ -334,7 +301,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                   padding: const EdgeInsets.all(8.0),
                                   child: Row(
                                     children: [
-                                      // Left side - Date and Outlet info
+                                      // Left side - Date and Client info
                                       Expanded(
                                         child: Row(
                                           children: [
@@ -351,7 +318,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   Text(
-                                                    journeyPlan.outlet.name,
+                                                    journeyPlan.client.name,
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold,
@@ -408,7 +375,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                         ),
                 ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showOutletSelectionDialog,
+        onPressed: _showClientSelectionDialog,
         child: const Icon(Icons.add),
       ),
     );

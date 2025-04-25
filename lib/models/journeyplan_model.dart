@@ -1,4 +1,4 @@
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/client_model.dart';
 import 'package:flutter/material.dart';
 
 class JourneyPlan {
@@ -12,14 +12,14 @@ class JourneyPlan {
   final int? id;
   final DateTime date;
   final String time;
-  final int? userId;
+  final int? salesRepId;
   final int status; // 0 for pending, 1 for checked in
   final String? notes;
   final DateTime? checkInTime;
   final double? latitude;
   final double? longitude;
   final String? imageUrl;
-  final Outlet outlet;
+  final Client client;
   final DateTime? checkoutTime;
   final double? checkoutLatitude;
   final double? checkoutLongitude;
@@ -28,13 +28,13 @@ class JourneyPlan {
     this.id,
     required this.date,
     required this.time,
-    this.userId,
+    this.salesRepId,
     required this.status,
     this.checkInTime,
     this.latitude,
     this.longitude,
     this.imageUrl,
-    required this.outlet,
+    required this.client,
     this.notes,
     this.checkoutTime,
     this.checkoutLatitude,
@@ -65,8 +65,8 @@ class JourneyPlan {
   bool get isCompleted => status == statusCompleted;
   bool get isCancelled => status == statusCancelled;
 
-  // Helper getter for outletId
-  int get outletId => outlet.id;
+  // Helper getter for clientId
+  int get clientId => client.id;
 
   // Helper method to get status color
   Color get statusColor {
@@ -91,14 +91,14 @@ class JourneyPlan {
     int? id,
     DateTime? date,
     String? time,
-    int? userId,
+    int? salesRepId,
     int? status,
     String? notes,
     DateTime? checkInTime,
     double? latitude,
     double? longitude,
     String? imageUrl,
-    Outlet? outlet,
+    Client? client,
     DateTime? checkoutTime,
     double? checkoutLatitude,
     double? checkoutLongitude,
@@ -107,14 +107,14 @@ class JourneyPlan {
       id: id ?? this.id,
       date: date ?? this.date,
       time: time ?? this.time,
-      userId: userId ?? this.userId,
+      salesRepId: salesRepId ?? this.salesRepId,
       status: status ?? this.status,
       notes: notes ?? this.notes,
       checkInTime: checkInTime ?? this.checkInTime,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       imageUrl: imageUrl ?? this.imageUrl,
-      outlet: outlet ?? this.outlet,
+      client: client ?? this.client,
       checkoutTime: checkoutTime ?? this.checkoutTime,
       checkoutLatitude: checkoutLatitude ?? this.checkoutLatitude,
       checkoutLongitude: checkoutLongitude ?? this.checkoutLongitude,
@@ -125,8 +125,8 @@ class JourneyPlan {
     if (json['date'] == null) {
       throw FormatException('Journey date is required');
     }
-    if (json['outlet'] == null) {
-      throw FormatException('Outlet information is required');
+    if (json['client'] == null) {
+      throw FormatException('Client information is required');
     }
 
     DateTime parseDate(String dateStr) {
@@ -156,7 +156,7 @@ class JourneyPlan {
       id: json['id'],
       date: date,
       time: time,
-      userId: json['userId'],
+      salesRepId: json['salesRepId'],
       status: status,
       notes: json['notes'],
       checkInTime:
@@ -172,7 +172,7 @@ class JourneyPlan {
               : double.tryParse(json['longitude'].toString()))
           : null,
       imageUrl: json['imageUrl'],
-      outlet: Outlet.fromJson(json['outlet']),
+      client: Client.fromJson(json['client']),
       checkoutTime:
           json['checkoutTime'] != null ? parseDate(json['checkoutTime']) : null,
       checkoutLatitude: json['checkoutLatitude'] != null
@@ -193,14 +193,14 @@ class JourneyPlan {
       'id': id,
       'date': date.toIso8601String(),
       'time': time,
-      'userId': userId,
+      'salesRepId': salesRepId,
       'status': status,
       'notes': notes,
       'checkInTime': checkInTime?.toIso8601String(),
       'latitude': latitude,
       'longitude': longitude,
       'imageUrl': imageUrl,
-      'outlet': outlet.toJson(),
+      'client': client.toJson(),
       'checkoutTime': checkoutTime?.toIso8601String(),
       'checkoutLatitude': checkoutLatitude,
       'checkoutLongitude': checkoutLongitude,

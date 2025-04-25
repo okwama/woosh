@@ -138,10 +138,57 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   Future<void> _submitReport() async {
     if (_isSubmitting) return;
 
+    // Validate form first
+    if (_selectedReportType == ReportType.PRODUCT_AVAILABILITY &&
+        _selectedProduct == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a product')),
+      );
+      return;
+    }
+
+    if (_selectedReportType == ReportType.VISIBILITY_ACTIVITY &&
+        _imageFile == null &&
+        _imageUrl == null &&
+        _commentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add an image or comment')),
+      );
+      return;
+    }
+
+    if (_selectedReportType == ReportType.FEEDBACK &&
+        _commentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter feedback')),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
       String? imageUrl = await _uploadImage();
+
+      // Get the currently logged in salesRep from storage
+      final box = GetStorage();
+      final salesRepData = box.read('salesRep');
+
+      if (salesRepData == null) {
+        throw Exception("User not authenticated: No salesRep data found");
+      }
+
+      // Extract the salesRep ID from the stored data
+      final int? salesRepId =
+          salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
+
+      if (salesRepId == null) {
+        throw Exception(
+            "User not authenticated: Could not determine salesRep ID");
+      }
+
+      print(
+          'Creating report using salesRepId: $salesRepId from stored salesRep data');
 
       Report report;
       switch (_selectedReportType) {
@@ -149,8 +196,8 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
           report = Report(
             type: ReportType.PRODUCT_AVAILABILITY,
             journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
+            salesRepId: salesRepId,
+            clientId: widget.journeyPlan.client.id,
             productReport: ProductReport(
               reportId: 0,
               productName: _selectedProduct?.name,
@@ -163,8 +210,8 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
           report = Report(
             type: ReportType.VISIBILITY_ACTIVITY,
             journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
+            salesRepId: salesRepId,
+            clientId: widget.journeyPlan.client.id,
             visibilityReport: VisibilityReport(
               reportId: 0,
               comment: _commentController.text,
@@ -176,13 +223,44 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
           report = Report(
             type: ReportType.FEEDBACK,
             journeyPlanId: widget.journeyPlan.id,
-            userId: widget.journeyPlan.userId!,
-            outletId: widget.journeyPlan.outlet.id,
+            salesRepId: salesRepId,
+            clientId: widget.journeyPlan.client.id,
             feedbackReport: FeedbackReport(
               reportId: 0,
               comment: _commentController.text,
             ),
           );
+          break;
+      }
+
+      // Debug: Validate report object before submission
+      print('REPORT SUBMISSION DEBUG: Report type: ${report.type}');
+      print(
+          'REPORT SUBMISSION DEBUG: Report journeyPlanId: ${report.journeyPlanId}');
+      print('REPORT SUBMISSION DEBUG: Report salesRepId: ${report.salesRepId}');
+      print('REPORT SUBMISSION DEBUG: Report clientId: ${report.clientId}');
+
+      switch (report.type) {
+        case ReportType.PRODUCT_AVAILABILITY:
+          if (report.productReport == null) {
+            throw Exception('Product report details are missing');
+          }
+          print(
+              'REPORT SUBMISSION DEBUG: ProductReport: ${report.productReport?.productName}, Quantity: ${report.productReport?.quantity}, Comment: ${report.productReport?.comment}');
+          break;
+        case ReportType.VISIBILITY_ACTIVITY:
+          if (report.visibilityReport == null) {
+            throw Exception('Visibility report details are missing');
+          }
+          print(
+              'REPORT SUBMISSION DEBUG: VisibilityReport: Comment: ${report.visibilityReport?.comment}, ImageUrl: ${report.visibilityReport?.imageUrl}');
+          break;
+        case ReportType.FEEDBACK:
+          if (report.feedbackReport == null) {
+            throw Exception('Feedback report details are missing');
+          }
+          print(
+              'REPORT SUBMISSION DEBUG: FeedbackReport: Comment: ${report.feedbackReport?.comment}');
           break;
       }
 
@@ -385,7 +463,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            widget.journeyPlan.outlet.name,
+                            widget.journeyPlan.client.name,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -396,7 +474,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      widget.journeyPlan.outlet.address,
+                      widget.journeyPlan.client.address,
                       style: TextStyle(
                         color: Colors.grey.shade600,
                       ),
@@ -643,13 +721,13 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
       print('CHECKOUT: Accuracy: ${position.accuracy} meters');
       print('CHECKOUT: Timestamp: ${DateTime.now().toIso8601String()}');
       print('CHECKOUT: Journey ID: ${widget.journeyPlan.id}');
-      print('CHECKOUT: Outlet ID: ${widget.journeyPlan.outlet.id}');
+      print('CHECKOUT: Client ID: ${widget.journeyPlan.client.id}');
 
       // Update journey plan with checkout information
       print('CHECKOUT: Sending data to API...');
       final response = await ApiService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
-        outletId: widget.journeyPlan.outlet.id,
+        clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,
         checkoutTime: DateTime.now(),
         checkoutLatitude: position.latitude,

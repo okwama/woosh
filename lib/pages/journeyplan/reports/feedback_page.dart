@@ -37,8 +37,8 @@ class _FeedbackPageState extends State<FeedbackPage> with BaseReportPageMixin {
     final report = Report(
       type: ReportType.FEEDBACK,
       journeyPlanId: widget.journeyPlan.id!,
-      userId: userId,
-      outletId: widget.journeyPlan.outletId,
+      salesRepId: userId,
+      clientId: widget.journeyPlan.client.id,
       feedbackReport: FeedbackReport(
         reportId: 0, // This will be set by the backend
         comment: commentController.text,

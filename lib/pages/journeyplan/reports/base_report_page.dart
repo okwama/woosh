@@ -35,6 +35,35 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
     setState(() => _isSubmitting = true);
 
     try {
+      // Verify the report has a valid salesRepId
+      if (report.salesRepId == null) {
+        final box = GetStorage();
+        final salesRepData = box.read('salesRep');
+
+        if (salesRepData == null || !(salesRepData is Map<String, dynamic>)) {
+          throw Exception("Authentication error: No valid salesRep data found");
+        }
+
+        final int? salesRepId = salesRepData['id'];
+        if (salesRepId == null) {
+          throw Exception(
+              "Authentication error: Could not determine salesRep ID");
+        }
+
+        // Create a new report with the salesRepId
+        report = Report(
+          id: report.id,
+          type: report.type,
+          journeyPlanId: report.journeyPlanId,
+          salesRepId: salesRepId,
+          clientId: report.clientId,
+          createdAt: report.createdAt,
+          productReport: report.productReport,
+          visibilityReport: report.visibilityReport,
+          feedbackReport: report.feedbackReport,
+        );
+      }
+
       await _apiService.submitReport(report);
 
       if (mounted) {
@@ -65,18 +94,18 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              journeyPlan.outlet.name,
+              journeyPlan.client.name,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            Text('Address: ${journeyPlan.outlet.address}'),
-            if (journeyPlan.outlet.latitude != null &&
-                journeyPlan.outlet.longitude != null)
+            Text('Address: ${journeyPlan.client.address}'),
+            if (journeyPlan.client.latitude != null &&
+                journeyPlan.client.longitude != null)
               Text(
-                  'Location: ${journeyPlan.outlet.latitude}, ${journeyPlan.outlet.longitude}'),
+                  'Location: ${journeyPlan.client.latitude}, ${journeyPlan.client.longitude}'),
           ],
         ),
       ),
@@ -152,7 +181,7 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
       // Update journey plan with checkout information
       await ApiService.updateJourneyPlan(
         journeyId: journeyPlan.id!,
-        outletId: journeyPlan.outletId,
+        clientId: journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,
         checkoutTime: DateTime.now(),
         checkoutLatitude: _currentPosition!.latitude,

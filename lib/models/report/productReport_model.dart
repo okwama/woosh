@@ -23,13 +23,21 @@ class ProductReport {
     };
   }
 
-  factory ProductReport.fromJson(Map<String, dynamic> json) {
+  factory ProductReport.fromJson(dynamic jsonData) {
+    print('ProductReport.fromJson input: $jsonData (${jsonData.runtimeType})');
+
+    // Convert dynamic Map to Map<String, dynamic>
+    final map = Map<String, dynamic>.from(jsonData);
+
     return ProductReport(
-      reportId: json['reportId'],
-      productName: json['productName'],
-      quantity: json['quantity'],
-      comment: json['comment'],
-      createdAt: DateTime.parse(json['createdAt']),
+      reportId: map['reportId'],
+      productName: map['productName'],
+      quantity: map['quantity'] != null
+          ? int.parse(map['quantity'].toString())
+          : null,
+      comment: map['comment'],
+      createdAt:
+          map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
     );
   }
 }

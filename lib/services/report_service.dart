@@ -17,7 +17,6 @@ class ReportService {
     return token;
   }
 
-    
   static Future<Map<String, String>> _headers(
       [String? additionalContentType]) async {
     final token = _getAuthToken();
@@ -36,9 +35,9 @@ class ReportService {
       final token = _getAuthToken();
       print('=== Report Submission Debug ===');
       print('Auth Token Present: ${token != null}');
-      print('User ID from Report: ${report.userId}');
+      print('Sales Rep ID from Report: ${report.salesRepId}');
       print('Journey Plan ID: ${report.journeyPlanId}');
-      print('Outlet ID: ${report.outletId}');
+      print('Client ID: ${report.clientId}');
       print('Report Type: ${report.type}');
 
       if (token == null) {
@@ -47,12 +46,10 @@ class ReportService {
       }
 
       // Validate required fields before submission
-      if (report.userId == null ||
-          report.outletId == null ||
-          report.journeyPlanId == null) {
+      if (report.journeyPlanId == null) {
         print('ERROR: Missing required fields');
-        print('User ID: ${report.userId}');
-        print('Outlet ID: ${report.outletId}');
+        print('Sales Rep ID: ${report.salesRepId}');
+        print('Client ID: ${report.clientId}');
         print('Journey Plan ID: ${report.journeyPlanId}');
         throw Exception('Missing required fields for report submission');
       }
@@ -61,8 +58,8 @@ class ReportService {
       final Map<String, dynamic> requestBody = {
         'type': report.type.toString().split('.').last,
         'journeyPlanId': report.journeyPlanId,
-        'userId': report.userId,
-        'outletId': report.outletId,
+        'salesRepId': report.salesRepId,
+        'clientId': report.clientId,
         'details': _getReportDetails(report),
       };
 
@@ -155,8 +152,8 @@ class ReportService {
 
   Future<List<Report>> getReports({
     int? journeyPlanId,
-    int? outletId,
-    int? userId,
+    int? clientId,
+    int? salesRepId,
   }) async {
     try {
       final token = _getAuthToken();
@@ -169,8 +166,8 @@ class ReportService {
       if (journeyPlanId != null) {
         queryParams['journeyPlanId'] = journeyPlanId.toString();
       }
-      if (outletId != null) queryParams['outletId'] = outletId.toString();
-      if (userId != null) queryParams['userId'] = userId.toString();
+      if (clientId != null) queryParams['clientId'] = clientId.toString();
+      if (salesRepId != null) queryParams['salesRepId'] = salesRepId.toString();
 
       final uri =
           Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);

@@ -20,12 +20,19 @@ class VisibilityReport {
     };
   }
 
-  factory VisibilityReport.fromJson(Map<String, dynamic> json) {
+  factory VisibilityReport.fromJson(dynamic jsonData) {
+    print(
+        'VisibilityReport.fromJson input: $jsonData (${jsonData.runtimeType})');
+
+    // Convert dynamic Map to Map<String, dynamic>
+    final map = Map<String, dynamic>.from(jsonData);
+
     return VisibilityReport(
-      reportId: json['reportId'],
-      comment: json['comment'],
-      imageUrl: json['imageUrl'],
-      createdAt: DateTime.parse(json['createdAt']),
+      reportId: map['reportId'],
+      comment: map['comment'],
+      imageUrl: map['imageUrl'],
+      createdAt:
+          map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
     );
   }
 }

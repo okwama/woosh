@@ -13,29 +13,29 @@ const logError = (error, context = {}) => {
 const createReport = async (req, res) => {
     const context = { function: 'createReport', body: req.body };
     try {
-        const { type, journeyPlanId, userId, outletId, details } = req.body;
+        const { type, journeyPlanId, userId, clientId, details } = req.body;
 
         if (!type || !details) {
             logError(new Error('Type and details are required'), context);
             return res.status(400).json({ error: 'Type and details are required' });
         }
 
-        // Validate user exists
-        const user = await prisma.user.findUnique({
+        // Validate sales rep exists
+        const salesRep = await prisma.salesRep.findUnique({
             where: { id: userId },
         });
-        if (!user) {
-            logError(new Error('User not found'), { ...context, userId });
-            return res.status(400).json({ error: 'User not found' });
+        if (!salesRep) {
+            logError(new Error('Sales Rep not found'), { ...context, userId });
+            return res.status(400).json({ error: 'Sales Rep not found' });
         }
 
-        // Validate outlet exists
-        const outlet = await prisma.outlet.findUnique({
-            where: { id: outletId },
+        // Validate client exists
+        const client = await prisma.clients.findUnique({
+            where: { id: clientId },
         });
-        if (!outlet) {
-            logError(new Error('Outlet not found'), { ...context, outletId });
-            return res.status(400).json({ error: 'Outlet not found' });
+        if (!client) {
+            logError(new Error('Client not found'), { ...context, clientId });
+            return res.status(400).json({ error: 'Client not found' });
         }
 
         // Validate journey plan if provided
@@ -55,7 +55,7 @@ const createReport = async (req, res) => {
                 type,
                 journeyPlanId,
                 userId,
-                outletId,
+                clientId,
             },
         });
 
