@@ -4,32 +4,36 @@ const prisma = new PrismaClient();
 
 const authenticateToken = async (req, res, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+      return res.status(401).json({ error: 'Access token required' });
     }
 
+    // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    if (!decoded.userId) {
-      return res.status(401).json({ error: 'Invalid token: missing user ID' });
+
+    // Check if token exists in database
+    const tokenRecord = await prisma.token.findFirst({
+      where: {
+        token: token,
+        salesRepId: decoded.userId,
+        expiresAt: {
+          gt: new Date()
+        }
+      }
+    });
+
+    if (!tokenRecord) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
-    const user = await prisma.user.findUnique({
+    // Get user details
+    const user = await prisma.salesRep.findUnique({
       where: { id: decoded.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phoneNumber: true,
-        photoUrl: true,
-        tokens: {
-          select: {
-            token: true
-          }
-        }
+      include: {
+        Manager: true
       }
     });
 
@@ -37,23 +41,12 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    if (!user.tokens.some((t) => t.token === token)) {
-      return res.status(401).json({ error: 'Invalid token: token not found for user' });
-    }
-
-    // Attach user and token to request
     req.user = user;
     req.token = token;
     next();
   } catch (error) {
     console.error('Authentication error:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token format' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token has expired' });
-    }
-    res.status(500).json({ error: 'Authentication error' });
+    return res.status(401).json({ error: 'Invalid token' });
   }
 };
 

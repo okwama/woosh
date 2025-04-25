@@ -78,10 +78,10 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                           highlight: true),
                     if (outlet.email != null && outlet.email!.isNotEmpty)
                       _ticketRow("Email", outlet.email!),
-                    if (outlet.phone != null && outlet.phone!.isNotEmpty)
-                      _ticketRow("Phone", outlet.phone!),
-                    if (outlet.kraPin != null && outlet.kraPin!.isNotEmpty)
-                      _ticketRow("KRA PIN", outlet.kraPin!),
+                    if (outlet.contact != null && outlet.contact!.isNotEmpty)
+                      _ticketRow("Phone", outlet.contact!),
+                    if (outlet.taxPin != null && outlet.taxPin!.isNotEmpty)
+                      _ticketRow("KRA PIN", outlet.taxPin!),
                     const SizedBox(height: 14),
                     _dashedDivider(),
                     const SizedBox(height: 14),

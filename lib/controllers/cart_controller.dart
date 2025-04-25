@@ -7,8 +7,6 @@ class CartItem {
 
   CartItem({required this.product, required int quantity})
       : quantity = quantity.obs;
-
-  double get total => product.price * quantity.value;
 }
 
 class CartController extends GetxController {
@@ -17,11 +15,6 @@ class CartController extends GetxController {
   final error = ''.obs;
 
   List<CartItem> get items => _items;
-
-  double get total => _items.fold(
-        0,
-        (sum, item) => sum + item.total,
-      );
 
   int get itemCount => _items.length;
 

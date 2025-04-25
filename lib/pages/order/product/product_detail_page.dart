@@ -134,10 +134,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 const SizedBox(height: 12),
 
                 // Price and Stock
-                _PriceRow(
-                  price: widget.product.price ?? 0,
-                  currentStock: widget.product.currentStock,
-                ),
+                // _PriceRow(
+                //   price: widget.product.price ?? 0,
+                //   currentStock: widget.product.currentStock,
+                // ),
 
                 const SizedBox(height: 24),
                 const Divider(height: 1, color: Color(0xFFEEEEEE)),

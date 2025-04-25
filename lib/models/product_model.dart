@@ -1,40 +1,46 @@
 class Product {
   final int id;
   final String name;
+  final int category_id;
+  final String category;
   final String description;
-  final double price;
-  final int currentStock;
-  final int reorderPoint;
-  final int orderQuantity;
+  final int? currentStock;
+  final int? reorderPoint; // Nullable as per Prisma schema
+  final int orderQuantity; // Defaulting this to 0 if Prisma has a default
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? imageUrl;
+  final int? clientId;
 
   Product({
     required this.id,
     required this.name,
-    this.description = '', // Default empty string if no description provided
-    required this.price,
-    required this.currentStock,
-    required this.reorderPoint,
-    required this.orderQuantity,
+    required this.category_id,
+    required this.category,
+    this.description = '',
+    this.currentStock,
+    this.reorderPoint, // Nullable field
+    this.orderQuantity = 0, // Default 0 if not provided
     required this.createdAt,
     required this.updatedAt,
     this.imageUrl,
+    this.clientId,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
       id: json['id'],
       name: json['name'],
-      description: json['description'] ?? '', // Handle potential null descriptions
-      price: (json['price'] as num).toDouble(),
+      category_id: json['category_id'],
+      category: json['category'],
+      description: json['description'] ?? '',
       currentStock: json['currentStock'],
       reorderPoint: json['reorderPoint'],
-      orderQuantity: json['orderQuantity'],
+      orderQuantity: json['orderQuantity'] ?? 0,
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      imageUrl: json['imageUrl'],
+      imageUrl: json['image'],
+      clientId: json['clientId'],
     );
   }
 
@@ -42,14 +48,16 @@ class Product {
     return {
       'id': id,
       'name': name,
+      'category_id': category_id,
+      'category': category,
       'description': description,
-      'price': price,
       'currentStock': currentStock,
       'reorderPoint': reorderPoint,
       'orderQuantity': orderQuantity,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      'imageUrl': imageUrl,
+      'image': imageUrl,
+      'clientId': clientId,
     };
   }
 
@@ -65,13 +73,16 @@ class Product {
     return Product(
       id: 0,
       name: 'Unknown',
+      category_id: 0,
+      category: 'Unknown',
       description: '',
-      price: 0,
       currentStock: 0,
       reorderPoint: 0,
       orderQuantity: 0,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      imageUrl: '',
+      clientId: null,
     );
   }
 }

@@ -40,12 +40,12 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
 
   void _loadUserData() {
     final box = GetStorage();
-    final user = box.read('user');
+    final salesRep = box.read('salesRep');
 
     setState(() {
-      if (user != null && user is Map<String, dynamic>) {
-        userName = user['name'] ?? 'User';
-        userPhone = user['phoneNumber'] ?? 'No phone number';
+      if (salesRep != null && salesRep is Map<String, dynamic>) {
+        userName = salesRep['name'] ?? 'User';
+        userPhone = salesRep['phoneNumber'] ?? 'No phone number';
       } else {
         userName = 'User';
         userPhone = 'No phone number';
@@ -167,7 +167,7 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
               }
             },
             itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>( 
+              const PopupMenuItem<String>(
                 value: 'logout',
                 child: Row(
                   children: [
@@ -179,7 +179,7 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
               ),
             ],
           ),
-        ], 
+        ],
       ),
       body: SafeArea(
         child: Column(

@@ -5,15 +5,15 @@ const prisma = new PrismaClient();
 const createOrder = async (req, res) => {
   console.log('Request Body:', req.body); // Log the request body here
 
-  const { outletId, orderItems } = req.body;
-  const userId = req.user.id;
+  const { clientId, orderItems } = req.body;
+  const salesRepId = req.user.id;
 
   try {
     // Validate required fields
-    if (!outletId || !orderItems || orderItems.length === 0) {
+    if (!clientId || !orderItems || orderItems.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: outletId and orderItems are required',
+        error: 'Missing required fields: clientId and orderItems are required',
       });
     }
 
@@ -27,15 +27,15 @@ const createOrder = async (req, res) => {
       }
     }
 
-    // Validate outlet exists
-    const outlet = await prisma.outlet.findUnique({
-      where: { id: outletId },
+    // Validate client exists
+    const client = await prisma.clients.findUnique({
+      where: { id: clientId },
     });
 
-    if (!outlet) {
+    if (!client) {
       return res.status(404).json({
         success: false,
-        error: 'Outlet not found',
+        error: 'Client not found',
       });
     }
 
@@ -65,56 +65,54 @@ const createOrder = async (req, res) => {
       // Create the order first
       const newOrder = await prisma.order.create({
         data: {
-          userId,
-          outletId,
+          user: {
+            connect: { id: salesRepId }
+          },
+          client: {
+            connect: { id: clientId }
+          },
+          orderItems: {
+            create: orderItems.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity
+            }))
+          }
         },
-      });
-
-      // Create order items and update product stock
-      for (const item of orderItems) {
-        await prisma.orderItem.create({
-          data: {
-            orderId: newOrder.id,
-            productId: item.productId,
-            quantity: item.quantity,
-          },
-        });
-
-        // Update product stock
-        await prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            currentStock: {
-              decrement: item.quantity,
-            },
-          },
-        });
-      }
-
-      // Return the complete order with all relations
-      return prisma.order.findUnique({
-        where: { id: newOrder.id },
         include: {
           orderItems: {
             include: {
-              product: true,
-            },
+              product: true
+            }
           },
-          outlet: true,
+          client: true,
           user: {
             select: {
               id: true,
               name: true,
-              phoneNumber: true,
-            },
-          },
-        },
+              phoneNumber: true
+            }
+          }
+        }
       });
+
+      // Update product stock
+      for (const item of orderItems) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: {
+            currentStock: {
+              decrement: item.quantity
+            }
+          }
+        });
+      }
+
+      return newOrder;
     });
 
     res.status(201).json({
       success: true,
-      data: order,
+      data: order
     });
 
   } catch (error) {
@@ -122,12 +120,12 @@ const createOrder = async (req, res) => {
     if (error.code === 'P2003') {
       res.status(400).json({
         success: false,
-        error: 'Invalid product or outlet reference',
+        error: 'Invalid product or client reference'
       });
     } else {
       res.status(500).json({
         success: false,
-        error: 'Failed to create order',
+        error: 'Failed to create order'
       });
     }
   }
@@ -135,7 +133,7 @@ const createOrder = async (req, res) => {
 
 // Get orders with pagination
 const getOrders = async (req, res) => {
-  const userId = req.user.id;
+  const salesRepId = req.user.id;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
@@ -143,12 +141,12 @@ const getOrders = async (req, res) => {
   try {
     // Get total count for pagination
     const total = await prisma.order.count({
-      where: { userId },
+      where: { userId: salesRepId },
     });
 
     // Get orders with pagination and order items
     const orders = await prisma.order.findMany({
-      where: { userId },
+      where: { userId: salesRepId },
       skip,
       take: limit,
       orderBy: {
@@ -160,7 +158,7 @@ const getOrders = async (req, res) => {
             product: true,
           },
         },
-        outlet: true,
+        client: true,
         user: {
           select: {
             id: true,
@@ -194,14 +192,14 @@ const getOrders = async (req, res) => {
 const updateOrder = async (req, res) => {
   const { id } = req.params;
   const { orderItems } = req.body;
-  const userId = req.user.id;
+  const salesRepId = req.user.id;
 
   try {
-    // Validate the order exists and belongs to the user
+    // Validate the order exists and belongs to the sales rep
     const existingOrder = await prisma.order.findFirst({
       where: {
         id: parseInt(id),
-        userId,
+        userId: salesRepId,
       },
     });
 
@@ -262,7 +260,7 @@ const updateOrder = async (req, res) => {
             product: true,
           },
         },
-        outlet: true,
+        client: true,
         user: {
           select: {
             id: true,
@@ -290,9 +288,9 @@ const updateOrder = async (req, res) => {
 const deleteOrder = async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
-    const userId = req.user.id;
+    const salesRepId = req.user.id;
 
-    console.log(`[DELETE] Processing request - Order: ${orderId}, User: ${userId}`);
+    console.log(`[DELETE] Processing request - Order: ${orderId}, SalesRep: ${salesRepId}`);
 
     if (isNaN(orderId)) {
       console.log('[ERROR] Invalid order ID format');
@@ -306,7 +304,7 @@ const deleteOrder = async (req, res) => {
     const existingOrder = await prisma.order.findFirst({
       where: {
         id: orderId,
-        userId: userId,
+        userId: salesRepId,
       },
       include: {
         orderItems: true
@@ -314,7 +312,7 @@ const deleteOrder = async (req, res) => {
     });
 
     if (!existingOrder) {
-      console.log(`[ERROR] Order ${orderId} not found or not owned by user ${userId}`);
+      console.log(`[ERROR] Order ${orderId} not found or not owned by sales rep ${salesRepId}`);
       return res.status(404).json({
         success: false,
         error: 'Order not found'

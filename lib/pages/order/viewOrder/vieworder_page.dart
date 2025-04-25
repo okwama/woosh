@@ -23,10 +23,10 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
   bool _hasMore = true;
 
   final currencyFormat = NumberFormat.currency(
-  locale: 'en_KE',
-  symbol: 'Ksh ',
-  decimalDigits: 2,
-);
+    locale: 'en_KE',
+    symbol: 'Ksh ',
+    decimalDigits: 2,
+  );
 
   final ScrollController _scrollController = ScrollController();
 
@@ -204,16 +204,17 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                     }
 
                                     final order = _orders[index];
-                                    final firstItem = order.orderItems.isNotEmpty
-                                        ? order.orderItems.first
-                                        : null;
+                                    final firstItem =
+                                        order.orderItems.isNotEmpty
+                                            ? order.orderItems.first
+                                            : null;
                                     final totalItems = order.orderItems.length;
-                                    final totalPrice = order.orderItems.fold(
-                                        0.0,
-                                        (sum, item) =>
-                                            sum +
-                                            (item.product?.price ?? 0) *
-                                                item.quantity);
+                                    // final totalPrice = order.orderItems.fold(
+                                    //     0.0,
+                                    //     (sum, item) =>
+                                    //         sum +
+                                    //         (item.product?.price ?? 0) *
+                                    //             item.quantity);
 
                                     return Container(
                                       margin: const EdgeInsets.only(bottom: 16),
@@ -222,11 +223,14 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                         color: Colors.white,
                                         elevation: 2,
                                         child: InkWell(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                           onTap: () {
                                             Get.to(
-                                              () => OrderDetailPage(order: order),
-                                              transition: Transition.rightToLeft,
+                                              () =>
+                                                  OrderDetailPage(order: order),
+                                              transition:
+                                                  Transition.rightToLeft,
                                             );
                                           },
                                           child: Padding(
@@ -243,7 +247,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                   children: [
                                                     Container(
                                                       padding: const EdgeInsets
-                                                              .symmetric(
+                                                          .symmetric(
                                                           horizontal: 8,
                                                           vertical: 4),
                                                       decoration: BoxDecoration(
@@ -257,17 +261,17 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                       child: Text(
                                                         'Order #${order.id}',
                                                         style: TextStyle(
-                                                          color: Theme.of(
-                                                                  context)
-                                                              .primaryColor,
+                                                          color:
+                                                              Theme.of(context)
+                                                                  .primaryColor,
                                                           fontWeight:
                                                               FontWeight.w600,
                                                         ),
                                                       ),
-                                                      
                                                     ),
                                                     Text(
-                                                      DateFormat('MMM d, h:mm a')
+                                                      DateFormat(
+                                                              'MMM d, h:mm a')
                                                           .format(
                                                               order.createdAt),
                                                       style: const TextStyle(
@@ -275,14 +279,13 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                         fontSize: 12,
                                                       ),
                                                     ),
-                                                    
                                                   ],
                                                 ),
                                                 const SizedBox(height: 12),
                                                 Row(
                                                   children: [
                                                     Text(
-                                                      '${order.outlet.name}',
+                                                      '${order.client.name}',
                                                       style: const TextStyle(
                                                         fontSize: 16,
                                                         color: Color.fromARGB(
@@ -355,7 +358,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                     color: Colors.grey
                                                         .withOpacity(0.05),
                                                     borderRadius:
-                                                        BorderRadius.circular(8),
+                                                        BorderRadius.circular(
+                                                            8),
                                                   ),
                                                   child: Row(
                                                     mainAxisAlignment:
@@ -368,7 +372,9 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                                 .start,
                                                         children: [
                                                           Text(
-                                                            totalItems > 1 ? '+${totalItems - 1} more items' : '1 item',
+                                                            totalItems > 1
+                                                                ? '+${totalItems - 1} more items'
+                                                                : '1 item',
                                                             style:
                                                                 const TextStyle(
                                                               fontSize: 12,
@@ -385,16 +391,16 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                           // ),
                                                         ],
                                                       ),
-                                                      Text(
-                                                        currencyFormat.format(totalPrice),
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: Theme.of(
-                                                                  context)
-                                                              .primaryColor,
-                                                        ),
-                                                      ),
+                                                      // Text(
+                                                      //   currencyFormat.format(totalPrice),
+                                                      //   style: TextStyle(
+                                                      //     fontWeight:
+                                                      //         FontWeight.bold,
+                                                      //     color: Theme.of(
+                                                      //             context)
+                                                      //         .primaryColor,
+                                                      //   ),
+                                                      // ),
                                                     ],
                                                   ),
                                                 ),
@@ -444,7 +450,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                       ),
                                     );
                                   },
-                                  childCount: _orders.length + (_hasMore ? 1 : 0),
+                                  childCount:
+                                      _orders.length + (_hasMore ? 1 : 0),
                                 ),
                               ),
                   ),

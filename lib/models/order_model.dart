@@ -1,14 +1,15 @@
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/user_model.dart';
+import 'package:woosh/models/client_model.dart';
 
 enum OrderStatus { PENDING, COMPLETED, CANCELLED }
 
 class Order {
   final int id;
   final int quantity;
-  final User user;
-  final Outlet outlet;
+  final SalesRep user;
+  final Client client;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OrderItem> orderItems;
@@ -17,7 +18,7 @@ class Order {
     required this.id,
     required this.quantity,
     required this.user,
-    required this.outlet,
+    required this.client,
     required this.createdAt,
     required this.updatedAt,
     required this.orderItems,
@@ -25,7 +26,7 @@ class Order {
 
   // Calculate total amount based on order items
   double get totalAmount {
-    return orderItems.fold(0, (total, item) => total + item.totalPrice);
+    return orderItems.fold(0, (total, item) => total);
   }
 
   // Default status is PENDING
@@ -36,8 +37,8 @@ class Order {
       return Order(
         id: json['id'] as int,
         quantity: json['quantity'] ?? 0,
-        user: User.fromJson(json['user']),
-        outlet: Outlet.fromJson(json['outlet']),
+        user: SalesRep.fromJson(json['user']),
+        client: Client.fromJson(json['client']),
         createdAt: DateTime.parse(json['createdAt']),
         updatedAt: DateTime.parse(json['updatedAt']),
         orderItems: (json['orderItems'] as List?)
@@ -57,7 +58,7 @@ class Order {
       'id': id,
       'quantity': quantity,
       'user': user.toJson(),
-      'outlet': outlet.toJson(),
+      'client': client.toJson(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'orderItems': orderItems.map((item) => item.toJson()).toList(),

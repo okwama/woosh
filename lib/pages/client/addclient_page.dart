@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:woosh/models/client_model.dart';
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -11,6 +13,7 @@ class AddClientPage extends StatefulWidget {
 
 class _AddClientPageState extends State<AddClientPage> {
   final _formKey = GlobalKey<FormState>();
+  final _locationController = TextEditingController();
   final _nameController = TextEditingController();
   final _kraPinController = TextEditingController();
   final _emailController = TextEditingController();
@@ -21,16 +24,37 @@ class _AddClientPageState extends State<AddClientPage> {
   Position? _currentPosition;
   bool _isLocationLoading = false;
 
+  // Add variables for salesRep data
+  int? _countryId;
+  String? _region;
+  int? _regionId;
+
   @override
   void initState() {
     super.initState();
     // Get location when page loads, so it's ready when user submits
     _getCurrentPosition();
+    // Load salesRep data
+    _loadSalesRepData();
+  }
+
+  void _loadSalesRepData() {
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+
+    if (salesRep != null && salesRep is Map<String, dynamic>) {
+      setState(() {
+        _countryId = salesRep['countryId'];
+        _region = salesRep['region'];
+        _regionId = salesRep['region_id'];
+      });
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _locationController.dispose();
     _kraPinController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -107,12 +131,20 @@ class _AddClientPageState extends State<AddClientPage> {
       await ApiService.createOutlet(
         name: _nameController.text,
         address: _addressController.text,
-        kraPin: _kraPinController.text.isEmpty ? null : _kraPinController.text,
+        location:
+            _locationController.text.isEmpty ? null : _locationController.text,
+        taxPin: _kraPinController.text.isEmpty ? null : _kraPinController.text,
         email: _emailController.text.isEmpty ? null : _emailController.text,
-        phone: _phoneController.text.isEmpty ? null : _phoneController.text,
+        contact: _phoneController.text.isEmpty ? null : _phoneController.text,
         // Include coordinates if available
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
+        // Include country and region data
+        countryId: _countryId,
+        region: _region,
+        regionId: _regionId,
+        // Default client type
+        clientType: 1,
       );
 
       if (mounted) {
@@ -197,6 +229,18 @@ class _AddClientPageState extends State<AddClientPage> {
                       controller: _addressController,
                       decoration: const InputDecoration(
                         labelText: 'Address *',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true
+                          ? 'Please enter address'
+                          : null,
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _locationController,
+                      decoration: const InputDecoration(
+                        labelText: 'location *',
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) => value?.isEmpty == true

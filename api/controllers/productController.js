@@ -47,7 +47,11 @@ const getProducts = async (req, res) => {
     // Get products with pagination
     const products = await prisma.product.findMany({
       include: {
-        outlet: true,
+        client: true,
+        orderItems: true,
+        storeQuantities: true,
+        purchase: true,
+        purchaseHistory: true
       },
       orderBy: {
         name: 'asc',
@@ -110,70 +114,62 @@ const createProduct = async (req, res) => {
       return res.status(400).json({ error: err.message });
     }
 
-    
     try {
-    const {
-      name,
-      description,
-      price,
-      currentStock,
-      reorderPoint,
-      orderQuantity,
-      outletId,
-    } = req.body;
-    const userId = getUserId(req);
-
-    // Input validation
-    if (!name) {
-      return res.status(400).json({ error: 'Missing required field: name' });
-    }
-
-    if (!price) {
-      return res.status(400).json({ error: 'Missing required field: price' });
-    }
-
-    if (!outletId) {
-      return res.status(400).json({ error: 'Missing required field: outletId' });
-    }
-
-    // Require image for new products
-    if (!req.file) {
-      return res.status(400).json({ error: 'Product image is required' });
-    }
-
-    // Check if outlet exists
-    const outlet = await prisma.outlet.findUnique({
-      where: { id: parseInt(outletId) },
-    });
-
-    if (!outlet) {
-      return res.status(404).json({ error: 'Outlet not found' });
-    }
-
-    // Upload image if present
-    let imageUrl = null;
-    try {
-      imageUrl = await handleImageUpload(req);
-    } catch (error) {
-      return res.status(500).json({ error: 'Image upload failed' });
-    }
-
-    // Create the product
-    const product = await prisma.product.create({
-      data: {
+      const {
         name,
         description,
-        price: parseFloat(price),
-        currentStock: parseInt(currentStock) || 0,
-        reorderPoint: parseInt(reorderPoint) || 0,
-        orderQuantity: parseInt(orderQuantity) || 0,
-        outletId: parseInt(outletId),
-        imageUrl: imageUrl,
-      },
-      include: {
-        outlet: true,
-      },
-    });
+        category_id,
+        category,
+        currentStock,
+        clientId,
+      } = req.body;
+      const userId = getUserId(req);
+
+      // Input validation
+      if (!name) {
+        return res.status(400).json({ error: 'Missing required field: name' });
+      }
+
+      if (!clientId) {
+        return res.status(400).json({ error: 'Missing required field: clientId' });
+      }
+
+      // Check if client exists
+      const client = await prisma.clients.findUnique({
+        where: { id: parseInt(clientId) },
+      });
+
+      if (!client) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+
+      // Upload image if present
+      let imageUrl = null;
+      try {
+        imageUrl = await handleImageUpload(req);
+      } catch (error) {
+        return res.status(500).json({ error: 'Image upload failed' });
+      }
+
+      // Create the product
+      const product = await prisma.product.create({
+        data: {
+          name,
+          description,
+          category_id: parseInt(category_id),
+          category,
+          currentStock: parseInt(currentStock) || 0,
+          clientId: parseInt(clientId),
+          image: imageUrl,
+        },
+        include: {
+          client: true,
+          orderItems: true,
+          storeQuantities: true,
+          purchase: true,
+          purchaseHistory: true
+        },
+      });
 
       console.log('Product created successfully:', product);
       res.status(201).json(product);
@@ -190,8 +186,7 @@ const createProduct = async (req, res) => {
       });
     }
   });
-}
-;
+};
 
 // Update a product
 const updateProduct = async (req, res) => {
@@ -204,55 +199,54 @@ const updateProduct = async (req, res) => {
     }
     
     try {
-    const { id } = req.params;
-    const {
-      name,
-      description,
-      price,
-      currentStock,
-      reorderPoint,
-      orderQuantity,
-    } = req.body;
-    const userId = getUserId(req);
+      const { id } = req.params;
+      const {
+        name,
+        description,
+        category_id,
+        category,
+        currentStock,
+        clientId,
+      } = req.body;
+      const userId = getUserId(req);
 
-    // Input validation
-    if (!id) {
-      return res.status(400).json({ error: 'Missing required field: id' });
-    }
+      // Check if product exists
+      const existingProduct = await prisma.product.findUnique({
+        where: { id: parseInt(id) },
+      });
 
-    // Check if product exists
-    const existingProduct = await prisma.product.findUnique({
-      where: { id: parseInt(id) },
-    });
+      if (!existingProduct) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
 
-    if (!existingProduct) {
-      return res.status(404).json({ error: 'Product not found' });
-    }
+      // Upload image if present
+      let imageUrl = null;
+      try {
+        imageUrl = await handleImageUpload(req);
+      } catch (error) {
+        return res.status(500).json({ error: 'Image upload failed' });
+      }
 
-    // Upload image if present
-    let imageUrl = null;
-    try {
-      imageUrl = await handleImageUpload(req);
-    } catch (error) {
-      return res.status(500).json({ error: 'Image upload failed' });
-    }
-
-    // Update the product
-    const product = await prisma.product.update({
-      where: { id: parseInt(id) },
-      data: {
-        name: name || existingProduct.name,
-        description: description || existingProduct.description,
-        price: price ? parseFloat(price) : existingProduct.price,
-        currentStock: currentStock ? parseInt(currentStock) : existingProduct.currentStock,
-        reorderPoint: reorderPoint ? parseInt(reorderPoint) : existingProduct.reorderPoint,
-        orderQuantity: orderQuantity ? parseInt(orderQuantity) : existingProduct.orderQuantity,
-        imageUrl: imageUrl || existingProduct.imageUrl,
-      },
-      include: {
-        outlet: true,
-      },
-    });
+      // Update the product
+      const product = await prisma.product.update({
+        where: { id: parseInt(id) },
+        data: {
+          name: name || existingProduct.name,
+          description: description || existingProduct.description,
+          category_id: category_id ? parseInt(category_id) : existingProduct.category_id,
+          category: category || existingProduct.category,
+          currentStock: currentStock ? parseInt(currentStock) : existingProduct.currentStock,
+          clientId: clientId ? parseInt(clientId) : existingProduct.clientId,
+          image: imageUrl || existingProduct.image,
+        },
+        include: {
+          client: true,
+          orderItems: true,
+          storeQuantities: true,
+          purchase: true,
+          purchaseHistory: true
+        },
+      });
 
       console.log('Product updated successfully:', product);
       res.json(product);
@@ -269,8 +263,7 @@ const updateProduct = async (req, res) => {
       });
     }
   });
-}
-;
+};
 
 // Delete a product
 const deleteProduct = async (req, res) => {

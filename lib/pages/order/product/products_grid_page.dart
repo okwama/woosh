@@ -5,7 +5,9 @@ import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/product/product_detail_page.dart';
+import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;
@@ -94,46 +96,77 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              flex: 3,
+              flex: 5,
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(8),
                   ),
-                  image: DecorationImage(
-                    image: NetworkImage(
-                      ImageUtils.getGridUrl(product.imageUrl),
-                    ),
-                    fit: BoxFit.cover,
-                  ),
                 ),
+                child: product.imageUrl?.isNotEmpty ?? false
+                    ? ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                        child: Image.network(
+                          ImageUtils.getGridUrl(product.imageUrl!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Icon(
+                                Icons.image_not_supported,
+                                size: 32,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: const Icon(
+                          Icons.image_not_supported,
+                          size: 32,
+                          color: Colors.grey,
+                        ),
+                      ),
               ),
             ),
-            Expanded(
-              flex: 1,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(8),
-                  ),
+            Container(
+              height: 48, // Fixed height
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(8),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    product.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Theme.of(context).primaryColor,
                     ),
-                  ],
-                ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                  // if (product.price != null) ...[
+                  //   const SizedBox(height: 2),
+                  //   Text(
+                  //     'Ksh ${product.price!.toStringAsFixed(2)}',
+                  //     style: TextStyle(
+                  //       fontSize: 12,
+                  //       color: Theme.of(context).primaryColor.withOpacity(0.8),
+                  //     ),
+                  //   ),
+                  // ],
+                ],
               ),
             ),
           ],
@@ -145,10 +178,9 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Products - ${widget.outlet.name}'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: widget.outlet.name,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -190,7 +222,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.8,
+                      childAspectRatio: 0.75, // Adjusted for price display
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),

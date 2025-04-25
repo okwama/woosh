@@ -13,7 +13,7 @@ class Leave {
   final LeaveStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final User? user; // For admin view
+  final SalesRep? user; // For admin view
 
   Leave({
     this.id,
@@ -41,7 +41,7 @@ class Leave {
       status: _parseStatus(json['status']),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
-      user: json['user'] != null ? User.fromJson(json['user']) : null,
+      user: json['user'] != null ? SalesRep.fromJson(json['user']) : null,
     );
   }
 
@@ -98,7 +98,7 @@ class Leave {
     LeaveStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
-    User? user,
+    SalesRep? user,
   }) {
     return Leave(
       id: id ?? this.id,

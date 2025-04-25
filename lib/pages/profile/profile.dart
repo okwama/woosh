@@ -6,6 +6,7 @@ import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/gradient_widgets.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

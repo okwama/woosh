@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Get all outlets
 const getOutlets = async (req, res) => {
   try {
-    const outlets = await prisma.outlet.findMany({
+    const outlets = await prisma.clients.findMany({
       select: {
         id: true,
         name: true,
@@ -30,23 +30,30 @@ const getOutlets = async (req, res) => {
 
 // Create a new outlet
 const createOutlet = async (req, res) => {
-  const { name, address, latitude, longitude, balance, email, phone, kraPin } = req.body;
+  const { name, address, latitude, longitude, balance, email, location, tax_pin,contact ,region_id,region,country,client_type} = req.body;
 
   if (!name || !address) {
     return res.status(400).json({ error: 'Name and address are required' });
   }
 
   try {
-    const newOutlet = await prisma.outlet.create({
+    const newOutlet = await prisma.clients.create({
       data: {
         name,
         address,
+        location,
+        client_type: 1,
         ...(balance !== undefined && { balance: balance.toString() }),
         ...(email && { email }),
-        ...(phone && { phone }),
-        ...(kraPin && { kraPin }),
+        ...(contact && { contact }),
+        ...(tax_pin && { tax_pin }),
         latitude,
         longitude,
+        country: {
+          connect: { id: parseInt(country) } // Assuming country is the ID
+        },
+        region,
+        region_id: parseInt(region_id),
       },
     });
     res.status(201).json(newOutlet);
@@ -66,15 +73,15 @@ const updateOutlet = async (req, res) => {
   }
 
   try {
-    const updatedOutlet = await prisma.outlet.update({
+    const updatedOutlet = await prisma.clients.update({
       where: { id: parseInt(id) },
       data: {
         name,
         address,
         ...(balance !== undefined && { balance: balance.toString() }),
         ...(email && { email }),
-        ...(phone && { phone }),
-        ...(kraPin && { kraPin }),
+        ...(contact && { contact }),
+        ...(tax_pin && { tax_pin }),
         latitude,
         longitude,
           },
@@ -91,7 +98,7 @@ const getOutletProducts = async (req, res) => {
   const { id } = req.params;
   
   try {
-    const outlet = await prisma.outlet.findUnique({
+    const outlet = await prisma.clients.findUnique({
       where: { id: parseInt(id) },
       include: {
         products: {

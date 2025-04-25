@@ -16,6 +16,8 @@ class ProfileController extends GetxController {
   RxString userPhone = ''.obs;
   RxString photoUrl = ''.obs;
   RxString userRole = ''.obs;
+  RxString userRegion = ''.obs;
+  RxString userDepartment = ''.obs;
 
   // Password update fields
   final RxBool isPasswordUpdating = false.obs;
@@ -30,20 +32,22 @@ class ProfileController extends GetxController {
   }
 
   void loadUserData() {
-    final userData = storage.read('user');
+    final userData = storage.read('salesRep');
     if (userData != null) {
       userName.value = userData['name'] ?? '';
       userEmail.value = userData['email'] ?? '';
       userPhone.value = userData['phoneNumber'] ?? '';
       photoUrl.value = userData['photoUrl'] ?? '';
       userRole.value = userData['role'] ?? '';
+      userRegion.value = userData['region'] ?? '';
+      userDepartment.value = userData['department'] ?? '';
     }
   }
 
   Future<void> fetchProfile() async {
     try {
       final response = await ApiService.getProfile();
-      final userData = response['user'];
+      final userData = response['salesRep'];
 
       if (userData != null) {
         userName.value = userData['name'] ?? '';
@@ -51,9 +55,11 @@ class ProfileController extends GetxController {
         userPhone.value = userData['phoneNumber'] ?? '';
         photoUrl.value = userData['photoUrl'] ?? '';
         userRole.value = userData['role'] ?? '';
+        userRegion.value = userData['region'] ?? '';
+        userDepartment.value = userData['department'] ?? '';
 
         // Update storage with full user data
-        storage.write('user', userData);
+        storage.write('salesRep', userData);
 
         print('Profile data loaded: ${userData.toString()}'); // Debug log
       } else {
@@ -104,9 +110,10 @@ class ProfileController extends GetxController {
       this.photoUrl.value = photoUrl;
 
       // Update storage
-      final storedUser = storage.read('user') as Map<String, dynamic>? ?? {};
+      final storedUser =
+          storage.read('salesRep') as Map<String, dynamic>? ?? {};
       storedUser['photoUrl'] = photoUrl;
-      storage.write('user', storedUser);
+      storage.write('salesRep', storedUser);
 
       Get.snackbar(
         'Success',

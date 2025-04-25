@@ -4,36 +4,26 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const register = async (req, res) => {
-  const { name, email, password, phoneNumber, role, department } = req.body;
-
   try {
+    const { 
+      name, 
+      email, 
+      phoneNumber, 
+      password, 
+      countryId, 
+      region_id, 
+      region 
+    } = req.body;
+
     // Validate required fields
-    if (!name || !email || !password || !phoneNumber) {
+    if (!name || !email || !phoneNumber || !password || !countryId || !region_id || !region) {
       return res.status(400).json({ 
-        error: 'Registration failed',
-        details: 'All fields are required: name, email, password, and phoneNumber'
-      });
-    }
-
-    // Validate role and convert to uppercase
-    const userRole = role ? role.toUpperCase() : 'USER';
-    if (!['ADMIN', 'MANAGER', 'USER'].includes(userRole)) {
-      return res.status(400).json({
-        error: 'Registration failed',
-        details: 'Invalid role specified. Must be one of: ADMIN, MANAGER, USER'
-      });
-    }
-
-    // Validate manager-specific requirements
-    if (userRole === 'MANAGER' && !department) {
-      return res.status(400).json({
-        error: 'Registration failed',
-        details: 'Department is required for manager registration'
+        message: 'All fields are required: name, email, phoneNumber, password, countryId, region_id, and region' 
       });
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findFirst({
+    const salesRep = await prisma.salesRep.findFirst({
       where: {
         OR: [
           { email },
@@ -42,123 +32,147 @@ const register = async (req, res) => {
       }
     });
 
-    if (existingUser) {
-      return res.status(400).json({
-        error: 'Registration failed',
-        details: existingUser.email === email 
-          ? 'Email already registered'
-          : 'Phone number already registered'
-      });
+    if (salesRep) {
+      return res.status(400).json({ message: 'User already exists with this email or phone number' });
     }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Use transaction for atomic operations
-    const result = await prisma.$transaction(async (tx) => {
-      // Create user
-      const user = await tx.user.create({
+    // Create user with transaction
+    const result = await prisma.$transaction(async (prisma) => {
+      // Create the user
+      const salesRep = await prisma.salesRep.create({
         data: {
           name,
           email,
           phoneNumber,
           password: hashedPassword,
-          role: userRole,
+          countryId,
+          region_id,
+          region,
+          role: 'SALES_REP'
         },
+        include: {
+          country: true
+        }
       });
 
-      let manager = null;
-      
-      // If role is MANAGER, create manager record
-      if (userRole === 'MANAGER') {
-        manager = await tx.manager.create({
-          data: {
-            userId: user.id,
-            department: department,
-          },
-        });
-      }
+      // Generate token
+      const token = jwt.sign(
+        { userId: salesRep.id, role: salesRep.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
 
-      return { user, manager };
+      // Store token
+      await prisma.token.create({
+        data: {
+          token,
+          user: {
+            connect: { id: salesRep.id }
+          },
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // or 30 days in register
+        }
+      });
+      
+
+      return { salesRep, token };
     });
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = result.user;
-
-    // Prepare response
-    const response = {
-      user: userWithoutPassword
-    };
-
-    // Include manager data if available
-    if (result.manager) {
-      response.manager = result.manager;
-    }
-
-    res.status(201).json(response);
+    res.status(201).json({
+      message: 'Registration successful',
+      salesRep: result.salesRep,
+      token: result.token
+    });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(400).json({ 
-      error: 'Registration failed',
-      details: error.message
-    });
+    res.status(500).json({ message: 'Failed to register user' });
   }
 };
 
 const login = async (req, res) => {
-  const { phoneNumber, password } = req.body;
-
   try {
+    const { phoneNumber, password } = req.body;
+
+    console.log('Login attempt for phoneNumber:', phoneNumber);
+
     // Check if user exists
-    const user = await prisma.user.findFirst({
+    const salesRep = await prisma.salesRep.findFirst({
       where: { phoneNumber },
-      // include: { Manager: true }
+      include: {
+        Manager: true,
+        country: true
+      }
     });
-    
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
-    }
-    
-    // Check if password is correct
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+
+    console.log('SalesRep found:', salesRep ? 'Yes' : 'No');
+
+    if (!salesRep) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid phone number or password'
+      });
     }
 
-    // Generate JWT token with role
-    const token = jwt.sign(
-      { 
-        userId: user.id,
-        role: user.role 
-      }, 
-      process.env.JWT_SECRET,
-      { expiresIn: '5h' }
-    );
+    const isPasswordValid = await bcrypt.compare(password, salesRep.password);
+    console.log('Password valid:', isPasswordValid ? 'Yes' : 'No');
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid phone number or password'
+      });
+    }
+
+    // Generate JWT token
+    const tokenPayload = {
+      userId: salesRep.id,
+      role: salesRep.role
+    };
+    console.log('Token payload:', tokenPayload);
+    
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '24h' });
+    console.log('Token generated successfully');
 
     // Store token in database
     await prisma.token.create({
       data: {
         token,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 3600 * 5000), // 5 hours
-      },
+        user: {
+          connect: { id: salesRep.id }
+        },
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // or 30 days in register
+      }
     });
-    
+        console.log('Token stored in database');
+
     // Return user and token with role
-    res.json({ 
-      user: {
-        id: user.id,
-        name: user.name,
-        phoneNumber: user.phoneNumber,
-        role: user.role,
-        email: user.email,
-        photoUrl: user.photoUrl,
-        department: user.Manager?.department // Include department if manager
-      }, 
-      token 
+    res.json({
+      success: true,
+      salesRep: {
+        id: salesRep.id,
+        name: salesRep.name,
+        phoneNumber: salesRep.phoneNumber,
+        role: salesRep.role,
+        email: salesRep.email,
+        photoUrl: salesRep.photoUrl,
+        department: salesRep.Manager?.department,
+        region: salesRep.region,
+        region_id: salesRep.region_id,
+        countryId: salesRep.countryId,
+        country: salesRep.country
+      },
+      token
     });
+
   } catch (error) {
-    console.error(`Login error: ${error.message}`);
-    res.status(500).json({ error: 'Server error during login', details: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Login failed',
+      details: error.message
+    });
   }
 };
 
@@ -173,4 +187,4 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { register, login, logout };
+module.exports = { login, register, logout };

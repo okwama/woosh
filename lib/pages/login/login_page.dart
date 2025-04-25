@@ -19,6 +19,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthController _authController = Get.find<AuthController>();
+  final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -69,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final result = await ApiService.login(
+      final result = await _apiService.login(
         _phoneNumberController.text.trim(),
         _passwordController.text,
       );
@@ -78,8 +79,8 @@ class _LoginPageState extends State<LoginPage> {
         _authController.isLoggedIn.value = true;
 
         // Get user role from the result
-        final user = result['user'];
-        final userRole = user?['role'] ?? '';
+        final salesRep = result['salesRep'];
+        final userRole = salesRep?['role'] ?? '';
 
         // Redirect based on role
         if (userRole.toString().toLowerCase() == 'manager') {

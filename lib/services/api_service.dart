@@ -16,6 +16,7 @@ import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/utils/config.dart';
+import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/target_model.dart';
 import 'package:woosh/models/leave_model.dart';
@@ -24,6 +25,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:woosh/services/target_service.dart';
+import 'package:woosh/models/client_model.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -146,13 +148,6 @@ class ApiService {
 
       if (handledResponse.statusCode == 200) {
         final List<dynamic> data = json.decode(handledResponse.body);
-        // Debug the raw data from API
-        print('DEBUG - Raw outlets data: $data');
-        if (data.isNotEmpty) {
-          print('DEBUG - First outlet balance: ${data[0]['balance']}');
-          print(
-              'DEBUG - First outlet balance type: ${data[0]['balance'].runtimeType}');
-        }
         return data.map((json) => Outlet.fromJson(json)).toList();
       } else {
         throw Exception(
@@ -495,49 +490,71 @@ class ApiService {
   }
 
   // User Login
-  static Future<Map<String, dynamic>> login(
-      String phoneNumber, String password) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await http
-          .post(
+      final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
-        headers: await _headers(),
-        body: json.encode({
-          'phoneNumber': phoneNumber,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
           'password': password,
         }),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception("Connection timeout");
-        },
       );
 
-      Map<String, dynamic> data = {};
-      try {
-        data = json.decode(response.body);
-      } catch (e) {
-        print('Error parsing response: $e');
-      }
-
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         final box = GetStorage();
         box.write('token', data['token']);
-        box.write('user', data['user']);
-        return {'success': true, 'token': data['token'], 'user': data['user']};
+        box.write('salesRep', data['salesRep']);
+        return {
+          'success': true,
+          'token': data['token'],
+          'salesRep': data['salesRep']
+        };
       } else {
+        final error = jsonDecode(response.body);
         return {
           'success': false,
-          'message':
-              data['error'] ?? 'Login failed with status ${response.statusCode}'
+          'error': error['error'] ?? 'Login failed',
         };
       }
     } catch (e) {
-      handleNetworkError(e);
+      print('Login error: $e');
       return {
         'success': false,
-        'message': 'Network error: Please check your internet connection'
+        'error': 'Network error occurred',
+      };
+    }
+  }
+
+  // Register new user
+  Future<Map<String, dynamic>> register(Map<String, dynamic> userData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(userData),
+      );
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'salesRep': data['data']['salesRep'],
+        };
+      } else {
+        final error = jsonDecode(response.body);
+        return {
+          'success': false,
+          'error': error['error'] ?? 'Registration failed',
+          'details': error['details'],
+        };
+      }
+    } catch (e) {
+      print('Registration error: $e');
+      return {
+        'success': false,
+        'error': 'Network error occurred',
       };
     }
   }
@@ -572,13 +589,19 @@ class ApiService {
 
       print('[Products] Successfully loaded ${products.length} products');
 
-      // Pre-cache images in a separate isolate
+      // Pre-cache images safely
       if (Get.context != null) {
         for (var product in products) {
-          if (product.imageUrl != null) {
-            final imageUrl = '${Config.imageBaseUrl}/${product.imageUrl}';
-            final imageProvider = NetworkImage(imageUrl);
-            precacheImage(imageProvider, Get.context!);
+          if (product.imageUrl?.isNotEmpty ?? false) {
+            try {
+              final imageProvider = NetworkImage(product.imageUrl!);
+              precacheImage(imageProvider, Get.context!);
+            } catch (e) {
+              print(
+                  '[Products] Failed to precache image for product ${product.id}: $e');
+              // Continue with next product even if one fails
+              continue;
+            }
           }
         }
       }
@@ -704,16 +727,15 @@ class ApiService {
 
   // Create a new order
   static Future<Order> createOrder({
-    required int outletId,
+    required int clientId,
     required List<Map<String, dynamic>> items,
   }) async {
     try {
       await _initDioHeaders();
 
       final requestBody = {
-        'outletId': outletId,
-        'orderItems':
-            items, // Changed from 'items' to 'orderItems' to match backend
+        'clientId': clientId,
+        'orderItems': items,
       };
 
       print('Creating order with body: $requestBody');
@@ -1025,7 +1047,7 @@ class ApiService {
       }
 
       final responseData = json.decode(response.body);
-      if (responseData['user'] == null) {
+      if (responseData['salesRep'] == null) {
         throw Exception('Invalid response format from server');
       }
 
@@ -1040,7 +1062,7 @@ class ApiService {
       Map<String, dynamic> data) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/users/profile'),
+        Uri.parse('$baseUrl/salesRep/profile'),
         headers: await _headers(),
         body: json.encode(data),
       );
@@ -1176,21 +1198,28 @@ class ApiService {
 
   static Future<String> updateProfilePhoto(XFile photo) async {
     try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      print(
+          'Token for photo upload: ${token.substring(0, 10)}...'); // Debug token
+
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse(
-            '$baseUrl/profile/photo'), // Removed /api prefix to match backend route
+        Uri.parse('$baseUrl/profile/photo'),
       );
 
-      request.headers.addAll(await _headers()
-        ..remove('Content-Type'));
+      // Add authorization header with Bearer token
+      request.headers['Authorization'] = 'Bearer $token';
 
       if (kIsWeb) {
         // For web, XFile provides bytes directly
         final bytes = await photo.readAsBytes();
         request.files.add(
           http.MultipartFile.fromBytes(
-            'photo', // Field name must match multer configuration
+            'photo',
             bytes,
             filename: photo.name,
             contentType: MediaType('image', photo.name.split('.').last),
@@ -1200,7 +1229,7 @@ class ApiService {
         // For mobile platforms
         request.files.add(
           await http.MultipartFile.fromPath(
-            'photo', // Field name must match multer configuration
+            'photo',
             photo.path,
             contentType: MediaType('image', photo.path.split('.').last),
           ),
@@ -1212,6 +1241,13 @@ class ApiService {
       print('Response status code: ${streamedResponse.statusCode}');
 
       final response = await http.Response.fromStream(streamedResponse);
+      print('Response body: ${response.body}'); // Debug response
+
+      if (response.statusCode == 401) {
+        print(
+            'Token validation failed. Current token: ${token.substring(0, 10)}...');
+        throw Exception("Authentication failed. Please log in again.");
+      }
 
       if (response.statusCode != 200) {
         final errorMsg = response.statusCode == 404
@@ -1222,13 +1258,13 @@ class ApiService {
       }
 
       final responseData = json.decode(response.body);
-      if (responseData['user'] != null &&
-          responseData['user']['photoUrl'] != null) {
-        return responseData['user']['photoUrl'];
+      if (responseData['salesRep'] != null &&
+          responseData['salesRep']['photoUrl'] != null) {
+        return responseData['salesRep']['photoUrl'];
       }
       throw Exception('Invalid response format from server');
     } catch (e) {
-      handleNetworkError(e);
+      print('Error updating profile photo: $e');
       rethrow;
     }
   }
@@ -1237,7 +1273,7 @@ class ApiService {
     try {
       final box = GetStorage();
       await box.remove('token');
-      await box.remove('user');
+      await box.remove('salesRep');
       final authController = Get.find<AuthController>();
       authController.isLoggedIn.value = false;
     } catch (e) {
@@ -1246,14 +1282,19 @@ class ApiService {
   }
 
   // Create a new outlet/client
-  static Future<Outlet> createOutlet({
+  static Future<Client> createOutlet({
     required String name,
     required String address,
-    String? kraPin,
+    String? taxPin,
     String? email,
-    String? phone,
+    String? contact,
     double? latitude,
     double? longitude,
+    String? location,
+    int? clientType,
+    int? regionId,
+    String? region,
+    int? countryId,
   }) async {
     try {
       final token = _getAuthToken();
@@ -1267,16 +1308,21 @@ class ApiService {
         body: jsonEncode({
           'name': name,
           'address': address,
-          if (kraPin != null) 'kraPin': kraPin,
+          if (taxPin != null) 'tax_pin': taxPin,
           if (email != null) 'email': email,
-          if (phone != null) 'phone': phone,
+          if (contact != null) 'contact': contact,
           if (latitude != null) 'latitude': latitude,
           if (longitude != null) 'longitude': longitude,
+          if (location != null) 'location': location,
+          if (clientType != null) 'client_type': clientType,
+          if (regionId != null) 'region_id': regionId,
+          if (region != null) 'region': region,
+          if (countryId != null) 'country': countryId,
         }),
       );
 
       if (response.statusCode == 201) {
-        return Outlet.fromJson(jsonDecode(response.body));
+        return Client.fromJson(jsonDecode(response.body));
       } else {
         final errorBody = jsonDecode(response.body);
         throw Exception(

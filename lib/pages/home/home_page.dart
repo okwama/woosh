@@ -25,8 +25,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late String userName;
-  late String userPhone;
+  late String salesRepName;
+  late String salesRepPhone;
   int _pendingJourneyPlans = 0;
   bool _isLoading = true;
 
@@ -39,15 +39,15 @@ class _HomePageState extends State<HomePage> {
 
   void _loadUserData() {
     final box = GetStorage();
-    final user = box.read('user');
+    final salesRep = box.read('salesRep');
 
     setState(() {
-      if (user != null && user is Map<String, dynamic>) {
-        userName = user['name'] ?? 'User';
-        userPhone = user['phoneNumber'] ?? 'No phone number';
+      if (salesRep != null && salesRep is Map<String, dynamic>) {
+        salesRepName = salesRep['name'] ?? 'User';
+        salesRepPhone = salesRep['phoneNumber'] ?? 'No phone number';
       } else {
-        userName = 'User';
-        userPhone = 'No phone number';
+        salesRepName = 'User';
+        salesRepPhone = 'No phone number';
       }
     });
   }
@@ -218,7 +218,7 @@ class _HomePageState extends State<HomePage> {
                     // User Profile Tile
                     MenuTile(
                       title: 'Merchandiser',
-                      subtitle: '$userName\n$userPhone',
+                      subtitle: '$salesRepName\n$salesRepPhone',
                       icon: Icons.person,
                       onTap: () {
                         Get.to(

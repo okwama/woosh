@@ -5,15 +5,23 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL") 
 }
 
-model User {
+
+
+model SalesRep {
   id           Int           @id @default(autoincrement())
   name         String
   email        String        @unique
   phoneNumber  String        @unique
   password     String
-  role         String        @default("USER")
+  countryId   Int
+  country     Country @relation(fields: [countryId], references: [id])
+  region_id   Int
+  region      String
+  role         String?      @default("USER")
+  status       Int?         @default(0)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   photoUrl     String?       @default("")
@@ -23,86 +31,189 @@ model User {
   tokens       Token[]
   leaves       Leave[]
   Manager      Manager?
-  @@map("users")
-}
-model Manager {
-  id         Int               @id @default(autoincrement())
-  userId     Int               @unique
-  department String?
-  user       User              @relation(fields: [userId], references: [id])
-  checkins   ManagerCheckin[]
-  @@map("managers")
+
 }
 
+model Manager {
+  id         Int              @id @default(autoincrement())
+  userId     Int              @unique
+  department String?
+  user       SalesRep         @relation(fields: [userId], references: [id])
+  checkins   ManagerCheckin[]
+
+  @@map("managers")
+}
 
 model Token {
   id        Int      @id @default(autoincrement())
   token     String
-  userId    Int
+  salesRepId    Int
   createdAt DateTime @default(now())
   expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id])
+  user      SalesRep @relation(fields: [salesRepId], references: [id])
 
-  @@index([userId], map: "Token_userId_fkey")
+  @@index([salesRepId], map: "Token_userId_fkey")
 }
 
-model Outlet {
-  id           Int           @id @default(autoincrement())
+model Regions {
+  id        Int     @id @default(autoincrement())
+  name      String
+  countryId Int
+  country   Country @relation(fields: [countryId], references: [id])
+  status    Int?    @default(0)
+
+  @@unique([name, countryId])
+}
+
+model Country {
+  id      Int       @id @default(autoincrement())
+  name    String
+  regions Regions[]
+  clients Clients[]
+  salesRep SalesRep[]
+  status  Int?      @default(0)
+}
+model Category {
+  id           Int             @id @default(autoincrement())
   name         String
-  address      String
+  priceOptions PriceOption[]   // 👈 Relation
+}
+
+model PriceOption {
+  id         Int      @id @default(autoincrement())
+  option     String
+  value      Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+}
+model StoreQuantity {
+  id        Int     @id @default(autoincrement())
+  quantity  Int
+  storeId   Int
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  store     Stores  @relation(fields: [storeId], references: [id])
+}
+
+model Stores {
+  id              Int             @id @default(autoincrement())
+  name            String
+  storeQuantities StoreQuantity[]
+  purchase        Purchase[]
+  purchaseHistory PurchaseHistory[]
+  
+}
+
+model Purchase {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  storeId    Int
+  quantity   Int
+  totalPrice Int
+  date       DateTime @default(now())
+  product Product @relation(fields: [productId], references: [id])
+  store   Stores  @relation(fields: [storeId], references: [id])
+}
+
+model PurchaseHistory {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  productId         Int
+  previousQuantity  Int
+  purchaseQuantity  Int
+  newBalance        Int
+  createdAt         DateTime @default(now())
+
+  store    Stores   @relation(fields: [storeId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+}
+
+model Clients {
+  id          Int     @id @default(autoincrement())
+  name        String
+  address      String?
   latitude     Float?
   longitude    Float?
   balance      String?
   email        String?
-  kraPin       String?
-  phone        String?
+  region_id   Int
+  region      String
+  contact     String
+  tax_pin     String
+  location    String
+  status      Int     @default(0)
+  client_type Int?
+  countryId   Int
+  country     Country @relation(fields: [countryId], references: [id])
   journeyPlans JourneyPlan[]
   orders       Order[]
   products     Product[]
   reports      Report[]
   checkins     ManagerCheckin[]
+
+}
+model Riders {
+  id            Int     @id @default(autoincrement())
+  name          String
+  contact       String
+  id_number     String
+  company_id    Int
+  company       String
+  status        Int?
+  password      String?
+  device_id     String?
+  device_name   String?
+  device_status String?
+  token         String?
 }
 
+model RidersCompany {
+  id     Int    @id @default(autoincrement())
+  name   String
+  status Int?
+}
+
+
+
 model ManagerCheckin {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   managerId  Int
-  outletId   Int
+  clientId   Int
   date       DateTime
   checkInAt  DateTime?
   checkOutAt DateTime?
   latitude   Float?
   longitude  Float?
   notes      String?
-  manager    Manager  @relation(fields: [managerId], references: [id])
-  outlet     Outlet   @relation(fields: [outletId], references: [id])
+  manager    Manager   @relation(fields: [managerId], references: [id])
+  client     Clients   @relation(fields: [clientId], references: [id])
 
   @@index([managerId])
-  @@index([outletId])
+  @@index([clientId])
 }
-
 
 model Order {
   id         Int         @id @default(autoincrement())
   userId     Int
+  clientId   Int
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-  outletId   Int
-  outlet     Outlet      @relation(fields: [outletId], references: [id])
-  user       User        @relation(fields: [userId], references: [id])
-  orderItems OrderItem[] @relation("OrderToOrderItem")
+  client     Clients     @relation(fields: [clientId], references: [id])
+  user       SalesRep    @relation(fields: [userId], references: [id])
+  orderItems OrderItem[]
   reports    Report[]
 
-  @@index([userId], map: "Order_userId_fkey")
-  @@index([outletId], map: "Order_outletId_fkey")
+  @@index([userId])
+  @@index([clientId])
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int
+  id        Int      @id @default(autoincrement())
   productId Int
   quantity  Int
-  order     Order   @relation("OrderToOrderItem", fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product @relation(fields: [productId], references: [id])
+  orderId   Int
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
@@ -113,7 +224,7 @@ model JourneyPlan {
   date              DateTime
   time              String
   userId            Int?
-  outletId          Int
+  clientId          Int
   status            Int       @default(0)
   checkInTime       DateTime?
   latitude          Float?
@@ -123,12 +234,12 @@ model JourneyPlan {
   checkoutLatitude  Float?
   checkoutLongitude Float?
   checkoutTime      DateTime?
-  outlet            Outlet    @relation(fields: [outletId], references: [id])
-  user              User?     @relation(fields: [userId], references: [id])
+  client            Clients   @relation(fields: [clientId], references: [id])
+  user              SalesRep? @relation(fields: [userId], references: [id])
   reports           Report[]
 
-  @@index([outletId], map: "JourneyPlan_outletId_fkey")
-  @@index([userId], map: "JourneyPlan_userId_fkey")
+  @@index([clientId])
+  @@index([userId])
 }
 
 model NoticeBoard {
@@ -142,7 +253,7 @@ model NoticeBoard {
 model Report {
   id               Int               @id @default(autoincrement())
   orderId          Int?
-  outletId         Int
+  clientId         Int
   createdAt        DateTime          @default(now())
   userId           Int
   journeyPlanId    Int?
@@ -151,14 +262,14 @@ model Report {
   productReport    ProductReport?
   journeyPlan      JourneyPlan?      @relation(fields: [journeyPlanId], references: [id])
   order            Order?            @relation(fields: [orderId], references: [id])
-  outlet           Outlet            @relation(fields: [outletId], references: [id])
-  user             User              @relation(fields: [userId], references: [id])
+  client           Clients           @relation(fields: [clientId], references: [id])
+  user             SalesRep          @relation(fields: [userId], references: [id])
   visibilityReport VisibilityReport?
 
-  @@index([userId], map: "Report_userId_fkey")
-  @@index([orderId], map: "Report_orderId_fkey")
-  @@index([outletId], map: "Report_outletId_fkey")
-  @@index([journeyPlanId], map: "Report_journeyPlanId_fkey")
+  @@index([userId])
+  @@index([orderId])
+  @@index([clientId])
+  @@index([journeyPlanId])
 }
 
 model FeedbackReport {
@@ -186,21 +297,23 @@ model VisibilityReport {
 }
 
 model Product {
-  id            Int         @id @default(autoincrement())
-  name          String
-  description   String?
-  price         Float
-  currentStock  Int
-  reorderPoint  Int
-  orderQuantity Int         @default(0)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  outletId      Int
-  imageUrl      String?     @default("")
-  OrderItem     OrderItem[]
-  outlet        Outlet      @relation(fields: [outletId], references: [id])
+  id              Int             @id @default(autoincrement())
+  name            String
+  category_id     Int
+  category        String
+  description     String?
+  currentStock    Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  clientId        Int?
+  image           String?         @default("")
+  client          Clients?        @relation(fields: [clientId], references: [id])
+  orderItems      OrderItem[]
+  storeQuantities StoreQuantity[]
+  purchase        Purchase[]
+  purchaseHistory PurchaseHistory[]
 
-  @@index([outletId], map: "Product_outletId_fkey")
+  @@index([clientId])
 }
 
 model Leave {
@@ -214,7 +327,7 @@ model Leave {
   status     String   @default("PENDING")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  user       User     @relation(fields: [userId], references: [id])
+  user       SalesRep @relation(fields: [userId], references: [id])
 
   @@index([userId], map: "leaves_userId_fkey")
   @@map("leaves")
@@ -225,6 +338,7 @@ enum ReportType {
   VISIBILITY_ACTIVITY
   FEEDBACK
 }
+
 enum Role {
   ADMIN
   MANAGER

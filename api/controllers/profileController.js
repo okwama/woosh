@@ -13,7 +13,7 @@ const imagekit = new ImageKit({
 
 const updateProfilePhoto = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const salesRepId = req.user.id;
     
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -22,13 +22,13 @@ const updateProfilePhoto = async (req, res) => {
     // Upload file to ImageKit
     const result = await imagekit.upload({
       file: req.file.buffer,
-      fileName: `profile-${userId}-${Date.now()}`,
+      fileName: `profile-${salesRepId}-${Date.now()}`,
       folder: '/whoosh/profile_photos',
     });
 
     // Update user's photoUrl in database
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
+    const updatedUser = await prisma.salesRep.update({
+      where: { id: salesRepId },
       data: { photoUrl: result.url },
       select: {
         id: true,
@@ -52,10 +52,10 @@ const updateProfilePhoto = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const salesRepId = req.user.id;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const salesRep = await prisma.salesRep.findUnique({
+      where: { id: salesRepId },
       select: {
         id: true,
         name: true,
@@ -63,14 +63,18 @@ const getProfile = async (req, res) => {
         phoneNumber: true,
         photoUrl: true,
         role: true,
+        region: true,
+        region_id: true,
+        country: true,
+        countryId: true
       },
     });
 
-    if (!user) {
+    if (!salesRep) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ user });
+    res.json({ salesRep });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ message: 'Failed to fetch profile' });
@@ -79,7 +83,7 @@ const getProfile = async (req, res) => {
 
 const updatePassword = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const salesRepId = req.user.id;
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
     // Validate request body
@@ -98,20 +102,20 @@ const updatePassword = async (req, res) => {
     }
 
     // Get current user with password
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+    const salesRep = await prisma.salesRep.findUnique({
+      where: { id: salesRepId },
       select: {
         id: true,
         password: true,
       },
     });
 
-    if (!user) {
+    if (!salesRep) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Verify current password
-    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    const isPasswordValid = await bcrypt.compare(currentPassword, salesRep.password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Current password is incorrect' });
     }
@@ -120,8 +124,8 @@ const updatePassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password in database
-    await prisma.user.update({
-      where: { id: userId },
+    await prisma.salesRep.update({
+      where: { id: salesRepId },
       data: { password: hashedPassword },
     });
 

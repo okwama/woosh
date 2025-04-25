@@ -1,37 +1,56 @@
 class Outlet {
   final int id;
   final String name;
-  final String? kraPin;
-  final String? email;
-  final String? phone;
-  final String? balance;
   final String address;
+  final String? balance;
   final double? latitude;
   final double? longitude;
+  final String? email;
+  final String? contact;
+  final String? taxPin;
+  final String? location;
+  final int? clientType;
+  final int? regionId;
+  final String? region;
+  final int? countryId;
 
   Outlet({
     required this.id,
     required this.name,
-    this.kraPin,
-    this.email,
-    this.phone,
-    this.balance,
     required this.address,
+    this.balance,
     this.latitude,
     this.longitude,
+    this.email,
+    this.contact,
+    this.taxPin,
+    this.location,
+    this.clientType,
+    this.regionId,
+    this.region,
+    this.countryId,
   });
 
   factory Outlet.fromJson(Map<String, dynamic> json) {
     return Outlet(
-      id: json['id'],
-      name: json['name'],
-      kraPin: json['kraPin'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
-      balance: json['balance'] ?? '',
-      address: json['address'],
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
+      id: json['id'] as int,
+      name: json['name'] as String,
+      address: json['address'] as String,
+      balance: json['balance']?.toString(),
+      latitude: json['latitude'] != null
+          ? (json['latitude'] as num).toDouble()
+          : null,
+      longitude: json['longitude'] != null
+          ? (json['longitude'] as num).toDouble()
+          : null,
+      email: json['email'] as String?,
+      contact: json['contact'] as String?,
+      taxPin: json['tax_pin'] as String?,
+      location: json['location'] as String?,
+      clientType: json['client_type'] as int?,
+      regionId: json['region_id'] as int?,
+      region: json['region'] as String?,
+      countryId: json['country']?['id'] as int?,
     );
   }
 
@@ -39,26 +58,52 @@ class Outlet {
     return {
       'id': id,
       'name': name,
-      'balance': balance,
-      'email': email,
-      'phone': phone,
       'address': address,
-      'latitude': latitude,
-      'longitude': longitude,
+      if (balance != null) 'balance': balance,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (email != null) 'email': email,
+      if (contact != null) 'contact': contact,
+      if (taxPin != null) 'tax_pin': taxPin,
+      if (location != null) 'location': location,
+      if (clientType != null) 'client_type': clientType,
+      if (regionId != null) 'region_id': regionId,
+      if (region != null) 'region': region,
+      if (countryId != null) 'country': {'id': countryId},
     };
   }
 
-  static Outlet defaultOutlet() {
+  Outlet copyWith({
+    int? id,
+    String? name,
+    String? address,
+    String? balance,
+    double? latitude,
+    double? longitude,
+    String? email,
+    String? contact,
+    String? taxPin,
+    String? location,
+    int? clientType,
+    int? regionId,
+    String? region,
+    int? countryId,
+  }) {
     return Outlet(
-      id: 0,
-      name: 'Unknown',
-      address: '',
-      balance: '',
-      kraPin: '',
-      email: '',
-      phone: '',
-      latitude: 0.0,
-      longitude: 0.0,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      balance: balance ?? this.balance,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      email: email ?? this.email,
+      contact: contact ?? this.contact,
+      taxPin: taxPin ?? this.taxPin,
+      location: location ?? this.location,
+      clientType: clientType ?? this.clientType,
+      regionId: regionId ?? this.regionId,
+      region: region ?? this.region,
+      countryId: countryId ?? this.countryId,
     );
   }
 }

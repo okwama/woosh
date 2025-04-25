@@ -19,7 +19,7 @@ class OrderDetailPage extends StatelessWidget {
 
     Get.to(
       () => AddOrderPage(
-        outlet: order!.outlet,
+        outlet: order!.client,
         order: order,
       ),
       preventDuplicates: true,
@@ -43,10 +43,10 @@ class OrderDetailPage extends StatelessWidget {
     }
 
     final theme = Theme.of(context);
-    final totalAmount = order!.orderItems.fold(
-      0.0,
-      (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
-    );
+    // final totalAmount = order!.orderItems.fold(
+    //   0.0,
+    //   (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
+    // );
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +83,7 @@ class OrderDetailPage extends StatelessWidget {
 
                 // Total Section
                 const SizedBox(height: 24),
-                _buildTotalSection(context, totalAmount),
+                // _buildTotalSection(context, totalAmount),
               ]),
             ),
           ),
@@ -124,7 +124,7 @@ class OrderDetailPage extends StatelessWidget {
           _buildInfoRow('Order Date',
               DateFormat('MMM dd, yyyy • h:mm a').format(order!.createdAt)),
           const Divider(height: 24),
-          _buildInfoRow('Outlet', order!.outlet.name),
+          _buildInfoRow('Outlet', order!.client.name),
           const Divider(height: 24),
           _buildInfoRow(
               'Status', order!.status.toString().split('.').last.toUpperCase()),
@@ -200,21 +200,21 @@ class OrderDetailPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text(
-              '${item.quantity} × Ksh ${(item.product?.price ?? 0).toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
+            // Text(
+            //   '${item.quantity} × Ksh ${(item.product?.price ?? 0).toStringAsFixed(2)}',
+            //   style: const TextStyle(
+            //     fontSize: 12,
+            //     color: Colors.grey,
+            //   ),
+            // ),
           ],
         ),
-        trailing: Text(
-          'Ksh ${(item.quantity * (item.product?.price ?? 0)).toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        // trailing: Text(
+        //    'Ksh ${(item.quantity * (item.product?.price ?? 0)).toStringAsFixed(2)}',
+        //   style: const TextStyle(
+        //     fontWeight: FontWeight.w600,
+        //   ),
+        // ),
       ),
     );
   }

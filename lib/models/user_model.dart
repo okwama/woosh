@@ -2,65 +2,59 @@ import 'package:woosh/models/journeyPlan_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/token_model.dart';
 
-class User {
+class SalesRep {
   final int id;
   final String name;
   final String email;
   final String phoneNumber;
-  final String password; // Hashed password
+  final String? role;
+  final String? region;
+  final int? regionId;
+  final int? status;
   final String? photoUrl;
-  final List<Order> orders;
-  final List<JourneyPlan> journeyPlans;
-  final List<Token> tokens;
+  //final String? department;
 
-  User({
+  SalesRep({
     required this.id,
     required this.name,
     required this.email,
     required this.phoneNumber,
-    required this.password,
+    this.role,
+    this.region,
+    this.regionId,
+    this.status,
     this.photoUrl,
-    required this.orders,
-    required this.journeyPlans,
-    required this.tokens,
+    //this.department,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
+  factory SalesRep.fromJson(Map<String, dynamic> json) {
     // Support minimal user data from order responses
-    if (json['email'] == null) {
-      return User(
+    if (json['name'] != null && json['id'] != null) {
+      return SalesRep(
         id: json['id'],
         name: json['name'],
-        phoneNumber: json['phoneNumber'].toString(), // Convert to string in case it's a number
-        email: '', // Default empty string for minimal responses
-        password: '', // Default empty string for minimal responses
+        email: json['email'] ?? '',
+        phoneNumber: json['phoneNumber'] ?? '',
+        role: json['role'],
+        region: json['region'],
+        regionId: json['regionId'],
+        status: json['status'],
         photoUrl: json['photoUrl'],
-        orders: [],
-        journeyPlans: [],
-        tokens: [],
       );
     }
 
     // Full user data parsing
-    return User(
+    return SalesRep(
       id: json['id'],
       name: json['name'],
       email: json['email'],
       phoneNumber: json['phoneNumber'],
-      password: json['password'],
+      role: json['role'],
+      region: json['region'],
+      regionId: json['regionId'],
+      status: json['status'],
       photoUrl: json['photoUrl'],
-      orders: (json['orders'] as List?)
-              ?.map((order) => Order.fromJson(order))
-              .toList() ??
-          [],
-      journeyPlans: (json['journeyPlans'] as List?)
-              ?.map((journeyPlan) => JourneyPlan.fromJson(journeyPlan))
-              .toList() ??
-          [],
-      tokens: (json['tokens'] as List?)
-              ?.map((token) => Token.fromJson(token))
-              .toList() ??
-          [],
+      //department: json['department'],
     );
   }
 
@@ -70,12 +64,12 @@ class User {
       'name': name,
       'email': email,
       'phone_number': phoneNumber,
-      'password': password,
+      'role': role,
+      'region': region,
+      'regionId': regionId,
+      'status': status,
       'photoUrl': photoUrl,
-      'orders': orders.map((order) => order.toJson()).toList(),
-      'journeyPlans':
-          journeyPlans.map((journeyPlan) => journeyPlan.toJson()).toList(),
-      'tokens': tokens.map((token) => token.toJson()).toList(),
+      //'department': department,
     };
   }
 }

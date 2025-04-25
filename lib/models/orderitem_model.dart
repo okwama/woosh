@@ -58,7 +58,7 @@ class OrderItem {
   String get productName => product?.name ?? 'Unknown Product';
 
   /// Calculates item total price (returns 0 if product is null)
-  double get totalPrice => (product?.price ?? 0) * quantity;
+  //double get totalPrice => (product?.price ?? 0) * quantity;
 
   @override
   String toString() => 'OrderItem('
