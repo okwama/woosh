@@ -5,6 +5,7 @@ import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/utils/date_utils.dart';
 
 class OrderDetailPage extends StatelessWidget {
   final Order? order;
@@ -121,8 +122,8 @@ class OrderDetailPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildInfoRow('Order Date',
-              DateFormat('MMM dd, yyyy • h:mm a').format(order!.createdAt)),
+          _buildInfoRow(
+              'Order Date', DateFormatter.formatDateTime(order!.createdAt)),
           const Divider(height: 24),
           _buildInfoRow('Outlet', order!.client.name),
           const Divider(height: 24),

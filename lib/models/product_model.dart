@@ -1,3 +1,5 @@
+import 'price_option_model.dart';
+
 class Product {
   final int id;
   final String name;
@@ -11,6 +13,7 @@ class Product {
   final DateTime updatedAt;
   final String? imageUrl;
   final int? clientId;
+  final List<PriceOption> priceOptions;
 
   Product({
     required this.id,
@@ -25,6 +28,7 @@ class Product {
     required this.updatedAt,
     this.imageUrl,
     this.clientId,
+    this.priceOptions = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -41,6 +45,10 @@ class Product {
       updatedAt: DateTime.parse(json['updatedAt']),
       imageUrl: json['image'],
       clientId: json['clientId'],
+      priceOptions: (json['priceOptions'] as List<dynamic>?)
+              ?.map((e) => PriceOption.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 
@@ -58,6 +66,7 @@ class Product {
       'updatedAt': updatedAt.toIso8601String(),
       'image': imageUrl,
       'clientId': clientId,
+      'priceOptions': priceOptions.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -83,6 +92,7 @@ class Product {
       updatedAt: DateTime.now(),
       imageUrl: '',
       clientId: null,
+      priceOptions: [],
     );
   }
 }

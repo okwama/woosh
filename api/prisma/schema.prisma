@@ -26,12 +26,12 @@ model SalesRep {
   updatedAt    DateTime      @updatedAt
   photoUrl     String?       @default("")
   journeyPlans JourneyPlan[]
-  orders       Order[]
   reports      Report[]
   tokens       Token[]
   leaves       Leave[]
   Manager      Manager?
-
+  MyOrder MyOrder[]
+  
 }
 
 model Manager {
@@ -73,6 +73,26 @@ model Country {
   salesRep SalesRep[]
   status  Int?      @default(0)
 }
+model Product {
+  id              Int             @id @default(autoincrement())
+  name            String
+  category_id     Int
+
+  category        String
+  description     String?
+  currentStock    Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  clientId        Int?
+  image           String?         @default("")
+  client          Clients?        @relation(fields: [clientId], references: [id])
+  orderItems      OrderItem[]
+  storeQuantities StoreQuantity[]
+  purchase        Purchase[]
+  purchaseHistory PurchaseHistory[]
+
+  @@index([clientId])
+}
 model Category {
   id           Int             @id @default(autoincrement())
   name         String
@@ -80,11 +100,12 @@ model Category {
 }
 
 model PriceOption {
-  id         Int      @id @default(autoincrement())
+  id         Int         @id @default(autoincrement())
   option     String
   value      Int
-  category   Category @relation(fields: [categoryId], references: [id])
+  category   Category    @relation(fields: [categoryId], references: [id])
   categoryId Int
+  orderItems OrderItem[]
 }
 model StoreQuantity {
   id        Int     @id @default(autoincrement())
@@ -146,10 +167,11 @@ model Clients {
   countryId   Int
   country     Country @relation(fields: [countryId], references: [id])
   journeyPlans JourneyPlan[]
-  orders       Order[]
+  MyOrder MyOrder[]
   products     Product[]
   reports      Report[]
   checkins     ManagerCheckin[]
+
 
 }
 model Riders {
@@ -192,8 +214,27 @@ model ManagerCheckin {
   @@index([clientId])
 }
 
-model Order {
-  id         Int         @id @default(autoincrement())
+model MyOrder {
+  id            Int       @id @default(autoincrement())
+  totalAmount   Float
+  comment       String
+  customerType    String
+  customerId String
+  customerName String
+  orderDate      DateTime @default(now())
+  riderId    Int?  
+  riderName  String?
+  status      Int      @default(0)
+  approvedTime      String?
+  dispatchTime      String?
+  deliveryLocation      String?
+  complete_latitude      String?
+  complete_longitude      String?
+  complete_address      String?
+  pickupTime      String?
+  deliveryTime      String?
+  cancel_reason      String?
+  recepient      String?
   userId     Int
   clientId   Int
   createdAt  DateTime    @default(now())
@@ -205,18 +246,24 @@ model Order {
 
   @@index([userId])
   @@index([clientId])
+
 }
 
+
 model OrderItem {
-  id        Int      @id @default(autoincrement())
-  productId Int
-  quantity  Int
-  orderId   Int
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
+  id           Int         @id @default(autoincrement())
+  orderId      Int
+  productId    Int
+  quantity     Int
+  priceOption  PriceOption? @relation(fields: [priceOptionId], references: [id])
+  priceOptionId Int?
+  order        MyOrder     @relation(fields: [orderId], references: [id])
+  product      Product     @relation(fields: [productId], references: [id])
 
   @@index([orderId])
   @@index([productId])
+  @@index([priceOptionId])
+  @@unique([orderId, productId, priceOptionId])
 }
 
 model JourneyPlan {
@@ -261,7 +308,7 @@ model Report {
   feedbackReport   FeedbackReport?
   productReport    ProductReport?
   journeyPlan      JourneyPlan?      @relation(fields: [journeyPlanId], references: [id])
-  order            Order?            @relation(fields: [orderId], references: [id])
+  MyOrder          MyOrder[]  
   client           Clients           @relation(fields: [clientId], references: [id])
   user             SalesRep          @relation(fields: [userId], references: [id])
   visibilityReport VisibilityReport?
@@ -270,6 +317,7 @@ model Report {
   @@index([orderId])
   @@index([clientId])
   @@index([journeyPlanId])
+  
 }
 
 model FeedbackReport {
@@ -296,25 +344,9 @@ model VisibilityReport {
   report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
 
-model Product {
-  id              Int             @id @default(autoincrement())
-  name            String
-  category_id     Int
-  category        String
-  description     String?
-  currentStock    Int?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  clientId        Int?
-  image           String?         @default("")
-  client          Clients?        @relation(fields: [clientId], references: [id])
-  orderItems      OrderItem[]
-  storeQuantities StoreQuantity[]
-  purchase        Purchase[]
-  purchaseHistory PurchaseHistory[]
 
-  @@index([clientId])
-}
+
+
 
 model Leave {
   id         Int      @id @default(autoincrement())

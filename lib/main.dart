@@ -5,6 +5,7 @@ import 'package:woosh/pages/404/noConnection_page.dart';
 import 'package:woosh/pages/home/home_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:woosh/routes/app_routes.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
@@ -131,6 +132,7 @@ class MyApp extends StatelessWidget {
           GetPage(name: '/home', page: () => HomePage()),
           GetPage(name: '/manager-home', page: () => const ManagerHomePage()),
           GetPage(name: '/no_connection', page: () => const NoConnectionPage()),
+          ...AppRoutes.routes,
         ],
       ),
     );

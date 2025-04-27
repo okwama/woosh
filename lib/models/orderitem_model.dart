@@ -7,15 +7,17 @@ class OrderItem {
   final int productId;
   final int quantity;
   final Product? product;
+  final int? priceOptionId;
 
   OrderItem({
     this.id,
     required this.productId,
     required this.quantity,
     this.product,
-  }) : assert(quantity > 0, 'Quantity must be positive'),
-       assert(product == null || product.id == productId, 
-             'Product ID mismatch between item and product object');
+    this.priceOptionId,
+  })  : assert(quantity > 0, 'Quantity must be positive'),
+        assert(product == null || product.id == productId,
+            'Product ID mismatch between item and product object');
 
   /// Parses JSON into an OrderItem with proper null checks
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -24,9 +26,10 @@ class OrderItem {
         id: json['id'] as int?,
         productId: json['productId'] as int,
         quantity: json['quantity'] as int,
-        product: json['product'] != null 
+        product: json['product'] != null
             ? Product.fromJson(json['product'] as Map<String, dynamic>)
             : null,
+        priceOptionId: json['priceOptionId'] as int?,
       );
     } catch (e) {
       throw FormatException('Failed to parse OrderItem: $e');
@@ -35,11 +38,12 @@ class OrderItem {
 
   /// Converts to JSON, automatically excluding null fields
   Map<String, dynamic> toJson() => {
-    if (id != null) 'id': id,
-    'productId': productId,
-    'quantity': quantity,
-    if (product != null) 'product': product!.toJson(),
-  };
+        if (id != null) 'id': id,
+        'productId': productId,
+        'quantity': quantity,
+        if (product != null) 'product': product!.toJson(),
+        if (priceOptionId != null) 'priceOptionId': priceOptionId,
+      };
 
   /// Creates a copy with modified fields
   OrderItem copyWith({
@@ -47,12 +51,15 @@ class OrderItem {
     int? productId,
     int? quantity,
     Product? product,
-  }) => OrderItem(
-    id: id ?? this.id,
-    productId: productId ?? this.productId,
-    quantity: quantity ?? this.quantity,
-    product: product ?? this.product,
-  );
+    int? priceOptionId,
+  }) =>
+      OrderItem(
+        id: id ?? this.id,
+        productId: productId ?? this.productId,
+        quantity: quantity ?? this.quantity,
+        product: product ?? this.product,
+        priceOptionId: priceOptionId ?? this.priceOptionId,
+      );
 
   /// Gets the effective product name (handles null product)
   String get productName => product?.name ?? 'Unknown Product';
@@ -65,5 +72,6 @@ class OrderItem {
       'id: $id, '
       'productId: $productId, '
       'quantity: $quantity, '
+      'priceOptionId: $priceOptionId, '
       'product: ${product?.id ?? "null"})';
 }

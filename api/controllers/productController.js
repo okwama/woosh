@@ -60,12 +60,27 @@ const getProducts = async (req, res) => {
       take: parseInt(limit),
     });
 
+    // Get price options for the category_id of each product
+    const productsWithPriceOptions = await Promise.all(products.map(async (product) => {
+      const categoryWithPriceOptions = await prisma.category.findUnique({
+        where: { id: product.category_id },
+        include: {
+          priceOptions: true
+        }
+      });
+
+      return {
+        ...product,
+        priceOptions: categoryWithPriceOptions?.priceOptions || []
+      };
+    }));
+
     // Get total count for pagination
     const totalProducts = await prisma.product.count();
 
     res.status(200).json({
       success: true,
-      data: products,
+      data: productsWithPriceOptions,
       pagination: {
         total: totalProducts,
         page: parseInt(page),

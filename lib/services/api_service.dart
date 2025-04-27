@@ -76,15 +76,85 @@ class PaginatedResponse<T> {
 class ApiService {
   static const String baseUrl = '${Config.baseUrl}/api';
   static const Duration tokenExpirationDuration = Duration(hours: 5);
+  static bool _isRefreshing = false;
+  static Future<bool>? _refreshFuture;
 
   static String? _getAuthToken() {
     final box = GetStorage();
     return box.read<String>('token');
   }
 
+  static Future<bool> _shouldRefreshToken() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) return false;
+
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> decodedMap = json.decode(decoded);
+
+      // Check if token expires in less than 1 hour
+      final exp = DateTime.fromMillisecondsSinceEpoch(decodedMap['exp'] * 1000);
+      return exp.difference(DateTime.now()) < const Duration(hours: 1);
+    } catch (e) {
+      print('Error checking token expiration: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> _refreshToken() async {
+    if (_isRefreshing) {
+      final result = await _refreshFuture;
+      return result ?? false;
+    }
+
+    _isRefreshing = true;
+    _refreshFuture = Future<bool>(() async {
+      try {
+        final oldToken = _getAuthToken();
+        if (oldToken == null) return false;
+
+        final response = await http.post(
+          Uri.parse('$baseUrl/auth/refresh'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $oldToken'
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final box = GetStorage();
+          box.write('token', data['token']);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        print('Error refreshing token: $e');
+        return false;
+      } finally {
+        _isRefreshing = false;
+      }
+    });
+
+    return await _refreshFuture!;
+  }
+
   static Future<Map<String, String>> _headers(
       [String? additionalContentType]) async {
     final token = _getAuthToken();
+    if (token != null && await _shouldRefreshToken()) {
+      final refreshed = await _refreshToken();
+      if (!refreshed) {
+        // Token refresh failed, user needs to login again
+        await logout();
+        throw Exception("Session expired. Please log in again.");
+      }
+    }
     return {
       'Content-Type': additionalContentType ?? 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -823,10 +893,19 @@ class ApiService {
         headers: await _headers(),
       );
 
+      print('Orders response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         if (responseData['success'] == true) {
           final List<dynamic> data = responseData['data'];
+
+          // Log a sample of date fields for debugging
+          if (data.isNotEmpty && data[0] != null) {
+            print('Sample order dates from API:');
+            print('createdAt: ${data[0]['createdAt']}');
+            print('updatedAt: ${data[0]['updatedAt']}');
+          }
+
           return PaginatedResponse<Order>(
             data: data.map((json) => Order.fromJson(json)).toList(),
             total: responseData['total'],
@@ -856,7 +935,7 @@ class ApiService {
   }
 
   // Create a new order
-  static Future<Order> createOrder({
+  static Future<Order?> createOrder({
     required int clientId,
     required List<Map<String, dynamic>> items,
   }) async {
@@ -868,30 +947,107 @@ class ApiService {
         'orderItems': items,
       };
 
-      print('Creating order with body: $requestBody');
+      print('=== Creating Order ===');
+      print('Request URL: $baseUrl/orders');
+      print('Request Body: ${jsonEncode(requestBody)}');
+      print('Order Items Count: ${items.length}');
+      print('Order Items Details:');
+      for (var item in items) {
+        print('- Product ID: ${item['productId']}');
+        print('  Quantity: ${item['quantity']}');
+        print('  Price Option ID: ${item['priceOptionId']}');
+      }
+
+      final headers = await _headers();
+      print('Request Headers: $headers');
 
       final response = await http.post(
         Uri.parse('$baseUrl/orders'),
-        headers: await _headers(),
+        headers: headers,
         body: jsonEncode(requestBody),
       );
 
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
       if (response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['success'] == true) {
-          return Order.fromJson(responseData['data']);
-        } else {
-          throw Exception(responseData['error'] ?? 'Failed to create order');
+        // Handle the response safely
+        try {
+          final responseData = jsonDecode(response.body);
+          if (responseData['success'] == true) {
+            // Validate the data structure before parsing
+            if (responseData['data'] == null) {
+              throw Exception('Server returned null data');
+            }
+
+            final orderData = responseData['data'];
+            if (orderData is! Map<String, dynamic>) {
+              throw Exception('Invalid order data format');
+            }
+
+            // Ensure required fields exist
+            if (orderData['id'] == null) {
+              _showOrderSuccessDialog();
+              return null;
+            }
+
+            // Parse order as usual
+            return Order.fromJson(orderData);
+          } else {
+            // Handle error response
+            final errorMessage =
+                responseData['error'] ?? 'Failed to create order';
+            print('Error from server: $errorMessage');
+            throw Exception(errorMessage);
+          }
+        } catch (e) {
+          print('Error parsing server response: $e');
+          _showOrderSuccessDialog();
+          return null;
         }
       } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ??
-            'Failed to create order: ${response.statusCode}');
+        try {
+          final errorData = jsonDecode(response.body);
+          final errorMessage = errorData['error'] ??
+              'Failed to create order: ${response.statusCode}';
+          throw Exception(errorMessage);
+        } catch (jsonError) {
+          print('Error parsing error response: $jsonError');
+          throw Exception('Failed to create order: ${response.statusCode}');
+        }
       }
     } catch (e) {
       print('Error creating order: $e');
-      rethrow;
+      // Wrap the error to provide consistent messaging
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Failed to process order: ${e.toString()}');
+      }
     }
+  }
+
+  static void _showOrderSuccessDialog() {
+    // This function should be called from a context where Get.dialog can be used
+    Future.delayed(Duration.zero, () {
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Order Placed'),
+          content: const Text(
+              'Your order was placed successfully!\nYou can view your orders for more details.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Get.back();
+                Get.offNamed('/orders');
+              },
+              child: const Text('View Orders'),
+            ),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+    });
   }
 
   // Update an existing order
@@ -1219,7 +1375,7 @@ class ApiService {
         };
       }
 
-      // Debug log
+      // Debug logging
       print('PASSWORD UPDATE: Making request to $baseUrl/profile/password');
 
       final headers = await _headers();

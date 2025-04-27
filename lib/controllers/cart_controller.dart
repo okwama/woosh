@@ -1,59 +1,51 @@
 import 'package:get/get.dart';
+import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/product_model.dart';
-
-class CartItem {
-  final Product product;
-  RxInt quantity;
-
-  CartItem({required this.product, required int quantity})
-      : quantity = quantity.obs;
-}
+import 'package:woosh/models/price_option_model.dart';
 
 class CartController extends GetxController {
-  final RxList<CartItem> _items = <CartItem>[].obs;
-  final isLoading = false.obs;
-  final error = ''.obs;
+  final RxList<OrderItem> items = <OrderItem>[].obs;
 
-  List<CartItem> get items => _items;
+  void addItem(OrderItem item) {
+    // Check if item with same product and price option exists
+    final existingItemIndex = items.indexWhere((i) =>
+        i.productId == item.productId && i.priceOptionId == item.priceOptionId);
 
-  int get itemCount => _items.length;
-
-  void addToCart(Product product, int quantity) {
-    try {
-      error.value = ''; // Clear any previous errors
-      final existingIndex = _items.indexWhere(
-        (item) => item.product.id == product.id,
-      );
-
-      if (existingIndex >= 0) {
-        // Update existing item quantity
-        _items[existingIndex].quantity.value += quantity;
-        _items.refresh(); // Ensure the list updates
-      } else {
-        // Add new item
-        _items.add(CartItem(product: product, quantity: quantity));
-      }
-    } catch (e) {
-      error.value = 'Error adding to cart: $e';
-      print(error.value);
-      rethrow; // Rethrow to handle in UI
+    if (existingItemIndex != -1) {
+      // Update quantity if item exists
+      final existingItem = items[existingItemIndex];
+      items[existingItemIndex] = existingItem.copyWith(
+          quantity: existingItem.quantity + item.quantity);
+    } else {
+      // Add new item
+      items.add(item);
     }
   }
 
-  void removeFromCart(int index) {
-    if (index >= 0 && index < _items.length) {
-      _items.removeAt(index);
+  void removeItem(OrderItem item) {
+    items.removeWhere((i) =>
+        i.productId == item.productId && i.priceOptionId == item.priceOptionId);
+  }
+
+  void updateItemQuantity(OrderItem item, int quantity) {
+    final index = items.indexWhere((i) =>
+        i.productId == item.productId && i.priceOptionId == item.priceOptionId);
+    if (index != -1) {
+      items[index] = item.copyWith(quantity: quantity);
     }
   }
 
-  void updateQuantity(int index, int quantity) {
-    if (index >= 0 && index < _items.length && quantity > 0) {
-      _items[index].quantity.value = quantity;
-      _items.refresh(); // Ensure the list updates
-    }
+  void clear() {
+    items.clear();
   }
 
-  void clearCart() {
-    _items.clear();
+  int get totalItems => items.length;
+
+  double get totalAmount {
+    return items.fold(0, (sum, item) {
+      final priceOption = item.product?.priceOptions
+          .firstWhereOrNull((po) => po.id == item.priceOptionId);
+      return sum + (priceOption?.value ?? 0) * item.quantity;
+    });
   }
 }

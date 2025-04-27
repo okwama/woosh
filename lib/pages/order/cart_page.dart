@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/product/products_grid_page.dart';
@@ -23,6 +24,8 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   final CartController cartController = Get.find<CartController>();
+  final RxBool isLoading = false.obs;
+  final RxString errorMessage = ''.obs;
 
   @override
   void initState() {
@@ -43,11 +46,47 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     ImageCache().clearLiveImages();
   }
 
+  void _showOrderSuccessDialog() {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green),
+            const SizedBox(width: 8),
+            const Text('Order Successful'),
+          ],
+        ),
+        content: const Text('Your order has been placed successfully!'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back(); // Close dialog
+              Get.offNamed('/home'); // Go to home
+            },
+            child: const Text('Back to Home'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back(); // Close dialog
+              Get.offNamed('/orders'); // Go to orders page
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('View Orders'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
   Future<void> placeOrder() async {
     try {
-      cartController.isLoading.value = true;
+      isLoading.value = true;
 
-      // Validate outlet ID (backend requirement)
+      // Validate outlet ID
       final outletId = widget.outlet.id;
       if (outletId == null) {
         Get.snackbar(
@@ -60,7 +99,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         return;
       }
 
-      // Validate cart has items (backend requirement)
+      // Validate cart has items
       if (cartController.items.isEmpty) {
         Get.snackbar(
           'Error',
@@ -72,16 +111,13 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         return;
       }
 
-      // Prepare order items in the format expected by the backend
+      // Prepare order items
       final List<Map<String, dynamic>> orderItems = [];
       for (var item in cartController.items) {
-        final productId = item.product.id;
-        final quantity = item.quantity.value;
-
-        if (productId == null) {
+        if (item.product == null) {
           Get.snackbar(
             'Error',
-            'Invalid product: ${item.product.name}',
+            'Invalid product in cart',
             snackPosition: SnackPosition.TOP,
             backgroundColor: Colors.red,
             colorText: Colors.white,
@@ -89,10 +125,10 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           return;
         }
 
-        if (quantity <= 0) {
+        if (item.quantity <= 0) {
           Get.snackbar(
             'Error',
-            'Invalid quantity for ${item.product.name}',
+            'Invalid quantity for ${item.product?.name ?? "Unknown Product"}',
             snackPosition: SnackPosition.TOP,
             backgroundColor: Colors.red,
             colorText: Colors.white,
@@ -101,80 +137,25 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         }
 
         orderItems.add({
-          'productId': productId,
-          'quantity': quantity,
+          'productId': item.productId,
+          'quantity': item.quantity,
+          'priceOptionId': item.priceOptionId,
         });
       }
 
       if (widget.order == null) {
         // Create new order
         try {
-          await ApiService.createOrder(
+          final order = await ApiService.createOrder(
             clientId: outletId,
             items: orderItems,
           );
 
-          Get.snackbar(
-            'Success',
-            'Order placed successfully',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
-
-          cartController.items.clear();
-          Get.offNamed('/orders');
+          // Order was successful (either null or valid order object)
+          cartController.clear();
+          _showOrderSuccessDialog(); // Show success dialog with navigation options
         } catch (e) {
-          String errorMessage = e.toString();
-
-          if (errorMessage.contains('Insufficient stock')) {
-            final RegExp regex = RegExp(r'Insufficient stock for product (.+)');
-            final match = regex.firstMatch(errorMessage);
-            final productName = match?.group(1) ?? 'Unknown Product';
-
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Out of Stock'),
-                  content: Text(
-                      '$productName is currently out of stock or has insufficient quantity.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                );
-              },
-            );
-          } else if (errorMessage.contains('Client not found')) {
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Client Error'),
-                  content: const Text(
-                      'Selected client/outlet was not found. Please try again.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                );
-              },
-            );
-          } else {
-            Get.snackbar(
-              'Error',
-              'Failed to place order: ${e.toString()}',
-              snackPosition: SnackPosition.TOP,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
-              duration: const Duration(seconds: 5),
-            );
-          }
+          handleOrderError(e);
         }
       } else {
         // Update existing order
@@ -192,46 +173,55 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
             colorText: Colors.white,
           );
 
-          cartController.items.clear();
+          cartController.clear();
           Get.offNamed('/orders');
         } catch (e) {
-          String errorMessage = e.toString();
-
-          if (errorMessage.contains('Insufficient stock')) {
-            final RegExp regex = RegExp(r'Insufficient stock for product (.+)');
-            final match = regex.firstMatch(errorMessage);
-            final productName = match?.group(1) ?? 'Unknown Product';
-
-            await showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Out of Stock'),
-                  content: Text(
-                      '$productName is currently out of stock or has insufficient quantity.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                );
-              },
-            );
-          } else {
-            Get.snackbar(
-              'Error',
-              'Failed to update order: ${e.toString()}',
-              snackPosition: SnackPosition.TOP,
-              backgroundColor: Colors.red,
-              colorText: Colors.white,
-              duration: const Duration(seconds: 5),
-            );
-          }
+          handleOrderError(e);
         }
       }
     } finally {
-      cartController.isLoading.value = false;
+      isLoading.value = false;
+    }
+  }
+
+  void handleOrderError(dynamic error) async {
+    String errorMessage = error.toString();
+    print('Order error: $errorMessage');
+
+    // If the response was a success but the returned data was incomplete,
+    // ApiService.createOrder will now show a success dialog and return null.
+    // So, here, we only need to handle actual errors (like stock issues).
+    if (errorMessage.contains('Insufficient stock')) {
+      final RegExp regex = RegExp(r'Insufficient stock for product (.+)');
+      final match = regex.firstMatch(errorMessage);
+      final productName = match?.group(1) ?? 'Unknown Product';
+
+      await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Out of Stock'),
+            content: Text(
+                '$productName is currently out of stock or has insufficient quantity.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      // For any other error, show a generic error message
+      Get.snackbar(
+        'Order Error',
+        'There was a problem placing your order. Please try again or check your orders list.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
     }
   }
 
@@ -270,12 +260,9 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildCartItem(int index, CartItem item) {
-    // Generate a unique key using both index and product id
-    final itemKey = ValueKey('cart_item_${index}_${item.product.id}');
-
+  Widget _buildCartItem(int index, OrderItem item) {
     return Card(
-      key: itemKey,
+      key: ValueKey('cart_item_${index}_${item.productId}'),
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -283,20 +270,27 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                item.product.imageUrl ?? '',
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 60,
-                    height: 60,
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.image_not_supported),
-                  );
-                },
-              ),
+              child: item.product?.imageUrl != null
+                  ? Image.network(
+                      ImageUtils.getGridUrl(item.product!.imageUrl!),
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image_not_supported),
+                        );
+                      },
+                    )
+                  : Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey[300],
+                      child: const Icon(Icons.image_not_supported),
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -304,12 +298,20 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.product.name,
+                    item.product?.name ?? 'Unknown Product',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
+                  if (item.priceOptionId != null)
+                    Text(
+                      'Price Option: ${item.product?.priceOptions.firstWhereOrNull((po) => po.id == item.priceOptionId)?.option ?? 'Unknown'}',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
                   Text(
                     'Quantity: ${item.quantity}',
                     style: TextStyle(
@@ -330,11 +332,11 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline),
                       onPressed: () {
-                        final newQuantity = item.quantity.value - 1;
+                        final newQuantity = item.quantity - 1;
                         if (newQuantity > 0) {
-                          cartController.updateQuantity(index, newQuantity);
+                          cartController.updateItemQuantity(item, newQuantity);
                         } else {
-                          cartController.removeFromCart(index);
+                          cartController.removeItem(item);
                         }
                       },
                       padding: EdgeInsets.zero,
@@ -342,20 +344,20 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       iconSize: 20,
                     ),
                     const SizedBox(width: 8),
-                    Obx(() => Text(
-                          '${item.quantity.value}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )),
+                    Text(
+                      '${item.quantity}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: () {
-                        final newQuantity = item.quantity.value + 1;
-                        if (item.product.currentStock == null ||
-                            newQuantity <= item.product.currentStock!) {
-                          cartController.updateQuantity(index, newQuantity);
+                        final newQuantity = item.quantity + 1;
+                        if (item.product?.currentStock == null ||
+                            newQuantity <= item.product!.currentStock!) {
+                          cartController.updateItemQuantity(item, newQuantity);
                         } else {
                           Get.snackbar(
                             'Error',
@@ -372,6 +374,13 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                     ),
                   ],
                 ),
+                if (item.priceOptionId != null)
+                  Text(
+                    'Ksh ${(item.product?.priceOptions.firstWhereOrNull((po) => po.id == item.priceOptionId)?.value ?? 0) * item.quantity}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
               ],
             ),
           ],
@@ -393,6 +402,10 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         ),
       ),
       child: Obx(() {
+        final totalItems =
+            cartController.items.fold(0, (sum, item) => sum + item.quantity);
+        final totalAmount = cartController.totalAmount;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -407,7 +420,28 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                 ),
                 Text(
-                  '${cartController.items.fold(0, (sum, item) => sum + item.quantity.value)}',
+                  '$totalItems',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total Amount',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  'Ksh ${totalAmount.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -437,14 +471,14 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         ],
       ),
       child: Obx(() {
-        bool isLoading = cartController.isLoading.value;
-        bool hasItems = cartController.items.isNotEmpty;
+        final loading = isLoading.value;
+        final hasItems = cartController.items.isNotEmpty;
 
         return Row(
           children: [
             Expanded(
               child: ElevatedButton(
-                onPressed: !isLoading
+                onPressed: !loading
                     ? () => Get.off(() => ProductsGridPage(
                           outlet: widget.outlet,
                           order: widget.order,
@@ -465,7 +499,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: (!isLoading && hasItems) ? placeOrder : null,
+                onPressed: (!loading && hasItems) ? placeOrder : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
@@ -474,7 +508,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: isLoading
+                child: loading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
@@ -503,41 +537,39 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
       ),
-      body: GetX<CartController>(
-        builder: (controller) {
-          if (controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Obx(() {
+        if (isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          return Column(
-            children: [
-              if (controller.error.value.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    controller.error.value,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.red,
-                    ),
+        return Column(
+          children: [
+            if (errorMessage.value.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  errorMessage.value,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.red,
                   ),
                 ),
-              Expanded(
-                child: controller.items.isEmpty
-                    ? _buildEmptyCart()
-                    : ListView.builder(
-                        itemCount: controller.items.length,
-                        itemBuilder: (context, index) {
-                          final item = controller.items[index];
-                          return _buildCartItem(index, item);
-                        },
-                      ),
               ),
-              if (controller.items.isNotEmpty) _buildTotalSection(),
-            ],
-          );
-        },
-      ),
+            Expanded(
+              child: cartController.items.isEmpty
+                  ? _buildEmptyCart()
+                  : ListView.builder(
+                      itemCount: cartController.items.length,
+                      itemBuilder: (context, index) {
+                        final item = cartController.items[index];
+                        return _buildCartItem(index, item);
+                      },
+                    ),
+            ),
+            if (cartController.items.isNotEmpty) _buildTotalSection(),
+          ],
+        );
+      }),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }

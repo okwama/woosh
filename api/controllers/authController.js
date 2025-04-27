@@ -187,4 +187,71 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { login, register, logout };
+const refresh = async (req, res) => {
+  try {
+    const oldToken = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!oldToken) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    try {
+      // Verify the old token
+      const decoded = jwt.verify(oldToken, process.env.JWT_SECRET);
+      
+      // Get user from database
+      const user = await prisma.salesRep.findUnique({
+        where: { id: decoded.userId },
+        include: {
+          Manager: true,
+          country: true
+        }
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      // Generate new token
+      const newToken = jwt.sign(
+        { userId: user.id, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Store new token in database
+      await prisma.token.create({
+        data: {
+          token: newToken,
+          user: {
+            connect: { id: user.id }
+          },
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      });
+
+      // Delete old token
+      await prisma.token.deleteMany({
+        where: { token: oldToken }
+      });
+
+      res.json({
+        success: true,
+        token: newToken
+      });
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+  } catch (error) {
+    console.error('Server error during refresh:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+module.exports = { 
+  register, 
+  login, 
+  logout,
+  refresh 
+};

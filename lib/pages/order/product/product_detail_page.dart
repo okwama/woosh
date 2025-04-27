@@ -3,9 +3,14 @@ import 'package:get/get.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/price_option_model.dart';
+import 'package:woosh/models/orderitem_model.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/pages/order/cart_page.dart';
+import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Outlet outlet;
@@ -24,70 +29,107 @@ class ProductDetailPage extends StatefulWidget {
 }
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
-  final _quantityController = TextEditingController(text: '1');
-  final _cartController = Get.find<CartController>();
+  final TextEditingController _quantityController =
+      TextEditingController(text: '1');
+  final CartController _cartController = Get.find<CartController>();
+  PriceOption? _selectedPriceOption;
 
   @override
   void initState() {
     super.initState();
-    _loadExistingQuantity();
-  }
-
-  void _loadExistingQuantity() {
-    final existingItem = _cartController.items.firstWhereOrNull(
-      (item) => item.product.id == widget.product.id,
-    );
-    if (existingItem != null) {
-      _quantityController.text = existingItem.quantity.toString();
+    print('Product price options: ${widget.product.priceOptions}');
+    if (widget.product.priceOptions.isNotEmpty) {
+      _selectedPriceOption = widget.product.priceOptions.first;
+      print('Selected price option: $_selectedPriceOption');
     }
   }
 
   void _adjustQuantity(int delta) {
-    final current = int.tryParse(_quantityController.text) ?? 1;
-    final newValue = current + delta;
-    final maxStock = widget.product.currentStock;
+    final currentValue = int.tryParse(_quantityController.text) ?? 0;
+    final newValue = currentValue + delta;
+    final maxStock = widget.product.currentStock ?? 0;
 
-    if (newValue > 0 && (maxStock == null || newValue <= maxStock)) {
-      setState(() => _quantityController.text = newValue.toString());
+    if (newValue > 0 && newValue <= maxStock) {
+      _quantityController.text = newValue.toString();
     }
   }
 
-  Future<void> _addToCart() async {
-    try {
-      final quantity = int.parse(_quantityController.text);
-      _cartController.addToCart(widget.product, quantity);
+  void _addToCart() {
+    print('Available price options: ${widget.product.priceOptions}');
+    print('Selected price option: $_selectedPriceOption');
 
-      Get.snackbar(
-        'Added to Cart',
-        '${widget.product.name} × $quantity',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.black87,
-        colorText: Colors.white,
-        borderRadius: 8,
-        duration: const Duration(seconds: 1),
-      );
-
-      Get.off(
-        () => CartPage(outlet: widget.outlet, order: widget.order),
-        transition: Transition.fadeIn,
-        duration: const Duration(milliseconds: 200),
-      );
-    } catch (e) {
+    if (_selectedPriceOption == null) {
       Get.snackbar(
         'Error',
-        'Couldn\'t add to cart',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Colors.red[400],
+        'Please select a price option',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
         colorText: Colors.white,
-        borderRadius: 8,
       );
+      return;
     }
+
+    final quantity = int.tryParse(_quantityController.text) ?? 0;
+    if (quantity <= 0) {
+      Get.snackbar(
+        'Error',
+        'Please enter a valid quantity',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    // Check stock availability
+    if (widget.product.currentStock != null &&
+        quantity > widget.product.currentStock!) {
+      Get.snackbar(
+        'Error',
+        'Not enough stock available',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    _cartController.addItem(
+      OrderItem(
+        productId: widget.product.id,
+        quantity: quantity,
+        product: widget.product,
+        priceOptionId: _selectedPriceOption?.id,
+      ),
+    );
+
+    // Show success message
+    Get.snackbar(
+      'Success',
+      'Item added to cart',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
+
+    // Navigate to cart page
+    Get.to(
+      () => CartPage(
+        outlet: widget.outlet,
+        order: widget.order,
+      ),
+      transition: Transition.rightToLeft,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isOutOfStock = widget.product.currentStock == 0;
+    final isOutOfStock = widget.product.currentStock != null &&
+        widget.product.currentStock! <= 0;
     final theme = Theme.of(context);
+
+    print('Building UI with price options: ${widget.product.priceOptions}');
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -133,23 +175,88 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 const SizedBox(height: 12),
 
-                // Price and Stock
-                // _PriceRow(
-                //   price: widget.product.price ?? 0,
-                //   currentStock: widget.product.currentStock,
-                // ),
+                // Stock Status
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isOutOfStock
+                        ? const Color(0xFFFDEDED)
+                        : const Color(0xFFEDF7ED),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isOutOfStock
+                        ? 'Out of stock'
+                        : '${widget.product.currentStock} in stock',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: isOutOfStock
+                          ? const Color(0xFFD93025)
+                          : const Color(0xFF1E8E3E),
+                    ),
+                  ),
+                ),
 
-                const SizedBox(height: 24),
-                const Divider(height: 1, color: Color(0xFFEEEEEE)),
                 const SizedBox(height: 24),
 
                 // Quantity Selector
-                _QuantitySelector(
-                  controller: _quantityController,
-                  onDecrement: () => _adjustQuantity(-1),
-                  onIncrement: () => _adjustQuantity(1),
-                  maxQuantity: widget.product.currentStock,
-                ),
+                if (!isOutOfStock)
+                  _QuantitySelector(
+                    controller: _quantityController,
+                    onDecrement: () => _adjustQuantity(-1),
+                    onIncrement: () => _adjustQuantity(1),
+                    maxQuantity: widget.product.currentStock,
+                  ),
+
+                const SizedBox(height: 24),
+
+                // Price Options
+                if (widget.product.priceOptions.isNotEmpty) ...[
+                  const Text(
+                    'Select Price Option',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<PriceOption>(
+                        value: _selectedPriceOption,
+                        isExpanded: true,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        items: widget.product.priceOptions.map((option) {
+                          return DropdownMenuItem<PriceOption>(
+                            value: option,
+                            child: Text(
+                              '${option.option} - Ksh ${option.value}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (PriceOption? value) {
+                          setState(() {
+                            _selectedPriceOption = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                const SizedBox(height: 24),
 
                 if (widget.product.description?.isNotEmpty ?? false) ...[
                   const SizedBox(height: 28),
@@ -192,23 +299,38 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             ),
           ],
         ),
-        child: ElevatedButton(
-          onPressed: isOutOfStock ? null : _addToCart,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isOutOfStock ? Colors.grey[300] : Colors.black,
-            foregroundColor: isOutOfStock ? Colors.grey[600] : Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
-          ),
-          child: Text(
-            isOutOfStock ? 'Out of Stock' : 'Add to Cart',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_selectedPriceOption != null)
+                Text(
+                  'Selected Price: Ksh ${_selectedPriceOption!.value}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: isOutOfStock ? null : _addToCart,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  minimumSize: Size(MediaQuery.of(context).size.width * 0.8, 0),
+                ),
+                child: Text(
+                  isOutOfStock ? 'Out of Stock' : 'Add to Cart',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

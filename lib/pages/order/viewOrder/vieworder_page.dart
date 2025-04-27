@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/utils/date_utils.dart';
 
 class ViewOrdersPage extends StatefulWidget {
   const ViewOrdersPage({super.key});
@@ -270,9 +271,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                       ),
                                                     ),
                                                     Text(
-                                                      DateFormat(
-                                                              'MMM d, h:mm a')
-                                                          .format(
+                                                      DateFormatter
+                                                          .formatDateTime(
                                                               order.createdAt),
                                                       style: const TextStyle(
                                                         color: Colors.grey,
