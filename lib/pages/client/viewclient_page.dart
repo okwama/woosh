@@ -5,6 +5,8 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/pages/client/addclient_page.dart';
 import 'package:woosh/pages/client/clientdetails.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
@@ -109,10 +111,9 @@ class _ViewClientPageState extends State<ViewClientPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('View Clients'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'View Clients',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -125,20 +126,20 @@ class _ViewClientPageState extends State<ViewClientPage> {
         children: [
           // Search Bar
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search outlets...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
               ),
               onChanged: (value) => setState(() {}),
@@ -233,16 +234,16 @@ class _ViewClientPageState extends State<ViewClientPage> {
                             child: ListView.builder(
                               key: const PageStorageKey('outlets_list'),
                               padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
+                                  const EdgeInsets.symmetric(horizontal: 12),
                               itemCount: _getFilteredOutlets().length,
                               itemBuilder: (context, index) {
                                 final outlet = _getFilteredOutlets()[index];
                                 return Card(
                                   key: ValueKey('outlet_${outlet.id}_$index'),
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  elevation: 2,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  elevation: 1,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: InkWell(
                                     onTap: () {
@@ -272,9 +273,9 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                         );
                                       }
                                     },
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(8),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(16),
+                                      padding: const EdgeInsets.all(10),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -283,22 +284,22 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                             children: [
                                               Container(
                                                 padding:
-                                                    const EdgeInsets.all(8),
+                                                    const EdgeInsets.all(6),
                                                 decoration: BoxDecoration(
                                                   color: Theme.of(context)
                                                       .primaryColor
                                                       .withOpacity(0.1),
                                                   borderRadius:
-                                                      BorderRadius.circular(8),
+                                                      BorderRadius.circular(6),
                                                 ),
                                                 child: Icon(
                                                   Icons.store,
                                                   color: Theme.of(context)
                                                       .primaryColor,
-                                                  size: 24,
+                                                  size: 20,
                                                 ),
                                               ),
-                                              const SizedBox(width: 12),
+                                              const SizedBox(width: 8),
                                               Expanded(
                                                 child: Column(
                                                   crossAxisAlignment:
@@ -307,18 +308,18 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                     Text(
                                                       outlet.name,
                                                       style: const TextStyle(
-                                                        fontSize: 16,
+                                                        fontSize: 14,
                                                         fontWeight:
                                                             FontWeight.bold,
                                                       ),
                                                     ),
-                                                    const SizedBox(height: 4),
+                                                    const SizedBox(height: 2),
                                                     Text(
                                                       outlet.address,
                                                       style: TextStyle(
                                                         color: Colors
                                                             .grey.shade600,
-                                                        fontSize: 14,
+                                                        fontSize: 12,
                                                       ),
                                                       maxLines: 1,
                                                       overflow:
@@ -330,6 +331,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                               Icon(
                                                 Icons.chevron_right,
                                                 color: Colors.grey.shade400,
+                                                size: 20,
                                               ),
                                             ],
                                           ),

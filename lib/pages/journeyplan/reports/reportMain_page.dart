@@ -10,6 +10,8 @@ import 'package:woosh/models/report/visibilityReport_model.dart';
 import 'package:woosh/models/report/feedbackReport_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -433,10 +435,9 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reports'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Reports',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

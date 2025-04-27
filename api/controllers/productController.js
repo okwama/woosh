@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getPrismaClient } = require('../lib/prisma');
+const prisma = getPrismaClient();
 const multer = require('multer');
 const ImageKit = require('imagekit');
 const path = require('path');
@@ -69,9 +69,15 @@ const getProducts = async (req, res) => {
         }
       });
 
+      // Get store quantities for this product
+      const storeQuantities = await prisma.storeQuantity.findMany({
+        where: { productId: product.id }
+      });
+
       return {
         ...product,
-        priceOptions: categoryWithPriceOptions?.priceOptions || []
+        priceOptions: categoryWithPriceOptions?.priceOptions || [],
+        storeQuantities: storeQuantities
       };
     }));
 

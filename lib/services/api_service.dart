@@ -705,9 +705,13 @@ class ApiService {
       // Cache the response
       ApiCache.set('products', responseData['data']);
 
-      final products = (responseData['data'] as List)
-          .map((item) => Product.fromJson(item))
-          .toList();
+      final products = (responseData['data'] as List).map((item) {
+        // Ensure storeQuantities is included in the response
+        if (!item.containsKey('storeQuantities')) {
+          item['storeQuantities'] = [];
+        }
+        return Product.fromJson(item);
+      }).toList();
 
       print('[Products] Successfully loaded ${products.length} products');
 

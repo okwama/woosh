@@ -155,7 +155,7 @@ class _TargetsPageState extends State<TargetsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GradientAppBar(
-        title: 'Products Sold Targets',
+        title: 'Targets',
         actions: [
           IconButton(
             icon: const Icon(Icons.sort),
@@ -171,9 +171,15 @@ class _TargetsPageState extends State<TargetsPage>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: 'Active (${_activeCount})'),
-            Tab(text: 'Upcoming (${_upcomingCount})'),
-            Tab(text: 'Completed (${_completedCount})'),
+            Tab(
+                child: Text('Active ($_activeCount)',
+                    style: const TextStyle(color: Colors.white, fontSize: 12))),
+            Tab(
+                child: Text('Upcoming ($_upcomingCount)',
+                    style: const TextStyle(color: Colors.white, fontSize: 12))),
+            Tab(
+                child: Text('Completed ($_completedCount)',
+                    style: const TextStyle(color: Colors.white, fontSize: 12))),
           ],
         ),
       ),

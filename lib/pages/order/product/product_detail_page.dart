@@ -47,7 +47,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   void _adjustQuantity(int delta) {
     final currentValue = int.tryParse(_quantityController.text) ?? 0;
     final newValue = currentValue + delta;
-    final maxStock = widget.product.currentStock ?? 0;
+    final maxStock = widget.product.getQuantityForStore(widget.outlet.id);
 
     if (newValue > 0 && newValue <= maxStock) {
       _quantityController.text = newValue.toString();
@@ -82,8 +82,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     }
 
     // Check stock availability
-    if (widget.product.currentStock != null &&
-        quantity > widget.product.currentStock!) {
+    final availableStock = widget.product.getQuantityForStore(widget.outlet.id);
+    if (quantity > availableStock) {
       Get.snackbar(
         'Error',
         'Not enough stock available',
@@ -125,8 +125,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isOutOfStock = widget.product.currentStock != null &&
-        widget.product.currentStock! <= 0;
+    final availableStock = widget.product.getQuantityForStore(widget.outlet.id);
+    final isOutOfStock = availableStock <= 0;
     final theme = Theme.of(context);
 
     print('Building UI with price options: ${widget.product.priceOptions}');
@@ -186,9 +186,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    isOutOfStock
-                        ? 'Out of stock'
-                        : '${widget.product.currentStock} in stock',
+                    isOutOfStock ? 'Out of stock' : '$availableStock in stock',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -207,7 +205,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     controller: _quantityController,
                     onDecrement: () => _adjustQuantity(-1),
                     onIncrement: () => _adjustQuantity(1),
-                    maxQuantity: widget.product.currentStock,
+                    maxQuantity: widget.product.storeQuantities.first.quantity,
                   ),
 
                 const SizedBox(height: 24),

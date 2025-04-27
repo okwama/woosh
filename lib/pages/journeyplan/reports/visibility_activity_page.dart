@@ -22,6 +22,7 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
     with BaseReportPageMixin, WidgetsBindingObserver {
   File? _imageFile;
   String? _imageUrl;
+  // ignore: unused_field
   final _apiService = ApiService();
 
   @override

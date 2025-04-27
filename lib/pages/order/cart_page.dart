@@ -355,8 +355,8 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: () {
                         final newQuantity = item.quantity + 1;
-                        if (item.product?.currentStock == null ||
-                            newQuantity <= item.product!.currentStock!) {
+                        if (item.product?.storeQuantities == null ||
+                            newQuantity <= item.product!.storeQuantities.first.quantity) {
                           cartController.updateItemQuantity(item, newQuantity);
                         } else {
                           Get.snackbar(

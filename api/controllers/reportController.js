@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getPrismaClient } = require('../lib/prisma');
+const prisma = getPrismaClient();
 
 // Helper function for consistent error logging
 const logError = (error, context = {}) => {

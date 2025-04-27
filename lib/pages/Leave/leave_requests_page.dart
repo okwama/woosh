@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:woosh/models/leave_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class LeaveRequestsPage extends StatefulWidget {
-  const LeaveRequestsPage({Key? key}) : super(key: key);
+  const LeaveRequestsPage({super.key});
 
   @override
   _LeaveRequestsPageState createState() => _LeaveRequestsPageState();
@@ -50,10 +52,9 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leave Requests'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Leave Requests',
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -83,15 +84,16 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
                       onRefresh: _loadLeaves,
                       child: ListView.builder(
                         key: const PageStorageKey('leave_requests_list'),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         itemCount: _leaves.length,
                         itemBuilder: (context, index) {
                           final leave = _leaves[index];
                           return Card(
                             key: ValueKey('leave_${leave.id}_$index'),
-                            margin: const EdgeInsets.only(bottom: 16),
+                            margin: const EdgeInsets.only(bottom: 8),
                             child: Padding(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(12),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -102,65 +104,70 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
                                       Text(
                                         leave.leaveType,
                                         style: const TextStyle(
-                                          fontSize: 18,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                          horizontal: 6,
+                                          vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: _getStatusColor(leave.status)
-                                              .withOpacity(0.1),
+                                          gradient: goldGradient,
                                           borderRadius:
-                                              BorderRadius.circular(12),
+                                              BorderRadius.circular(8),
                                         ),
                                         child: Text(
                                           leave.status
                                               .toString()
                                               .split('.')
                                               .last,
-                                          style: TextStyle(
-                                            color:
-                                                _getStatusColor(leave.status),
+                                          style: const TextStyle(
+                                            color: Colors.white,
                                             fontWeight: FontWeight.bold,
+                                            fontSize: 12,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'From: ${DateFormat('MMM dd, yyyy').format(leave.startDate)}',
-                                    style: const TextStyle(fontSize: 16),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'From: ${DateFormat('MMM dd, yyyy').format(leave.startDate)}',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      Text(
+                                        'To: ${DateFormat('MMM dd, yyyy').format(leave.endDate)}',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    'To: ${DateFormat('MMM dd, yyyy').format(leave.endDate)}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Reason: ${leave.reason}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
+                                  const SizedBox(height: 6),
                                   if (leave.attachment != null) ...[
-                                    const SizedBox(height: 8),
                                     Row(
                                       children: [
-                                        const Icon(Icons.attach_file),
-                                        const SizedBox(width: 8),
+                                        const Icon(Icons.attach_file, size: 16),
+                                        const SizedBox(width: 4),
                                         Flexible(
                                           child: Text(
                                             'Attachment: ${leave.attachment!.split('/').last.length > 8 ? leave.attachment!.split('/').last.substring(0, 8) + '...' : leave.attachment!.split('/').last}',
                                             style:
-                                                const TextStyle(fontSize: 16),
+                                                const TextStyle(fontSize: 14),
                                           ),
                                         ),
                                       ],
                                     ),
+                                    const SizedBox(height: 6),
                                   ],
+                                  Text(
+                                    'Reason: ${leave.reason}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
                                 ],
                               ),
                             ),

@@ -1,4 +1,5 @@
 import 'price_option_model.dart';
+import 'store_quantity_model.dart';
 
 class Product {
   final int id;
@@ -6,14 +7,12 @@ class Product {
   final int category_id;
   final String category;
   final String description;
-  final int? currentStock;
-  final int? reorderPoint; // Nullable as per Prisma schema
-  final int orderQuantity; // Defaulting this to 0 if Prisma has a default
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? imageUrl;
   final int? clientId;
   final List<PriceOption> priceOptions;
+  final List<StoreQuantity> storeQuantities;
 
   Product({
     required this.id,
@@ -21,14 +20,12 @@ class Product {
     required this.category_id,
     required this.category,
     this.description = '',
-    this.currentStock,
-    this.reorderPoint, // Nullable field
-    this.orderQuantity = 0, // Default 0 if not provided
     required this.createdAt,
     required this.updatedAt,
     this.imageUrl,
     this.clientId,
     this.priceOptions = const [],
+    this.storeQuantities = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -38,15 +35,16 @@ class Product {
       category_id: json['category_id'],
       category: json['category'],
       description: json['description'] ?? '',
-      currentStock: json['currentStock'],
-      reorderPoint: json['reorderPoint'],
-      orderQuantity: json['orderQuantity'] ?? 0,
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       imageUrl: json['image'],
       clientId: json['clientId'],
       priceOptions: (json['priceOptions'] as List<dynamic>?)
               ?.map((e) => PriceOption.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      storeQuantities: (json['storeQuantities'] as List<dynamic>?)
+              ?.map((e) => StoreQuantity.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -59,15 +57,23 @@ class Product {
       'category_id': category_id,
       'category': category,
       'description': description,
-      'currentStock': currentStock,
-      'reorderPoint': reorderPoint,
-      'orderQuantity': orderQuantity,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'image': imageUrl,
       'clientId': clientId,
       'priceOptions': priceOptions.map((e) => e.toJson()).toList(),
+      'storeQuantities': storeQuantities.map((e) => e.toJson()).toList(),
     };
+  }
+
+  // Helper method to get quantity for a specific store
+  int getQuantityForStore(int storeId) {
+    final storeQuantity = storeQuantities.firstWhere(
+      (sq) => sq.storeId == storeId,
+      orElse: () =>
+          StoreQuantity(id: 0, storeId: storeId, productId: id, quantity: 0),
+    );
+    return storeQuantity.quantity;
   }
 
   @override
@@ -85,14 +91,12 @@ class Product {
       category_id: 0,
       category: 'Unknown',
       description: '',
-      currentStock: 0,
-      reorderPoint: 0,
-      orderQuantity: 0,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       imageUrl: '',
       clientId: null,
       priceOptions: [],
+      storeQuantities: [],
     );
   }
 }

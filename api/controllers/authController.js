@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getPrismaClient } = require('../lib/prisma');
+const prisma = getPrismaClient();
 
 const register = async (req, res) => {
   try {
@@ -12,13 +12,22 @@ const register = async (req, res) => {
       password, 
       countryId, 
       region_id, 
-      region 
+      region,
+      role = 'SALES_REP', // Default to SALES_REP if not provided
+      department // Required for MANAGER
     } = req.body;
 
     // Validate required fields
     if (!name || !email || !phoneNumber || !password || !countryId || !region_id || !region) {
       return res.status(400).json({ 
         message: 'All fields are required: name, email, phoneNumber, password, countryId, region_id, and region' 
+      });
+    }
+
+    // If role is MANAGER, ensure department is provided
+    if (role === 'MANAGER' && !department) {
+      return res.status(400).json({ 
+        message: 'Department is required for manager registration' 
       });
     }
 
@@ -51,12 +60,24 @@ const register = async (req, res) => {
           countryId,
           region_id,
           region,
-          role: 'SALES_REP'
+          role, // Use the role from request
+          createdAt: new Date(),  // Explicitly set
+          updatedAt: new Date(),   // Explicitly set
         },
         include: {
           country: true
         }
       });
+
+      // If role is MANAGER, create manager record
+      if (role === 'MANAGER') {
+        await prisma.manager.create({
+          data: {
+            userId: salesRep.id,
+            department
+          }
+        });
+      }
 
       // Generate token
       const token = jwt.sign(
@@ -76,7 +97,6 @@ const register = async (req, res) => {
         }
       });
       
-
       return { salesRep, token };
     });
 
@@ -87,7 +107,7 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ message: 'Failed to register user' });
+    res.status(500).json({ message: 'Failed to register user', error: error.message });
   }
 };
 

@@ -20,8 +20,8 @@ class MenuTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      margin: const EdgeInsets.all(4),
+      elevation: 0.5,
+      margin: const EdgeInsets.all(2),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -33,11 +33,11 @@ class MenuTile extends StatelessWidget {
                 shaderCallback: (bounds) => goldGradient.createShader(bounds),
                 child: Icon(
                   icon,
-                  size: 32,
+                  size: 30,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 title,
                 style: const TextStyle(
@@ -50,7 +50,7 @@ class MenuTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.red,
                     borderRadius: BorderRadius.circular(12),

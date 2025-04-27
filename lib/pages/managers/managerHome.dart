@@ -4,6 +4,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
+import 'package:woosh/pages/managers/history_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
@@ -28,6 +29,7 @@ class ManagerHomePage extends StatefulWidget {
 class _ManagerHomePageState extends State<ManagerHomePage> {
   late String userName;
   late String userPhone;
+  
   int _pendingJourneyPlans = 0;
   bool _isLoading = true;
 
@@ -218,7 +220,7 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
                   children: [
                     // User Profile Tile
                     MenuTile(
-                      title: 'Merchandiser',
+                      title: 'Manager',
                       subtitle: '$userName\n$userPhone',
                       icon: Icons.person,
                       onTap: () {
@@ -241,17 +243,17 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
                         )?.then((_) => _loadPendingJourneyPlans());
                       },
                     ),
-                    // MenuTile(
-                    //   title: 'View Client',
-                    //   icon: Icons.storefront_outlined,
-                    //   onTap: () {
-                    //     Get.to(
-                    //       () => const ViewClientPage(),
-                    //       preventDuplicates: true,
-                    //       transition: Transition.rightToLeft,
-                    //     );
-                    //   },
-                    // ),
+                    MenuTile(
+                      title: 'History',
+                      icon: Icons.history_edu_outlined,
+                      onTap: () {
+                        Get.to(
+                          () => const CheckInHistoryPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
+                      },
+                     ),
                     // MenuTile(
                     //   title: 'Notice Board',
                     //   icon: Icons.notifications,

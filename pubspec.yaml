@@ -41,11 +41,11 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/ben.png"
+  image_path: "assets/logg.png"
   remove_alpha_ios: true 
   web:
     generate: true
-    image_path: "assets/ben.png"
+    image_path: "assets/logg.png"
     background_color: "#FFFFFF"
   # Optional for Android adaptive icons:
   # adaptive_icon_background: "#FFFFFF"

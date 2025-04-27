@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:camera/camera.dart';
-import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:woosh/services/api_service.dart';
-import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
+import 'dart:convert';
+
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/checkin_service.dart';
+import 'package:woosh/pages/managers/service/location_service.dart';
 
 // Constants
 class CheckInConstants {
@@ -17,7 +20,9 @@ class CheckInConstants {
       50000000.0; // Increased to cover large distances during testing
   static const Duration locationUpdateInterval = Duration(seconds: 10);
   static const Duration locationFastUpdateInterval = Duration(seconds: 5);
-  // static const String qrCodePrefix = 'OFFICE_';
+  static const Duration cacheDuration = Duration(hours: 1);
+  static const String outletsCacheKey = 'cached_outlets';
+  static const String lastFetchTimeKey = 'last_outlet_fetch_time';
 }
 
 // Services
@@ -77,247 +82,254 @@ class LocationService {
   }
 }
 
-// class QRScanner extends StatefulWidget {
-//   final Function(String) onQRCodeScanned;
-//   final Function() onClose;
+class OutletService {
+  static final _storage = GetStorage();
 
-class CameraCapture extends StatefulWidget {
-  final Function(XFile) onImageCaptured;
-  final Function() onCancel;
+  static Future<List<dynamic>> getOutletsWithCache() async {
+    // Check if cache is valid
+    final lastFetchTime = _storage.read(CheckInConstants.lastFetchTimeKey);
+    final cachedOutlets = _storage.read(CheckInConstants.outletsCacheKey);
 
-  const CameraCapture({
-    super.key,
-    required this.onImageCaptured,
-    required this.onCancel,
-  });
+    if (lastFetchTime != null &&
+        cachedOutlets != null &&
+        DateTime.now().difference(DateTime.parse(lastFetchTime)) <
+            CheckInConstants.cacheDuration) {
+      return cachedOutlets;
+    }
 
-  @override
-  State<CameraCapture> createState() => _CameraCaptureState();
+    // Fetch fresh data
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiService.baseUrl}/outlets'),
+            headers: await _getAuthHeaders(),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final outlets = json.decode(response.body);
+        // Update cache
+        await _storage.write(CheckInConstants.outletsCacheKey, outlets);
+        await _storage.write(
+          CheckInConstants.lastFetchTimeKey,
+          DateTime.now().toIso8601String(),
+        );
+        return outlets;
+      }
+      throw Exception('Failed to fetch outlets: ${response.statusCode}');
+    } catch (e) {
+      // Return cached data even if stale when network fails
+      if (cachedOutlets != null) return cachedOutlets;
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> findNearestOutlet(
+      Position position) async {
+    final outlets = await getOutletsWithCache();
+    if (outlets.isEmpty) return null;
+
+    Map<String, dynamic>? nearest;
+    double? minDistance;
+
+    for (final outlet in outlets) {
+      if (outlet['latitude'] == null || outlet['longitude'] == null) continue;
+
+      final distance = LocationService.calculateDistance(
+        position.latitude,
+        position.longitude,
+        outlet['latitude'],
+        outlet['longitude'],
+      );
+
+      if (minDistance == null || distance < minDistance) {
+        minDistance = distance;
+        nearest = outlet;
+      }
+    }
+
+    return nearest?..['distance'] = minDistance;
+  }
+
+  static Future<Map<String, String>> _getAuthHeaders() async {
+    final token = _storage.read<String>('token');
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
 }
 
-class _CameraCaptureState extends State<CameraCapture> {
-  CameraController? _controller;
-  List<CameraDescription>? _cameras;
-  bool _isInitialized = false;
-  bool _isTakingPicture = false;
+class OutletLocationTracker {
+  static Stream<Map<String, dynamic>?> trackNearestOutlet() {
+    final controller = StreamController<Map<String, dynamic>?>();
+    StreamSubscription<Position>? positionSub;
+    List<dynamic> outlets = [];
+
+    // Initialize
+    () async {
+      try {
+        outlets = await OutletService.getOutletsWithCache();
+        if (outlets.isEmpty) {
+          controller.add(null);
+          return;
+        }
+
+        // Start location updates
+        positionSub = Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            distanceFilter: 50, // Update every 50 meters
+          ),
+        ).listen((position) async {
+          final nearest = await OutletService.findNearestOutlet(position);
+          controller.add(nearest);
+        });
+      } catch (e) {
+        controller.addError(e);
+      }
+    }();
+
+    controller.onCancel = () {
+      positionSub?.cancel();
+    };
+
+    return controller.stream;
+  }
+}
+
+// Camera and UI components remain mostly the same as before
+// [CameraCapture, GridPainter, ManagerCheckInCard widgets]
+
+class CheckInPage extends StatefulWidget {
+  const CheckInPage({super.key});
+
+  @override
+  State<CheckInPage> createState() => _CheckInPageState();
+}
+
+class _CheckInPageState extends State<CheckInPage> {
+  bool _isLoading = true;
+  String? _error;
+  Map<String, dynamic>? _outletData;
+  StreamSubscription<Map<String, dynamic>?>? _outletSubscription;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
-  }
-
-  Future<void> _initializeCamera() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras!.isEmpty) {
-        throw Exception('No cameras available');
-      }
-
-      // Start with the first back camera
-      final backCamera = _cameras!.firstWhere(
-        (camera) => camera.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras!.first,
-      );
-
-      _controller = CameraController(
-        backCamera,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-
-      await _controller!.initialize();
-
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      _showError('Failed to initialize camera: $e');
-    }
-  }
-
-  void _showError(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _takePicture() async {
-    if (_controller == null || !_isInitialized || _isTakingPicture) {
-      return;
-    }
-
-    try {
-      setState(() => _isTakingPicture = true);
-      final XFile image = await _controller!.takePicture();
-      widget.onImageCaptured(image);
-    } catch (e) {
-      _showError('Failed to take picture: $e');
-      setState(() => _isTakingPicture = false);
-    }
+    _startOutletTracking();
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _outletSubscription?.cancel();
     super.dispose();
+  }
+
+  void _startOutletTracking() {
+    _outletSubscription = OutletLocationService.trackNearestOutlet().listen(
+      (outlet) {
+        setState(() {
+          _outletData = outlet;
+          _isLoading = false;
+        });
+      },
+      onError: (error) {
+        setState(() {
+          _error = 'Failed to track nearest outlet: $error';
+          _isLoading = false;
+        });
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized || _controller == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Check-in Photo'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: widget.onCancel,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Check In'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _startOutletTracking,
           ),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _startOutletTracking,
+              child: const Text('Retry'),
+            ),
+          ],
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Take Check-in Photo'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onCancel,
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                CameraPreview(_controller!),
-                // Grid overlay
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: GridPainter(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            color: Colors.black,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
-                  onPressed: widget.onCancel,
-                ),
-                GestureDetector(
-                  onTap: _isTakingPicture ? null : _takePicture,
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                    ),
-                    child: _isTakingPicture
-                        ? const CircularProgressIndicator()
-                        : Container(
-                            margin: const EdgeInsets.all(3),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.flip_camera_ios,
-                      color: Colors.white, size: 30),
-                  onPressed: () async {
-                    // Implement camera switching
-                    if (_cameras != null && _cameras!.length > 1) {
-                      final currentLensDirection =
-                          _controller!.description.lensDirection;
-                      CameraDescription newCamera;
+    if (_outletData == null) {
+      return const Center(
+        child: Text('No outlet found nearby. Please check your location.'),
+      );
+    }
 
-                      if (currentLensDirection == CameraLensDirection.back) {
-                        newCamera = _cameras!.firstWhere(
-                          (camera) =>
-                              camera.lensDirection == CameraLensDirection.front,
-                          orElse: () => _cameras!.first,
-                        );
-                      } else {
-                        newCamera = _cameras!.firstWhere(
-                          (camera) =>
-                              camera.lensDirection == CameraLensDirection.back,
-                          orElse: () => _cameras!.first,
-                        );
-                      }
-
-                      await _controller!.dispose();
-                      _controller = CameraController(
-                        newCamera,
-                        ResolutionPreset.medium,
-                        enableAudio: false,
-                      );
-                      await _controller!.initialize();
-                      if (mounted) setState(() {});
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return ManagerCheckInCard(
+      outletId: _outletData!['id'],
+      outletName: _outletData!['name'],
+      outletAddress: _outletData!['address'],
+      distance: _outletData!['distance'],
     );
   }
-}
 
-// GridPainter for camera overlay
-class GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..strokeWidth = 1;
-
-    // Draw horizontal lines
-    for (int i = 1; i < 3; i++) {
-      final y = size.height * i / 3;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw vertical lines
-    for (int i = 1; i < 3; i++) {
-      final x = size.width * i / 3;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
+  Future<Map<String, String>> _getAuthHeaders([String? contentType]) async {
+    final box = GetStorage();
+    final token = box.read<String>('token');
+    return {
+      'Content-Type': contentType ?? 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  void _handleNetworkError(dynamic error) {
+    if (error.toString().contains('SocketException') ||
+        error.toString().contains('XMLHttpRequest error') ||
+        error.toString().contains('TimeoutException')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Network error: Please check your internet connection'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 }
 
+// Updated ManagerCheckInCard with distance awareness
 class ManagerCheckInCard extends StatefulWidget {
   final int outletId;
   final String outletName;
   final String outletAddress;
+  final double? distance;
 
   const ManagerCheckInCard({
     super.key,
     required this.outletId,
     required this.outletName,
     required this.outletAddress,
+    this.distance,
   });
 
   @override
@@ -359,7 +371,6 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     try {
       setState(() => _isProcessing = true);
 
-      // Call the API to get current check-in status
       final response = await http
           .get(
         Uri.parse('${ApiService.baseUrl}/checkin/status'),
@@ -380,13 +391,13 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
             _checkInTime = data['checkInTime'] != null
                 ? DateTime.parse(data['checkInTime'])
                 : null;
-
-            // If there's an image URL in the response, we could display it
-            // but for now we'll use the local captured image
+            // If checked in, automatically set within geofence to allow checkout
+            if (_isCheckedIn) {
+              _isWithinGeofence = true;
+            }
           });
         }
       } else {
-        // Default to not checked in if API fails
         if (mounted) {
           setState(() {
             _isCheckedIn = false;
@@ -479,10 +490,9 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     if (_currentPosition == null) return false;
 
     try {
-      // Get outlet location from API
       final response = await http
           .get(
-        Uri.parse('${ApiService.baseUrl}/outlets/${widget.outletId}/location'),
+        Uri.parse('${ApiService.baseUrl}/outlets/${widget.outletId}'),
         headers: await _getAuthHeaders(),
       )
           .timeout(
@@ -500,19 +510,12 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       final outletLat = data['latitude']?.toDouble() ?? 0.0;
       final outletLon = data['longitude']?.toDouble() ?? 0.0;
 
-      print('Outlet coordinates: Lat $outletLat, Lon $outletLon');
-      print(
-          'Current coordinates: Lat ${_currentPosition!.latitude}, Lon ${_currentPosition!.longitude}');
-
       _distanceToOutlet = LocationService.calculateDistance(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
         outletLat,
         outletLon,
       );
-
-      print(
-          'Distance to outlet: $_distanceToOutlet meters (Radius: ${CheckInConstants.geofenceRadius} meters)');
 
       final isWithinRange =
           _distanceToOutlet <= CheckInConstants.geofenceRadius;
@@ -523,15 +526,9 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
 
       return isWithinRange;
     } catch (e) {
-      // Use fallback location verification if API fails
       if (mounted) {
         _showErrorSnackbar('Using local geofence check: ${e.toString()}');
-      }
-
-      // Enable geofence regardless of location during testing
-      if (mounted) {
         setState(() => _isWithinGeofence = true);
-        return true;
       }
       return true;
     }
@@ -548,7 +545,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       _showErrorSnackbar('You are already checked in');
       return;
     }
-    _showCamera = true;
+    setState(() => _showCamera = true);
   }
 
   void _handleImageCaptured(XFile image) async {
@@ -559,28 +556,23 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     });
 
     try {
-      // Prepare multipart request for the image upload
       var request = http.MultipartRequest(
           'POST', Uri.parse('${ApiService.baseUrl}/upload-image'));
 
-      // Set headers including authorization
       final headers = await _getAuthHeaders('multipart/form-data');
       request.headers.addAll(headers);
 
-      // Add file and form fields
       request.files.add(await http.MultipartFile.fromPath(
           'attachment', _capturedImage!.path));
 
-      // Add check-in data
-      request.fields['outletId'] = widget.outletId.toString();
+      request.fields['clientId'] = widget.outletId.toString();
       if (_currentPosition != null) {
         request.fields['latitude'] = _currentPosition!.latitude.toString();
         request.fields['longitude'] = _currentPosition!.longitude.toString();
       }
 
-      // Upload the image with timeout
       final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 30), // Upload might take longer
+        const Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('Image upload timeout');
         },
@@ -597,13 +589,12 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       final imageData = json.decode(imageResponse.body);
       final imageUrl = imageData['fileUrl'];
 
-      // Now perform the actual check-in with the image URL
       final checkInResponse = await http
           .post(
         Uri.parse('${ApiService.baseUrl}/checkin'),
         headers: await _getAuthHeaders(),
         body: json.encode({
-          'outletId': widget.outletId,
+          'clientId': widget.outletId,
           'latitude': _currentPosition?.latitude,
           'longitude': _currentPosition?.longitude,
           'imageUrl': imageUrl,
@@ -626,7 +617,8 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
           _showSuccessSnackbar('Checked in successfully!');
         }
       } else {
-        throw Exception(
+        final errorData = json.decode(checkInResponse.body);
+        throw Exception(errorData['message'] ??
             'Check-in failed with status ${checkInResponse.statusCode}');
       }
     } catch (e) {
@@ -645,15 +637,28 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     setState(() => _isProcessing = true);
 
     try {
-      // Call the check-out API
+      // Try to get location but don't block checkout if it fails
+      Position? position;
+      try {
+        position = await LocationService.getCurrentPosition();
+      } catch (e) {
+        // Just log the error and continue with checkout
+        print('Location not available for checkout: $e');
+      }
+
+      final requestBody = <String, dynamic>{};
+
+      // Only add location if we successfully got it
+      if (position != null) {
+        requestBody['latitude'] = position.latitude;
+        requestBody['longitude'] = position.longitude;
+      }
+
       final response = await http
           .post(
         Uri.parse('${ApiService.baseUrl}/checkin/checkout'),
         headers: await _getAuthHeaders(),
-        body: json.encode({
-          'outletId': widget.outletId,
-          'checkOutTime': DateTime.now().toIso8601String(),
-        }),
+        body: json.encode(requestBody),
       )
           .timeout(
         const Duration(seconds: 10),
@@ -670,6 +675,9 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
             _capturedImage = null;
           });
           _showSuccessSnackbar('Checked out successfully');
+
+          // Refresh location tracking after checkout
+          _initializeLocation();
         }
       } else {
         final errorData = json.decode(response.body);
@@ -852,7 +860,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: _isCheckedIn
-            ? Colors.green.withOpacity(0.2)
+            ? Colors.orange.withOpacity(0.2)
             : Colors.blue.withOpacity(0.2),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -860,15 +868,15 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _isCheckedIn ? Icons.verified : Icons.pending,
+            _isCheckedIn ? Icons.access_time : Icons.pending,
             size: 12,
-            color: _isCheckedIn ? Colors.green : Colors.blue,
+            color: _isCheckedIn ? Colors.orange : Colors.blue,
           ),
           const SizedBox(width: 3),
           Text(
-            _isCheckedIn ? 'ACTIVE' : 'READY',
+            _isCheckedIn ? 'IN PROGRESS' : 'READY',
             style: TextStyle(
-              color: _isCheckedIn ? Colors.green : Colors.blue,
+              color: _isCheckedIn ? Colors.orange : Colors.blue,
               fontWeight: FontWeight.bold,
               fontSize: 10,
             ),
@@ -974,7 +982,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
                     ? 'PROCESSING...'
                     : !_isWithinGeofence
                         ? 'TOO FAR'
-                        : 'CHECK IN & PHOTO',
+                        : 'CHECK IN',
                 style: const TextStyle(fontSize: 12),
               ),
               style: ElevatedButton.styleFrom(
@@ -1050,7 +1058,6 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     );
   }
 
-  // Helper method to get auth headers
   Future<Map<String, String>> _getAuthHeaders([String? contentType]) async {
     final box = GetStorage();
     final token = box.read<String>('token');
@@ -1060,7 +1067,6 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     };
   }
 
-  // Helper method for handling network errors
   void _handleNetworkError(dynamic error) {
     if (error.toString().contains('SocketException') ||
         error.toString().contains('XMLHttpRequest error') ||
@@ -1075,169 +1081,225 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
   }
 }
 
-class CheckInPage extends StatefulWidget {
-  const CheckInPage({super.key});
+class CameraCapture extends StatefulWidget {
+  final Function(XFile) onImageCaptured;
+  final Function() onCancel;
+
+  const CameraCapture({
+    super.key,
+    required this.onImageCaptured,
+    required this.onCancel,
+  });
 
   @override
-  State<CheckInPage> createState() => _CheckInPageState();
+  State<CameraCapture> createState() => _CameraCaptureState();
 }
 
-class _CheckInPageState extends State<CheckInPage> {
-  bool _isLoading = true;
-  String? _error;
-  Map<String, dynamic>? _outletData;
+class _CameraCaptureState extends State<CameraCapture> {
+  CameraController? _controller;
+  List<CameraDescription>? _cameras;
+  bool _isInitialized = false;
+  bool _isTakingPicture = false;
 
   @override
   void initState() {
     super.initState();
-    _loadOutletData();
+    _initializeCamera();
   }
 
-  Future<void> _loadOutletData() async {
+  Future<void> _initializeCamera() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      _cameras = await availableCameras();
+      if (_cameras!.isEmpty) {
+        throw Exception('No cameras available');
+      }
 
-      print('📍 Fetching outlet data from API...');
-
-      // Call the actual API endpoint
-      final response = await http
-          .get(
-        Uri.parse('${ApiService.baseUrl}/outlets'),
-        headers: await _getAuthHeaders(),
-      )
-          .timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Connection timeout');
-        },
+      final backCamera = _cameras!.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => _cameras!.first,
       );
 
-      print('📍 Outlet API response status: ${response.statusCode}');
+      _controller = CameraController(
+        backCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
 
-      if (response.statusCode == 200) {
-        final responseBody = response.body;
-        print('📍 Outlet API response: $responseBody');
+      await _controller!.initialize();
 
-        final List<dynamic> outlets = json.decode(responseBody);
-        print('📍 Found ${outlets.length} outlets');
-
-        // For now, just use the first outlet if any exists
-        if (outlets.isNotEmpty) {
-          final outletData = outlets[0];
-          print(
-              '📍 Using outlet: ${outletData['name']}, ID: ${outletData['id']}');
-          print(
-              '📍 Outlet location: Lat ${outletData['latitude']}, Lon ${outletData['longitude']}');
-
-          setState(() {
-            _outletData = outletData;
-            _isLoading = false;
-          });
-        } else {
-          _useFallbackOutletData("No outlets found in API response");
-        }
-      } else {
-        final errorMsg =
-            'Failed to load outlet data: Server returned ${response.statusCode}';
-        print('📍 Error: $errorMsg');
-        _useFallbackOutletData(errorMsg);
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
       }
     } catch (e) {
-      _handleNetworkError(e);
-      final errorMsg = 'Failed to load outlet data: ${e.toString()}';
-      print('📍 Error: $errorMsg');
-      _useFallbackOutletData(errorMsg);
+      _showError('Failed to initialize camera: $e');
     }
   }
 
-  void _useFallbackOutletData(String reason) {
-    print('📍 Using fallback outlet data. Reason: $reason');
-    setState(() {
-      _outletData = {
-        'id': 1,
-        'name': 'Test Outlet',
-        'address': 'Test Address for Development',
-        'latitude': 0.0,
-        'longitude': 0.0,
-      };
-      _isLoading = false;
-    });
+  void _showError(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _takePicture() async {
+    if (_controller == null || !_isInitialized || _isTakingPicture) {
+      return;
+    }
+
+    try {
+      setState(() => _isTakingPicture = true);
+      final XFile image = await _controller!.takePicture();
+      widget.onImageCaptured(image);
+    } catch (e) {
+      _showError('Failed to take picture: $e');
+      setState(() => _isTakingPicture = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isInitialized || _controller == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Check-in Photo'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: widget.onCancel,
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Check In'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadOutletData,
+        title: const Text('Take Check-in Photo'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onCancel,
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              children: [
+                CameraPreview(_controller!),
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: GridPainter(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            color: Colors.black,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: widget.onCancel,
+                ),
+                GestureDetector(
+                  onTap: _isTakingPicture ? null : _takePicture,
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: _isTakingPicture
+                        ? const CircularProgressIndicator()
+                        : Container(
+                            margin: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.flip_camera_ios,
+                      color: Colors.white, size: 30),
+                  onPressed: () async {
+                    if (_cameras != null && _cameras!.length > 1) {
+                      final currentLensDirection =
+                          _controller!.description.lensDirection;
+                      CameraDescription newCamera;
+
+                      if (currentLensDirection == CameraLensDirection.back) {
+                        newCamera = _cameras!.firstWhere(
+                          (camera) =>
+                              camera.lensDirection == CameraLensDirection.front,
+                          orElse: () => _cameras!.first,
+                        );
+                      } else {
+                        newCamera = _cameras!.firstWhere(
+                          (camera) =>
+                              camera.lensDirection == CameraLensDirection.back,
+                          orElse: () => _cameras!.first,
+                        );
+                      }
+
+                      await _controller!.dispose();
+                      _controller = CameraController(
+                        newCamera,
+                        ResolutionPreset.medium,
+                        enableAudio: false,
+                      );
+                      await _controller!.initialize();
+                      if (mounted) setState(() {});
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: _buildBody(),
     );
   }
+}
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+class GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..strokeWidth = 1;
+
+    // Draw horizontal lines
+    for (int i = 1; i < 3; i++) {
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
 
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadOutletData,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_outletData == null) {
-      return const Center(
-        child: Text('No outlet assigned. Please contact your administrator.'),
-      );
-    }
-
-    return ManagerCheckInCard(
-      outletId: _outletData!['id'],
-      outletName: _outletData!['name'],
-      outletAddress: _outletData!['address'],
-    );
-  }
-
-  // Helper method to get auth headers
-  Future<Map<String, String>> _getAuthHeaders([String? contentType]) async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
-    return {
-      'Content-Type': contentType ?? 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  // Helper method for handling network errors
-  void _handleNetworkError(dynamic error) {
-    if (error.toString().contains('SocketException') ||
-        error.toString().contains('XMLHttpRequest error') ||
-        error.toString().contains('TimeoutException')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Network error: Please check your internet connection'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    // Draw vertical lines
+    for (int i = 1; i < 3; i++) {
+      final x = size.width * i / 3;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

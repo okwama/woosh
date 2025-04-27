@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/models/noticeboard_model.dart';
-import 'package:intl/intl.dart'; // Import for date formatting
+import 'package:intl/intl.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart'; // Import for date formatting
 
 class NoticeBoardPage extends StatefulWidget {
   const NoticeBoardPage({super.key});
@@ -207,16 +209,10 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Notice Board',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+      return Scaffold(
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Notice Board',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -228,57 +224,6 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(20),
-                  bottomRight: Radius.circular(20),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    spreadRadius: 1,
-                    blurRadius: 5,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // IconButton(
-                      //   icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      //   onPressed: () => Navigator.pop(context),
-                      // ),
-                      // Text(
-                      //   'Notice Board',
-                      //   style: const TextStyle(
-                      //     fontSize: 24,
-                      //     fontWeight: FontWeight.bold,
-                      //     color: Colors.white,
-                      //   ),
-                      // ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Text(
-                  //   'Stay updated with the latest announcements',
-                  //   style: TextStyle(
-                  //     fontSize: 14,
-                  //     color: Colors.white.withOpacity(0.8),
-                  //   ),
-                  // ),
-                ],
-              ),
-            ),
-
             // Notices List
             Expanded(
               child: FutureBuilder<List<NoticeBoard>>(

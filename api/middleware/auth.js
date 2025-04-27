@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getPrismaClient } = require('../lib/prisma');
+
+// Get the Prisma client instance
+const prisma = getPrismaClient();
 
 // Middleware to authenticate the token
 exports.auth = async (req, res, next) => {
@@ -21,16 +23,36 @@ exports.auth = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       console.log('Decoded token:', decoded);
       
-      // Get user from database
-      const user = await prisma.salesRep.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true
+      // Get user from database with retry logic
+      let retries = 3;
+      let user = null;
+      let lastError = null;
+
+      while (retries > 0 && !user) {
+        try {
+          user = await prisma.salesRep.findUnique({
+            where: { id: decoded.userId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true
+            }
+          });
+        } catch (error) {
+          lastError = error;
+          retries--;
+          if (retries > 0) {
+            // Wait for 1 second before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
-      });
+      }
+
+      if (!user && lastError) {
+        console.error('Failed to fetch user after retries:', lastError);
+        return res.status(500).json({ error: 'Database connection error' });
+      }
 
       console.log('User found:', user ? 'Yes' : 'No');
 

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:woosh/pages/journeyplan/reports/reportMain_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
+// ignore: unnecessary_import
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
@@ -45,6 +46,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
   // Captured image file variable
   File? _capturedImage;
+  // ignore: unused_field
   String? _imageUrl;
 
   // Notes-related variables
@@ -291,57 +293,135 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (context) => Dialog.fullscreen(
+        child: Stack(
           children: [
+            // Camera Preview
             SizedBox(
-              height: 400,
+              width: double.infinity,
+              height: double.infinity,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
                 child: CameraPreview(_cameraController!),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _isCheckingIn = false;
-                      });
-                    },
-                    child: const Text('Cancel'),
+            // Top Bar with Close Button
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.7),
+                      Colors.transparent,
+                    ],
                   ),
-                  FloatingActionButton(
-                    onPressed: () async {
-                      try {
-                        final image = await _cameraController!.takePicture();
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
                         Navigator.pop(context);
-
-                        _capturedImage = File(image.path);
-
-                        // Show confirmation dialog
-                        await _showConfirmationDialog(_capturedImage);
-                      } catch (e) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to capture image: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
                         setState(() {
                           _isCheckingIn = false;
                         });
-                      }
-                    },
-                    child: const Icon(Icons.camera),
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.flip_camera_ios,
+                          color: Colors.white),
+                      onPressed: () async {
+                        final cameras = await availableCameras();
+                        if (cameras.length < 2) return;
+
+                        // Find the next camera
+                        final currentCamera = _cameraController!.description;
+                        final nextCamera = cameras.firstWhere(
+                          (camera) =>
+                              camera.lensDirection !=
+                              currentCamera.lensDirection,
+                          orElse: () => cameras.first,
+                        );
+
+                        // Dispose of the current controller
+                        await _cameraController!.dispose();
+
+                        // Create a new controller with the next camera
+                        _cameraController = CameraController(
+                          nextCamera,
+                          ResolutionPreset.medium,
+                          enableAudio: false,
+                        );
+
+                        // Initialize the new controller
+                        await _cameraController!.initialize();
+
+                        // Update the UI
+                        if (mounted) {
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Bottom Bar with Capture Button
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.7),
+                      Colors.transparent,
+                    ],
                   ),
-                ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FloatingActionButton(
+                      onPressed: () async {
+                        try {
+                          final image = await _cameraController!.takePicture();
+                          Navigator.pop(context);
+
+                          _capturedImage = File(image.path);
+
+                          // Show confirmation dialog
+                          await _showConfirmationDialog(_capturedImage);
+                        } catch (e) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to capture image: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          setState(() {
+                            _isCheckingIn = false;
+                          });
+                        }
+                      },
+                      backgroundColor: Colors.white,
+                      child: const Icon(Icons.camera, color: Colors.black),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -998,23 +1078,23 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
             // Status Card
             Card(
-              margin: const EdgeInsets.only(bottom: 8.0),
+              margin: const EdgeInsets.only(bottom: 6.0),
               elevation: 1,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
+                borderRadius: BorderRadius.circular(6.0),
               ),
               child: Container(
                 width: double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                    const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
                 decoration: BoxDecoration(
                   color: widget.journeyPlan.statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8.0),
+                  borderRadius: BorderRadius.circular(6.0),
                   border: Border.all(
                     color: widget.journeyPlan.statusColor,
                     width: 1.0,
@@ -1027,24 +1107,24 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                       'Journey Status:',
                       style: TextStyle(
                         color: widget.journeyPlan.statusColor,
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
+                        horizontal: 8,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color: widget.journeyPlan.statusColor,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         widget.journeyPlan.statusText.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1058,7 +1138,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
             Card(
               elevation: 1,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.0),
+                borderRadius: BorderRadius.circular(6.0),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1066,14 +1146,14 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   // Header
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 8.0,
+                      horizontal: 10.0,
+                      vertical: 6.0,
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).primaryColor,
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(8.0),
-                        topRight: Radius.circular(8.0),
+                        topLeft: Radius.circular(6.0),
+                        topRight: Radius.circular(6.0),
                       ),
                     ),
                     child: Row(
@@ -1081,16 +1161,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                         const Icon(
                           Icons.store,
                           color: Colors.white,
-                          size: 16,
+                          size: 14,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             widget.journeyPlan.client.name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: 13,
                             ),
                           ),
                         ),
@@ -1100,7 +1180,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
                   // Content
                   Padding(
-                    padding: const EdgeInsets.all(12.0),
+                    padding: const EdgeInsets.all(10.0),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1117,7 +1197,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                         .format(widget.journeyPlan.date),
                                     Icons.calendar_today,
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
                                   _buildInfoItem(
                                     'Location',
                                     widget.journeyPlan.client.address,
@@ -1143,17 +1223,17 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                     Icons.my_location,
                                   ),
                                   if (_currentPosition != null) ...[
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 3),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
+                                        horizontal: 6,
+                                        vertical: 3,
                                       ),
                                       decoration: BoxDecoration(
                                         color: _isWithinGeofence
                                             ? Colors.green.withOpacity(0.1)
                                             : Colors.red.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -1162,12 +1242,12 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                             _isWithinGeofence
                                                 ? Icons.check_circle
                                                 : Icons.warning,
-                                            size: 14,
+                                            size: 12,
                                             color: _isWithinGeofence
                                                 ? Colors.green
                                                 : Colors.red,
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 3),
                                           Flexible(
                                             child: Text(
                                               _isWithinGeofence
@@ -1177,7 +1257,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                                 color: _isWithinGeofence
                                                     ? Colors.green
                                                     : Colors.red,
-                                                fontSize: 11,
+                                                fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
@@ -1187,12 +1267,12 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                     ),
                                     if (!_isWithinGeofence)
                                       Padding(
-                                        padding: const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.only(top: 3),
                                         child: Text(
                                           '${_distanceToClient.toStringAsFixed(1)}m away',
                                           style: TextStyle(
                                             color: Colors.grey.shade600,
-                                            fontSize: 11,
+                                            fontSize: 10,
                                           ),
                                         ),
                                       ),
@@ -1204,7 +1284,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                         ),
 
                         // Notes section
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         _buildNotesSection(),
                       ],
                     ),
@@ -1213,14 +1293,14 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   // Footer
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      vertical: 8.0,
-                      horizontal: 12.0,
+                      vertical: 6.0,
+                      horizontal: 10.0,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade50,
                       borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(8.0),
-                        bottomRight: Radius.circular(8.0),
+                        bottomLeft: Radius.circular(6.0),
+                        bottomRight: Radius.circular(6.0),
                       ),
                     ),
                     child: Row(
@@ -1242,15 +1322,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.assessment, size: 16),
+                            icon: const Icon(Icons.assessment, size: 14),
                             label: const Text('View Reports'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                                horizontal: 10,
+                                vertical: 5,
                               ),
+                              textStyle: const TextStyle(fontSize: 12),
                             ),
                           )
                         else if (widget.journeyPlan.isPending)
@@ -1258,15 +1339,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                             onPressed: (_isCheckingIn || !_isWithinGeofence)
                                 ? null
                                 : _checkIn,
-                            icon: const Icon(Icons.camera_alt, size: 16),
+                            icon: const Icon(Icons.camera_alt, size: 14),
                             label: const Text('Check In'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Theme.of(context).primaryColor,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                                horizontal: 10,
+                                vertical: 5,
                               ),
+                              textStyle: const TextStyle(fontSize: 12),
                             ),
                           ),
                       ],
@@ -1287,10 +1369,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       children: [
         Icon(
           icon,
-          size: 16,
+          size: 14,
           color: Colors.grey.shade600,
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 5),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,16 +1382,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 label,
                 style: TextStyle(
                   color: Colors.grey.shade600,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               if (_isFetchingLocation && label == 'Current Location')
                 Row(
                   children: [
                     SizedBox(
-                      width: 12,
-                      height: 12,
+                      width: 10,
+                      height: 10,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -1317,12 +1399,12 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
                       'Fetching location...',
                       style: TextStyle(
                         color: Colors.grey.shade600,
-                        fontSize: 12,
+                        fontSize: 11,
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -1333,8 +1415,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   value,
                   style: TextStyle(
                     fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                    height: 1.3,
+                    fontSize: 11,
+                    height: 1.2,
                     color: value.startsWith('Error') ||
                             value.contains('denied') ||
                             value == 'Address not available'
@@ -1399,18 +1481,19 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       children: [
         Row(
           children: [
-            const Icon(Icons.notes, size: 16, color: Colors.grey),
-            const SizedBox(width: 8),
+            const Icon(Icons.notes, size: 14, color: Colors.grey),
+            const SizedBox(width: 6),
             Text(
               'Notes',
               style: TextStyle(
                 color: Colors.grey.shade700,
                 fontWeight: FontWeight.bold,
+                fontSize: 12,
               ),
             ),
             const Spacer(),
             IconButton(
-              icon: const Icon(Icons.edit, size: 16),
+              icon: const Icon(Icons.edit, size: 14),
               onPressed: () {
                 _showEditNotesDialog();
               },
@@ -1419,22 +1502,26 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: Colors.grey.shade200),
           ),
           child: widget.journeyPlan.notes?.isNotEmpty == true
-              ? Text(widget.journeyPlan.notes!)
+              ? Text(
+                  widget.journeyPlan.notes!,
+                  style: const TextStyle(fontSize: 12),
+                )
               : Text(
                   'No notes added',
                   style: TextStyle(
                     fontStyle: FontStyle.italic,
                     color: Colors.grey.shade500,
+                    fontSize: 12,
                   ),
                 ),
         ),

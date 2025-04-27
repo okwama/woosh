@@ -3,6 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const { getPrismaClient, disconnect } = require('./lib/prisma');
+
+// Initialize Prisma client
+const prisma = getPrismaClient();
+
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const journeyPlanRoutes = require('./routes/journeyPlanRoutes');
@@ -56,10 +61,29 @@ app.use((error, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+const server = app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
 
 // Graceful Shutdown
-process.on('SIGINT', () => {
+const gracefulShutdown = async () => {
   console.log('Shutting down server...');
-  process.exit();
-});
+  
+  // Close the server
+  server.close(() => {
+    console.log('Server closed');
+  });
+  
+  // Disconnect from the database
+  try {
+    await disconnect();
+    console.log('Database connection closed');
+  } catch (error) {
+    console.error('Error disconnecting from database:', error);
+  }
+  
+  // Exit the process
+  process.exit(0);
+};
+
+// Handle termination signals
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);

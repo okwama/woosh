@@ -7,8 +7,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
 
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+
 class LeaveApplicationPage extends StatefulWidget {
-  const LeaveApplicationPage({Key? key}) : super(key: key);
+  const LeaveApplicationPage({super.key});
 
   @override
   _LeaveApplicationPageState createState() => _LeaveApplicationPageState();
@@ -179,11 +182,10 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leave Application'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
+      return Scaffold(
+      backgroundColor: appBackground,
+      appBar: GradientAppBar(
+        title: 'Leave Application',
         actions: [
           IconButton(
             icon: const Icon(Icons.list),
@@ -202,7 +204,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -210,7 +212,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                   children: [
                     if (_error != null)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           _error!,
                           style: const TextStyle(color: Colors.red),
@@ -222,6 +224,8 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                       decoration: const InputDecoration(
                         labelText: 'Leave Type',
                         border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       items: _leaveTypes.map((type) {
                         return DropdownMenuItem(
@@ -236,12 +240,14 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _startDateController,
                       decoration: InputDecoration(
                         labelText: 'Start Date',
                         border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.calendar_today),
                           onPressed: () => _selectDate(context, true),
@@ -252,12 +258,14 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                           ? 'Please select start date'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _endDateController,
                       decoration: InputDecoration(
                         labelText: 'End Date',
                         border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.calendar_today),
                           onPressed: () => _selectDate(context, false),
@@ -268,17 +276,19 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                           ? 'Please select end date'
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _reasonController,
                       decoration: const InputDecoration(
                         labelText: 'Reason',
                         border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       maxLines: 3,
                       validator: _validateReason,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     if (_selectedLeaveType == 'Sick' ||
                         _selectedLeaveType == 'Paternal') ...[
                       ElevatedButton.icon(
@@ -289,26 +299,22 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                       if (_isFileAttached)
                         Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             'File attached: $_fileName',
                             style: const TextStyle(color: Colors.green),
                           ),
                         ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                     ],
-                    ElevatedButton(
+                    GoldGradientButton(
                       onPressed: _submitLeaveApplication,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
+
                       child: const Text('Submit Application'),
                     ),
                   ],

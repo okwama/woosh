@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { getPrismaClient } = require('../lib/prisma');
+const prisma = getPrismaClient();
 
 // Get all outlets
 const getOutlets = async (req, res) => {
@@ -126,9 +126,35 @@ const getOutletProducts = async (req, res) => {
   }
 };
 
+// Get outlet location
+const getOutletLocation = async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const outlet = await prisma.clients.findUnique({
+      where: { id: parseInt(id) },
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+    
+    if (!outlet) {
+      return res.status(404).json({ error: 'Outlet not found' });
+    }
+    
+    res.status(200).json(outlet);
+  } catch (error) {
+    console.error('Error fetching outlet location:', error);
+    res.status(500).json({ error: 'Failed to fetch outlet location' });
+  }
+};
+
 module.exports = {
   getOutlets,
   createOutlet,
   updateOutlet,
-  getOutletProducts
+  getOutletProducts,
+  getOutletLocation
 };

@@ -1,13 +1,18 @@
 const express = require('express');
-const router = express.Router();
+const { checkIn, checkOut, getClientLocation, getHistory, getTotalWorkingHours } = require('../controllers/CheckinController');
 const { authenticateToken } = require('../middleware/authMiddleware');
 
-// Apply authentication middleware to all check-in routes
-router.use(authenticateToken);
+const router = express.Router();
 
-// Define your check-in routes here
-// For example:
-// router.post('/', checkInController.createCheckIn);
-// router.get('/', checkInController.getCheckIns);
+// Check-in route
+router.post('/', authenticateToken, checkIn);
+// Check-out route
+router.post('/checkout', authenticateToken, checkOut);
+// Get client location
+router.get('/clients/:clientId/location', authenticateToken, getClientLocation);
+// Get check-in history
+router.get('/history', authenticateToken, getHistory);
+// Get working hours
+router.get('/working-hours', authenticateToken, getTotalWorkingHours);
 
 module.exports = router;

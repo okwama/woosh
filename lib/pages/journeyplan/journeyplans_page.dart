@@ -286,19 +286,19 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                               key: ValueKey(
                                   'journey_plan_${journeyPlan.id}_$index'),
                               margin: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 4.0,
+                                horizontal: 12.0,
+                                vertical: 10.0,
                               ),
                               elevation: 1,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.0),
+                                borderRadius: BorderRadius.circular(10.0),
                               ),
                               child: InkWell(
                                 onTap: () =>
                                     _navigateToJourneyView(journeyPlan),
-                                borderRadius: BorderRadius.circular(8.0),
+                                borderRadius: BorderRadius.circular(10.0),
                                 child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
+                                  padding: const EdgeInsets.all(10.0),
                                   child: Row(
                                     children: [
                                       // Left side - Date and Client info
@@ -322,9 +322,10 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold,
-                                                      fontSize: 14,
+                                                      fontSize: 15,
                                                     ),
                                                   ),
+                                                  const SizedBox(height: 4),
                                                   Text(
                                                     DateFormat('MMM dd, yyyy')
                                                         .format(
@@ -343,8 +344,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                       // Right side - Status
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                          horizontal: 10,
+                                          vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
                                           color: journeyPlan.statusColor,
@@ -360,11 +361,11 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: 6),
                                       Icon(
                                         Icons.chevron_right,
                                         color: Colors.grey[400],
-                                        size: 20,
+                                        size: 24,
                                       ),
                                     ],
                                   ),

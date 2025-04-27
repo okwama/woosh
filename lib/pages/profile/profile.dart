@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:woosh/pages/managers/stats_page.dart';
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:get_storage/get_storage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -47,7 +51,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => controller.fetchProfile(),
+            onPressed: () {
+              controller.fetchProfile();
+            },
             tooltip: 'Refresh',
           ),
         ],
@@ -65,16 +71,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                   ),
                 ),
                 children: [
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   // Profile Image Section
                   _buildProfileImageSection(),
                   // Role Badge
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   _buildRoleBadge(),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                   // Profile Info Cards
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Column(
                       children: [
                         _buildInfoCard(
@@ -83,22 +89,23 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                           label: 'Name',
                           value: controller.userName.value,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         _buildInfoCard(
                           context,
                           icon: Icons.email,
                           label: 'Email',
                           value: controller.userEmail.value,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         _buildInfoCard(
                           context,
                           icon: Icons.phone,
                           label: 'Phone',
                           value: controller.userPhone.value,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
                         _buildActionButtons(),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -116,13 +123,13 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       alignment: Alignment.center,
       children: [
         Container(
-          width: 120,
-          height: 120,
+          width: 100,
+          height: 100,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
               color: Theme.of(context).primaryColor,
-              width: 3,
+              width: 2,
             ),
             boxShadow: [
               BoxShadow(
@@ -138,12 +145,12 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                     controller.photoUrl.value,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.person, size: 60, color: Colors.grey),
+                        const Icon(Icons.person, size: 50, color: Colors.grey),
                   )
                 : Container(
                     color: Colors.grey.shade200,
                     child:
-                        const Icon(Icons.person, size: 60, color: Colors.grey),
+                        const Icon(Icons.person, size: 50, color: Colors.grey),
                   ),
           ),
         ),
@@ -167,9 +174,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
               ],
             ),
             child: IconButton(
-              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
               onPressed: controller.pickImage,
-              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
               padding: EdgeInsets.zero,
             ),
           ),
@@ -179,7 +186,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   }
 
   Widget _buildRoleBadge() {
-    // Determine role and badge color based on user data
     final String role =
         controller.userRole.value.isEmpty ? 'Guard' : controller.userRole.value;
 
@@ -198,10 +204,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 : Icons.security;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: badgeColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: badgeColor.withOpacity(0.3),
@@ -213,14 +219,14 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(roleIcon, size: 16, color: Colors.white),
-          const SizedBox(width: 6),
+          Icon(roleIcon, size: 14, color: Colors.white),
+          const SizedBox(width: 4),
           Text(
             role.toUpperCase(),
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 12,
+              fontSize: 11,
             ),
           ),
         ],
@@ -235,28 +241,28 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     required String value,
   }) {
     return Card(
-      elevation: 2,
+      elevation: 1,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
                 icon,
                 color: Theme.of(context).primaryColor,
-                size: 20,
+                size: 16,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,14 +271,14 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                     label,
                     style: TextStyle(
                       color: Colors.grey[600],
-                      fontSize: 13,
+                      fontSize: 11,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     value.isEmpty ? 'Not provided' : value,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -288,46 +294,97 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   Widget _buildActionButtons() {
     return Column(
       children: [
+        if (controller.userRole.value.toUpperCase() == 'MANAGER') ...[
+          Card(
+            elevation: 1,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: InkWell(
+              onTap: () {
+                Get.to(() => const ManagerStatsPage());
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.bar_chart,
+                        color: Theme.of(context).primaryColor,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'View Work Statistics',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    )
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         Card(
-          elevation: 2,
+          elevation: 1,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: InkWell(
             onTap: () {
               Get.to(() => const ChangePasswordPage());
             },
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
                       Icons.lock_outline,
                       color: Theme.of(context).primaryColor,
-                      size: 20,
+                      size: 16,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Change Password',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
                   Icon(
                     Icons.arrow_forward_ios,
-                    size: 16,
+                    size: 14,
                     color: Colors.grey.shade600,
                   )
                 ],
