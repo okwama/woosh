@@ -26,6 +26,7 @@ import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:woosh/services/target_service.dart';
 import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clientPayment_model.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -1667,6 +1668,42 @@ class ApiService {
       print('Error fetching user office: $e');
       handleNetworkError(e);
       throw Exception('Failed to load user office information');
+    }
+  }
+
+  static Future<List<ClientPayment>> getClientPayments(int clientId) async {
+    final token = _getAuthToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/outlets/$clientId/payments'),
+      headers: await _headers(),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((e) => ClientPayment.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to fetch client payments');
+    }
+  }
+
+  static Future<void> uploadClientPayment({
+    required int clientId,
+    required double amount,
+    required File imageFile,
+  }) async {
+    final uri = Uri.parse('$baseUrl/outlets/$clientId/payments');
+    final request = http.MultipartRequest('POST', uri);
+    final token = _getAuthToken();
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.fields['amount'] = amount.toString();
+    request.files.add(
+      await http.MultipartFile.fromPath('image', imageFile.path),
+    );
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    if (response.statusCode != 201) {
+      throw Exception('Failed to upload payment: ${response.body}');
     }
   }
 }

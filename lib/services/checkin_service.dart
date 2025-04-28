@@ -1,19 +1,21 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/utils/config.dart';
-import 'dart:io';
 
 class CheckInService {
   static const String _baseUrl = '${Config.baseUrl}/api';
   static final _storage = GetStorage();
+  static const _defaultTimeout = Duration(seconds: 15);
 
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = _storage.read<String>('token');
     return {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
+      'Timezone': DateTime.now().timeZoneName, // Send client timezone
     };
   }
 
@@ -22,18 +24,18 @@ class CheckInService {
       final response = await http.get(
         Uri.parse('$_baseUrl/outlets/$outletId/location'),
         headers: await _getAuthHeaders(),
-      );
+      ).timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         return {
-          'latitude': data['latitude']?.toDouble() ?? 0.0,
-          'longitude': data['longitude']?.toDouble() ?? 0.0,
+          'latitude': (data['latitude'] as num).toDouble(),
+          'longitude': (data['longitude'] as num).toDouble(),
         };
       }
-      throw Exception('Failed to fetch outlet location');
+      throw _handleErrorResponse(response);
     } catch (e) {
-      throw Exception('Location fetch failed: ${e.toString()}');
+      throw Exception('Failed to fetch outlet location: ${_getErrorMessage(e)}');
     }
   }
 
@@ -42,196 +44,169 @@ class CheckInService {
     required double latitude,
     required double longitude,
     String? notes,
+    String? imagePath,
   }) async {
     try {
+      final request = {
+        'outletId': outletId,
+        'latitude': latitude,
+        'longitude': longitude,
+        'timestamp': DateTime.now().toIso8601String(),
+        if (notes != null) 'notes': notes,
+        if (imagePath != null) 'imagePath': imagePath,
+      };
+
       final response = await http.post(
         Uri.parse('$_baseUrl/manager/check-in'),
         headers: await _getAuthHeaders(),
-        body: jsonEncode({
-          'outletId': outletId,
-          'latitude': latitude,
-          'longitude': longitude,
-          if (notes != null) 'notes': notes,
-        }),
-      );
+        body: jsonEncode(request),
+      ).timeout(_defaultTimeout);
 
       if (response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to check in');
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
+      throw _handleErrorResponse(response);
     } catch (e) {
-      throw Exception('Check-in failed: ${e.toString()}');
+      throw Exception('Check-in failed: ${_getErrorMessage(e)}');
     }
   }
 
-  static Future<Map<String, dynamic>> checkOut() async {
+  static Future<Map<String, dynamic>> checkOut({
+    double? latitude,
+    double? longitude,
+  }) async {
     try {
+      final request = {
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
       final response = await http.post(
         Uri.parse('$_baseUrl/manager/check-out'),
         headers: await _getAuthHeaders(),
-      );
+        body: jsonEncode(request),
+      ).timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to check out');
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
+      throw _handleErrorResponse(response);
     } catch (e) {
-      throw Exception('Check-out failed: ${e.toString()}');
+      throw Exception('Check-out failed: ${_getErrorMessage(e)}');
     }
-  }
-
-  static CheckInStatus _createSafeStatus(dynamic data) {
-    if (data == null) return CheckInStatus(isCheckedIn: false);
-
-    if (data is String) {
-      try {
-        final bool value = data.toLowerCase() == 'true';
-        return CheckInStatus(isCheckedIn: value);
-      } catch (_) {
-        return CheckInStatus(isCheckedIn: false);
-      }
-    }
-
-    if (data is Map<String, dynamic>) {
-      try {
-        return CheckInStatus.fromJson(data);
-      } catch (_) {
-        try {
-          final dynamic rawValue = data['isCheckedIn'];
-          final bool isCheckedIn = rawValue is bool
-              ? rawValue
-              : rawValue != null
-                  ? true
-                  : false;
-
-          return CheckInStatus(
-            isCheckedIn: isCheckedIn,
-            checkInTime: data['checkInTime'] != null
-                ? DateTime.parse(data['checkInTime'])
-                : null,
-            outletId: data['outletId'] != null
-                ? int.tryParse(data['outletId'].toString())
-                : null,
-            outletName: data['outletName']?.toString(),
-          );
-        } catch (_) {
-          return CheckInStatus(isCheckedIn: false);
-        }
-      }
-    }
-
-    return CheckInStatus(isCheckedIn: false);
   }
 
   static Future<CheckInStatus> getTodayStatus() async {
     int retries = 3;
+    final urls = [
+      '$_baseUrl/manager/today-status',
+      '${Config.baseUrl}/api/manager/today-status',
+    ];
 
     while (retries > 0) {
       try {
-        final token = _storage.read<String>('token');
-        if (token == null) {
-          return CheckInStatus(isCheckedIn: false);
-        }
-
-        final urls = [
-          '$_baseUrl/manager/today-status',
-          '${Config.baseUrl}/api/manager/today-status',
-        ];
-
-        final urlToUse = urls[3 - retries];
-        final headers = await _getAuthHeaders();
-
-        final response = await http
-            .get(
+        final urlToUse = urls[retries % urls.length];
+        final response = await http.get(
           Uri.parse(urlToUse),
-          headers: headers,
-        )
-            .timeout(Duration(seconds: 10), onTimeout: () {
-          throw TimeoutException('Request timed out');
-        });
+          headers: await _getAuthHeaders(),
+        ).timeout(Duration(seconds: 10));
 
         if (response.statusCode == 200) {
-          if (response.body.isEmpty) {
-            return CheckInStatus(isCheckedIn: false);
-          }
-
-          try {
-            final data = jsonDecode(response.body);
-            return _createSafeStatus(data);
-          } catch (_) {
-            return _createSafeStatus(response.body);
-          }
-        } else {
-          return CheckInStatus(isCheckedIn: false);
+          if (response.body.isEmpty) return CheckInStatus.empty();
+          return CheckInStatus.fromJson(
+              jsonDecode(response.body) as Map<String, dynamic>);
         }
-      } catch (_) {
+        return CheckInStatus.empty();
+      } catch (e) {
         retries--;
-        if (retries > 0) {
-          await Future.delayed(Duration(seconds: 1));
-        } else {
-          return CheckInStatus(isCheckedIn: false);
+        if (retries == 0) {
+          return CheckInStatus.empty();
         }
+        await Future.delayed(Duration(seconds: 1));
       }
     }
-
-    return CheckInStatus(isCheckedIn: false);
+    return CheckInStatus.empty();
   }
 
   static Future<PaginatedCheckIns> getCheckInHistory({
     int page = 1,
     int limit = 20,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     try {
+      final params = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+        if (startDate != null) 'startDate': startDate.toIso8601String(),
+        if (endDate != null) 'endDate': endDate.toIso8601String(),
+      };
+
       final response = await http.get(
-        Uri.parse('$_baseUrl/manager/history?page=$page&limit=$limit'),
+        Uri.parse('$_baseUrl/manager/history').replace(queryParameters: params),
         headers: await _getAuthHeaders(),
-      );
+      ).timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return PaginatedCheckIns.fromJson(data);
+        return PaginatedCheckIns.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>);
       }
-      throw Exception('Failed to load history');
+      throw _handleErrorResponse(response);
     } catch (e) {
-      throw Exception('History load failed: ${e.toString()}');
+      throw Exception('Failed to load history: ${_getErrorMessage(e)}');
     }
+  }
+
+  // Helper methods
+  static Exception _handleErrorResponse(http.Response response) {
+    try {
+      final error = jsonDecode(response.body) as Map<String, dynamic>;
+      return Exception(error['message'] ?? 'Request failed with status ${response.statusCode}');
+    } catch (_) {
+      return Exception('Request failed with status ${response.statusCode}');
+    }
+  }
+
+  static String _getErrorMessage(dynamic error) {
+    if (error is TimeoutException) return 'Request timed out';
+    if (error is http.ClientException) return 'Network error';
+    return error.toString();
   }
 }
 
+// Improved model classes with better null safety
 class CheckInStatus {
   final bool isCheckedIn;
   final DateTime? checkInTime;
+  final DateTime? checkOutTime;
   final int? outletId;
   final String? outletName;
+  final int? visitNumber;
 
-  CheckInStatus({
+  const CheckInStatus({
     this.isCheckedIn = false,
     this.checkInTime,
+    this.checkOutTime,
     this.outletId,
     this.outletName,
+    this.visitNumber,
   });
 
-  factory CheckInStatus.fromJson(Map<String, dynamic> json) {
-    bool parseIsCheckedIn() {
-      final value = json['isCheckedIn'];
-      if (value == null) return false;
-      if (value is bool) return value;
-      if (value is int) return value != 0;
-      if (value is String) return value.toLowerCase() == 'true';
-      return false;
-    }
+  factory CheckInStatus.empty() => const CheckInStatus();
 
+  factory CheckInStatus.fromJson(Map<String, dynamic> json) {
     return CheckInStatus(
-      isCheckedIn: parseIsCheckedIn(),
-      checkInTime: json['checkInTime'] != null
-          ? DateTime.parse(json['checkInTime'])
+      isCheckedIn: json['isCheckedIn'] as bool? ?? false,
+      checkInTime: json['checkInTime'] != null 
+          ? DateTime.parse(json['checkInTime'] as String)
           : null,
-      outletId: json['outletId'],
-      outletName: json['outletName'],
+      checkOutTime: json['checkOutTime'] != null
+          ? DateTime.parse(json['checkOutTime'] as String)
+          : null,
+      outletId: json['outletId'] as int?,
+      outletName: json['outletName'] as String?,
+      visitNumber: json['visitNumber'] as int?,
     );
   }
 }
@@ -242,7 +217,7 @@ class PaginatedCheckIns {
   final int totalPages;
   final int totalRecords;
 
-  PaginatedCheckIns({
+  const PaginatedCheckIns({
     required this.records,
     required this.currentPage,
     required this.totalPages,
@@ -251,11 +226,12 @@ class PaginatedCheckIns {
 
   factory PaginatedCheckIns.fromJson(Map<String, dynamic> json) {
     return PaginatedCheckIns(
-      records:
-          (json['data'] as List).map((e) => CheckInRecord.fromJson(e)).toList(),
-      currentPage: json['currentPage'],
-      totalPages: json['totalPages'],
-      totalRecords: json['totalRecords'],
+      records: (json['data'] as List)
+          .map((e) => CheckInRecord.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      currentPage: json['currentPage'] as int,
+      totalPages: json['totalPages'] as int,
+      totalRecords: json['totalRecords'] as int,
     );
   }
 }
@@ -265,22 +241,28 @@ class CheckInRecord {
   final DateTime? checkOutTime;
   final String outletName;
   final String outletAddress;
+  final int visitNumber;
+  final String? imageUrl;
 
-  CheckInRecord({
+  const CheckInRecord({
     required this.checkInTime,
     this.checkOutTime,
     required this.outletName,
     required this.outletAddress,
+    this.visitNumber = 1,
+    this.imageUrl,
   });
 
   factory CheckInRecord.fromJson(Map<String, dynamic> json) {
     return CheckInRecord(
-      checkInTime: DateTime.parse(json['checkInTime']),
+      checkInTime: DateTime.parse(json['checkInTime'] as String),
       checkOutTime: json['checkOutTime'] != null
-          ? DateTime.parse(json['checkOutTime'])
+          ? DateTime.parse(json['checkOutTime'] as String)
           : null,
-      outletName: json['outletName'],
-      outletAddress: json['outletAddress'],
+      outletName: json['outletName'] as String,
+      outletAddress: json['outletAddress'] as String,
+      visitNumber: json['visitNumber'] as int? ?? 1,
+      imageUrl: json['imageUrl'] as String?,
     );
   }
 }

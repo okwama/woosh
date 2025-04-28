@@ -13,6 +13,7 @@ class Product {
   final int? clientId;
   final List<PriceOption> priceOptions;
   final List<StoreQuantity> storeQuantities;
+  final int? packSize;
 
   Product({
     required this.id,
@@ -26,6 +27,7 @@ class Product {
     this.clientId,
     this.priceOptions = const [],
     this.storeQuantities = const [],
+    this.packSize,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class Product {
               ?.map((e) => StoreQuantity.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      packSize: json['packSize'],
     );
   }
 
@@ -63,6 +66,7 @@ class Product {
       'clientId': clientId,
       'priceOptions': priceOptions.map((e) => e.toJson()).toList(),
       'storeQuantities': storeQuantities.map((e) => e.toJson()).toList(),
+      if (packSize != null) 'packSize': packSize,
     };
   }
 
@@ -97,6 +101,7 @@ class Product {
       clientId: null,
       priceOptions: [],
       storeQuantities: [],
+      packSize: null,
     );
   }
 }

@@ -261,6 +261,8 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   }
 
   Widget _buildCartItem(int index, OrderItem item) {
+    final packSize = item.product?.packSize;
+    final totalPieces = (packSize != null) ? item.quantity * packSize : null;
     return Card(
       key: ValueKey('cart_item_${index}_${item.productId}'),
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -313,7 +315,10 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       ),
                     ),
                   Text(
-                    'Quantity: ${item.quantity}',
+                    'Quantity: ${item.quantity}' +
+                        (packSize != null
+                            ? ' pack(s) (${totalPieces} pcs)'
+                            : ''),
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -356,7 +361,8 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       onPressed: () {
                         final newQuantity = item.quantity + 1;
                         if (item.product?.storeQuantities == null ||
-                            newQuantity <= item.product!.storeQuantities.first.quantity) {
+                            newQuantity <=
+                                item.product!.storeQuantities.first.quantity) {
                           cartController.updateItemQuantity(item, newQuantity);
                         } else {
                           Get.snackbar(
@@ -405,7 +411,13 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         final totalItems =
             cartController.items.fold(0, (sum, item) => sum + item.quantity);
         final totalAmount = cartController.totalAmount;
-
+        final totalPieces = cartController.items.fold(
+            0,
+            (sum, item) =>
+                sum +
+                ((item.product?.packSize != null)
+                    ? item.quantity * item.product!.packSize!
+                    : 0));
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -429,6 +441,29 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ),
               ],
             ),
+            if (totalPieces > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total Pieces',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    '$totalPieces',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

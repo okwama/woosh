@@ -212,11 +212,13 @@ class _CheckInPageState extends State<CheckInPage> {
   bool _isLoading = true;
   String? _error;
   Map<String, dynamic>? _outletData;
+  Map<String, dynamic>? _cachedOutletData;
   StreamSubscription<Map<String, dynamic>?>? _outletSubscription;
 
   @override
   void initState() {
     super.initState();
+    _loadCachedOutlet();
     _startOutletTracking();
   }
 
@@ -224,6 +226,30 @@ class _CheckInPageState extends State<CheckInPage> {
   void dispose() {
     _outletSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadCachedOutlet() async {
+    // Try to get cached outlets and show the nearest one immediately
+    final outlets = await OutletService.getOutletsWithCache();
+    if (outlets.isNotEmpty) {
+      // Use current location if possible, else just pick the first
+      try {
+        final position = await LocationService.getCurrentPosition();
+        final nearest = await OutletService.findNearestOutlet(position);
+        if (nearest != null && mounted) {
+          setState(() {
+            _cachedOutletData = nearest;
+            _isLoading = false;
+          });
+        }
+      } catch (_) {
+        // If location fails, just show the first outlet
+        setState(() {
+          _cachedOutletData = outlets.first;
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _startOutletTracking() {
@@ -251,7 +277,15 @@ class _CheckInPageState extends State<CheckInPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _startOutletTracking,
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _outletData = null;
+                _error = null;
+              });
+              _loadCachedOutlet();
+              _startOutletTracking();
+            },
           ),
         ],
       ),
@@ -260,10 +294,6 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     if (_error != null) {
       return Center(
         child: Column(
@@ -272,7 +302,15 @@ class _CheckInPageState extends State<CheckInPage> {
             Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _startOutletTracking,
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _outletData = null;
+                  _error = null;
+                });
+                _loadCachedOutlet();
+                _startOutletTracking();
+              },
               child: const Text('Retry'),
             ),
           ],
@@ -280,17 +318,34 @@ class _CheckInPageState extends State<CheckInPage> {
       );
     }
 
-    if (_outletData == null) {
-      return const Center(
-        child: Text('No outlet found nearby. Please check your location.'),
+    // Show the freshest outlet data if available
+    if (_outletData != null) {
+      return ManagerCheckInCard(
+        outletId: _outletData!['id'],
+        outletName: _outletData!['name'],
+        outletAddress: _outletData!['address'],
+        distance: _outletData!['distance'],
       );
     }
 
-    return ManagerCheckInCard(
-      outletId: _outletData!['id'],
-      outletName: _outletData!['name'],
-      outletAddress: _outletData!['address'],
-      distance: _outletData!['distance'],
+    // If loading and cached outlet exists, show cached outlet immediately
+    if (_isLoading && _cachedOutletData != null) {
+      return ManagerCheckInCard(
+        outletId: _cachedOutletData!['id'],
+        outletName: _cachedOutletData!['name'],
+        outletAddress: _cachedOutletData!['address'],
+        distance: _cachedOutletData!['distance'],
+      );
+    }
+
+    // If still loading and no cached data, show skeleton loader
+    if (_isLoading) {
+      return const OutletCardSkeleton();
+    }
+
+    // If nothing found
+    return const Center(
+      child: Text('No outlet found nearby. Please check your location.'),
     );
   }
 
@@ -397,22 +452,11 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
             }
           });
         }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isCheckedIn = false;
-            _checkInTime = null;
-          });
-        }
       }
     } catch (e) {
       _handleNetworkError(e);
       if (mounted) {
         _showErrorSnackbar('Failed to load check-in status: ${e.toString()}');
-        setState(() {
-          _isCheckedIn = false;
-          _checkInTime = null;
-        });
       }
     } finally {
       if (mounted) {
@@ -425,7 +469,23 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
     setState(() => _isFetchingLocation = true);
 
     try {
-      await _getCurrentPosition();
+      // Try to use last known location if it's recent (within 10 minutes)
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      final now = DateTime.now();
+      if (lastKnown != null &&
+          lastKnown.timestamp != null &&
+          now.difference(lastKnown.timestamp!).inMinutes < 10) {
+        setState(() {
+          _currentPosition = lastKnown;
+        });
+        final address = await LocationService.getAddressFromPosition(lastKnown);
+        if (mounted) {
+          setState(() => _currentAddress = address);
+        }
+        await _checkGeofence();
+      }
+      // Always try to get a fresh position in the background
+      _getCurrentPosition();
       _startLocationUpdates();
     } catch (e) {
       _showErrorSnackbar('Location error: ${e.toString()}');
@@ -468,16 +528,26 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
   void _startLocationUpdates() {
     _positionStream?.cancel();
 
+    // Throttle: Only update every 30 meters and debounce updates to once every 3 seconds
+    const int distanceFilter = 30; // meters
+    const Duration debounceDuration = Duration(seconds: 3);
+    DateTime? lastUpdate;
+
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.medium,
-        distanceFilter: 10,
+        distanceFilter: distanceFilter,
       ),
     ).listen(
       (Position position) {
-        if (mounted) {
-          setState(() => _currentPosition = position);
-          _checkGeofence();
+        final now = DateTime.now();
+        if (lastUpdate == null ||
+            now.difference(lastUpdate!) > debounceDuration) {
+          lastUpdate = now;
+          if (mounted) {
+            setState(() => _currentPosition = position);
+            _checkGeofence();
+          }
         }
       },
       onError: (error) {
@@ -1302,4 +1372,52 @@ class GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// Add a skeleton loader widget for the outlet card
+class OutletCardSkeleton extends StatelessWidget {
+  const OutletCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 120,
+              height: 16,
+              color: Colors.grey.shade300,
+              margin: const EdgeInsets.only(bottom: 8),
+            ),
+            Container(
+              width: 200,
+              height: 12,
+              color: Colors.grey.shade200,
+              margin: const EdgeInsets.only(bottom: 8),
+            ),
+            Container(
+              width: 80,
+              height: 12,
+              color: Colors.grey.shade200,
+              margin: const EdgeInsets.only(bottom: 8),
+            ),
+            Container(
+              width: double.infinity,
+              height: 36,
+              color: Colors.grey.shade100,
+              margin: const EdgeInsets.only(top: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

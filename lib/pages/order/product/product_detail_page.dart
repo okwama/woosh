@@ -55,7 +55,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   void _addToCart() {
-    print('Available price options: ${widget.product.priceOptions}');
+    print(
+        'Available price options: [38;5;2m${widget.product.priceOptions}[0m');
     print('Selected price option: $_selectedPriceOption');
 
     if (_selectedPriceOption == null) {
@@ -69,16 +70,34 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return;
     }
 
-    final quantity = int.tryParse(_quantityController.text) ?? 0;
-    if (quantity <= 0) {
-      Get.snackbar(
-        'Error',
-        'Please enter a valid quantity',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
+    final quantityText = _quantityController.text;
+    final quantity = int.tryParse(quantityText) ?? 0;
+    final packSize = widget.product.packSize;
+    // Prevent partial packs
+    if (packSize != null) {
+      if (quantity <= 0 ||
+          quantityText.contains('.') ||
+          int.tryParse(quantityText) == null) {
+        Get.snackbar(
+          'Error',
+          'Please enter a valid whole number of packs (no decimals, no zero, no negative).',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+    } else {
+      if (quantity <= 0) {
+        Get.snackbar(
+          'Error',
+          'Please enter a valid quantity',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
     }
 
     // Check stock availability
@@ -104,9 +123,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
 
     // Show success message
+    String successMsg = 'Item added to cart';
+    if (widget.product.packSize != null) {
+      final totalPieces = quantity * (widget.product.packSize ?? 1);
+      successMsg = 'Added $quantity pack(s) (${totalPieces} pieces) to cart';
+    }
     Get.snackbar(
       'Success',
-      'Item added to cart',
+      successMsg,
       snackPosition: SnackPosition.TOP,
       backgroundColor: Colors.green,
       colorText: Colors.white,
@@ -165,7 +189,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 // Product Name
                 Text(
-                  widget.product.name,
+                  widget.product.name +
+                      (widget.product.packSize != null
+                          ? ' (Sold in packs of ${widget.product.packSize})'
+                          : ''),
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
@@ -201,11 +228,26 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 // Quantity Selector
                 if (!isOutOfStock)
-                  _QuantitySelector(
-                    controller: _quantityController,
-                    onDecrement: () => _adjustQuantity(-1),
-                    onIncrement: () => _adjustQuantity(1),
-                    maxQuantity: widget.product.storeQuantities.first.quantity,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _QuantitySelector(
+                        controller: _quantityController,
+                        onDecrement: () => _adjustQuantity(-1),
+                        onIncrement: () => _adjustQuantity(1),
+                        maxQuantity:
+                            widget.product.storeQuantities.first.quantity,
+                      ),
+                      if (widget.product.packSize != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'You are ordering in packs. 1 pack = ${widget.product.packSize} pieces.',
+                            style: const TextStyle(
+                                fontSize: 13, color: Colors.grey),
+                          ),
+                        ),
+                    ],
                   ),
 
                 const SizedBox(height: 24),
