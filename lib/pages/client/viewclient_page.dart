@@ -8,14 +8,19 @@ import 'package:woosh/pages/client/clientdetails.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/skeleton_loader.dart';
+import 'package:get/get.dart';
+import 'package:woosh/models/client_model.dart';
+import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
+  final bool forUpliftSale;
 
   const ViewClientPage({
-    super.key,
+    Key? key,
     this.forOrderCreation = false,
-  });
+    this.forUpliftSale = false,
+  }) : super(key: key);
 
   @override
   State<ViewClientPage> createState() => _ViewClientPageState();
@@ -166,6 +171,28 @@ class _ViewClientPageState extends State<ViewClientPage> {
     }).toList();
   }
 
+  void _onClientSelected(Outlet outlet) {
+    if (widget.forOrderCreation) {
+      Get.to(
+        () => AddOrderPage(outlet: outlet),
+        transition: Transition.rightToLeft,
+      );
+    } else if (widget.forUpliftSale) {
+      Get.off(
+        () => UpliftSaleCartPage(
+          outlet: outlet,
+        ),
+        transition: Transition.rightToLeft,
+      );
+    } else {
+      // Show client details
+      Get.to(
+        () => ClientDetailsPage(outlet: outlet),
+        transition: Transition.rightToLeft,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -303,33 +330,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: InkWell(
-                                    onTap: () {
-                                      if (widget.forOrderCreation) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => AddOrderPage(
-                                              outlet: outlet,
-                                            ),
-                                          ),
-                                        ).then((result) {
-                                          if (result == true) {
-                                            Navigator.pop(
-                                                context); // Return to previous screen
-                                          }
-                                        });
-                                      } else {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                ClientDetailsPage(
-                                              outlet: outlet,
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
+                                    onTap: () => _onClientSelected(outlet),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
                                       padding: const EdgeInsets.all(10),

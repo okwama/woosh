@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/utils/date_utils.dart';
+import 'package:woosh/utils/date_utils.dart' as custom_date;
 import 'package:woosh/widgets/skeleton_loader.dart';
 
 class ViewOrdersPage extends StatefulWidget {
@@ -423,8 +423,9 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  DateFormatter.formatDateTime(
-                                                      order.createdAt),
+                                                  custom_date.DateUtils
+                                                      .formatDateTime(
+                                                          order.createdAt),
                                                   style: const TextStyle(
                                                     color: Colors.grey,
                                                     fontSize: 11,

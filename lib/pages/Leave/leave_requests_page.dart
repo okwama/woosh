@@ -44,7 +44,7 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
         return Colors.orange;
       case LeaveStatus.APPROVED:
         return Colors.green;
-      case LeaveStatus.REJECTED:
+      case LeaveStatus.DECLINED:
         return Colors.red;
     }
   }

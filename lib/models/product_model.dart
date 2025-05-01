@@ -31,6 +31,8 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    print('[Product] Creating product from JSON: ${json['name']}');
+    print('[Product] Price options in JSON: ${json['priceOptions']}');
     return Product(
       id: json['id'],
       name: json['name'],
@@ -41,9 +43,10 @@ class Product {
       updatedAt: DateTime.parse(json['updatedAt']),
       imageUrl: json['image'],
       clientId: json['clientId'],
-      priceOptions: (json['priceOptions'] as List<dynamic>?)
-              ?.map((e) => PriceOption.fromJson(e as Map<String, dynamic>))
-              .toList() ??
+      priceOptions: (json['priceOptions'] as List<dynamic>?)?.map((e) {
+            print('[Product] Creating price option from: $e');
+            return PriceOption.fromJson(e as Map<String, dynamic>);
+          }).toList() ??
           [],
       storeQuantities: (json['storeQuantities'] as List<dynamic>?)
               ?.map((e) => StoreQuantity.fromJson(e as Map<String, dynamic>))

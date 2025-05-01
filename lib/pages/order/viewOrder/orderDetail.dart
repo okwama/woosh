@@ -7,7 +7,7 @@ import 'package:woosh/models/price_option_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/utils/image_utils.dart';
-import 'package:woosh/utils/date_utils.dart';
+import 'package:woosh/utils/date_utils.dart' as custom_date;
 
 class OrderDetailPage extends StatefulWidget {
   final Order? order;
@@ -242,7 +242,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         children: [
           _buildInfoRow('Order Date',
-              DateFormatter.formatDateTime(widget.order!.createdAt)),
+              custom_date.DateUtils.formatDateTime(widget.order!.createdAt)),
           const Divider(height: 16),
           _buildInfoRow('Outlet', widget.order!.client.name),
           const Divider(height: 16),

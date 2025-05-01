@@ -1,6 +1,6 @@
 import 'package:woosh/models/user_model.dart';
 
-enum LeaveStatus { PENDING, APPROVED, REJECTED }
+enum LeaveStatus { PENDING, APPROVED, DECLINED }
 
 class Leave {
   final int? id;
@@ -66,8 +66,8 @@ class Leave {
         return LeaveStatus.PENDING;
       case 'APPROVED':
         return LeaveStatus.APPROVED;
-      case 'REJECTED':
-        return LeaveStatus.REJECTED;
+      case 'DECLINED':
+        return LeaveStatus.DECLINED;
       default:
         return LeaveStatus.PENDING;
     }

@@ -5,11 +5,14 @@ import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
+import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:woosh/models/outlet_model.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -320,6 +323,34 @@ class _HomePageState extends State<HomePage> {
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );
+                      },
+                    ),
+                    MenuTile(
+                      title: 'Uplift Sale',
+                      icon: Icons.shopping_cart,
+                      onTap: () {
+                        Get.to(
+                          () => const ViewClientPage(forUpliftSale: true),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        )?.then((selectedOutlet) {
+                          if (selectedOutlet != null &&
+                              selectedOutlet is Outlet) {
+                            Get.off(
+                              () => UpliftSaleCartPage(
+                                outlet: selectedOutlet,
+                              ),
+                              transition: Transition.rightToLeft,
+                            );
+                          }
+                        });
+                      },
+                    ),
+                    MenuTile(
+                      title: 'View Uplift Sales',
+                      icon: Icons.list_alt,
+                      onTap: () {
+                        Get.toNamed('/uplift-sales');
                       },
                     ),
                   ],

@@ -8,6 +8,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/routes/app_routes.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/controllers/uplift_cart_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/inactivity_timer.dart';
 import 'package:woosh/pages/managers/managerHome.dart';
@@ -16,6 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init(); // Initialize GetStorage
   Get.put(AuthController()); // Initialize AuthController
+  Get.put(UpliftCartController()); // Initialize UpliftCartController
   runApp(MyApp());
 }
 

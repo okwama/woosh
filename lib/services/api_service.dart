@@ -27,6 +27,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:woosh/services/target_service.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/clientPayment_model.dart';
+import 'package:woosh/models/uplift_sale_model.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -180,6 +181,12 @@ class ApiService {
       'Content-Type': additionalContentType ?? 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
+  }
+
+  /// Get headers for API requests with optional content type
+  static Future<Map<String, String>> headers(
+      [String? additionalContentType]) async {
+    return _headers(additionalContentType);
   }
 
   static void handleNetworkError(dynamic error) {
@@ -725,7 +732,7 @@ class ApiService {
     try {
       print('[Products] Fetching products from API');
       final response = await http.get(
-        Uri.parse('$baseUrl${Config.productsEndpoint}?page=$page&limit=$limit'),
+        Uri.parse('$baseUrl/products'),
         headers: await _headers(),
       );
 
@@ -745,6 +752,8 @@ class ApiService {
       ApiCache.set('products', responseData['data']);
 
       final products = (responseData['data'] as List).map((item) {
+        print('[Products] Processing product: ${item['name']}');
+        print('[Products] Price options: ${item['priceOptions']}');
         // Ensure storeQuantities is included in the response
         if (!item.containsKey('storeQuantities')) {
           item['storeQuantities'] = [];
@@ -1867,6 +1876,163 @@ class ApiService {
     } catch (e) {
       print('Error getting active visit: $e');
       return null;
+    }
+  }
+
+  static Future<List<Client>> getClients() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/outlets'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) {
+          final outlet = Outlet.fromJson(json);
+          return Client(
+            id: outlet.id,
+            name: outlet.name,
+            address: outlet.address,
+            balance: outlet.balance,
+            latitude: outlet.latitude,
+            longitude: outlet.longitude,
+            email: outlet.email,
+            contact: outlet.contact,
+            taxPin: outlet.taxPin,
+            location: outlet.location,
+            clientType: outlet.clientType,
+            regionId: outlet.regionId ?? 0,
+            region: outlet.region ?? '',
+            countryId: outlet.countryId ?? 0,
+          );
+        }).toList();
+      } else {
+        throw Exception('Failed to load clients: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching clients: $e');
+      throw Exception('Failed to load clients: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createUpliftSale({
+    required int clientId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    try {
+      final authHeaders = await headers();
+      final box = GetStorage();
+      final salesRep = box.read('salesRep');
+      final userId = salesRep != null && salesRep is Map<String, dynamic>
+          ? salesRep['id']
+          : null;
+
+      if (userId == null) {
+        throw Exception('User ID not found. Please login again.');
+      }
+
+      // Calculate total amount from items
+      double totalAmount = items.fold(
+          0,
+          (sum, item) =>
+              sum + (item['unitPrice'] as double) * (item['quantity'] as int));
+
+      final response = await _dio.post(
+        '${baseUrl}/uplift-sales',
+        data: {
+          'clientId': clientId,
+          'userId': userId,
+          'items': items,
+          'totalAmount': totalAmount,
+        },
+        options: Options(headers: authHeaders),
+      );
+
+      if (response.statusCode == 201) {
+        return response.data;
+      }
+      return null;
+    } catch (e) {
+      print('Error creating uplift sale: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<UpliftSale>?> getUpliftSales({
+    String? status,
+    DateTime? startDate,
+    DateTime? endDate,
+    int? clientId,
+    int? userId,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/uplift-sales',
+        queryParameters: {
+          if (status != null) 'status': status,
+          if (startDate != null) 'startDate': startDate.toIso8601String(),
+          if (endDate != null) 'endDate': endDate.toIso8601String(),
+          if (clientId != null) 'clientId': clientId,
+          if (userId != null) 'userId': userId,
+        },
+        options: Options(headers: await headers()),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'] ?? [];
+        return data.map((json) => UpliftSale.fromJson(json)).toList();
+      }
+      return null;
+    } catch (e) {
+      print('Error getting uplift sales: $e');
+      rethrow;
+    }
+  }
+
+  static Future<UpliftSale?> getUpliftSaleById(int id) async {
+    try {
+      final response = await _dio.get(
+        '/uplift-sales/$id',
+        options: Options(headers: await headers()),
+      );
+
+      if (response.statusCode == 200) {
+        return UpliftSale.fromJson(response.data['data']);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting uplift sale: $e');
+      rethrow;
+    }
+  }
+
+  static Future<bool> updateUpliftSaleStatus(int id, String status) async {
+    try {
+      final response = await _dio.patch(
+        '/uplift-sales/$id/status',
+        data: {'status': status},
+        options: Options(headers: await headers()),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error updating uplift sale status: $e');
+      rethrow;
+    }
+  }
+
+  static Future<bool> deleteUpliftSale(int id) async {
+    try {
+      final response = await _dio.delete(
+        '/uplift-sales/$id',
+        options: Options(headers: await headers()),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error deleting uplift sale: $e');
+      rethrow;
     }
   }
 }
