@@ -64,6 +64,28 @@ class Target {
     return now.isAfter(endDate) && !isCompleted;
   }
 
+  // Factory method to create a Target from sales data
+  factory Target.fromSalesData({
+    required int totalItemsSold,
+    required int targetValue,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int userId,
+  }) {
+    return Target(
+      id: DateTime.now().millisecondsSinceEpoch,
+      title: 'Sales Target',
+      description: 'Achieve sales target',
+      type: TargetType.SALES,
+      userId: userId,
+      targetValue: targetValue,
+      currentValue: totalItemsSold,
+      startDate: startDate,
+      endDate: endDate,
+      isCompleted: totalItemsSold >= targetValue,
+    );
+  }
+
   // Factory method to create a Target from JSON
   factory Target.fromJson(Map<String, dynamic> json) {
     return Target(

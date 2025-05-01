@@ -9,6 +9,9 @@ import 'package:woosh/utils/config.dart';
 
 class TargetService {
   static const String baseUrl = '${Config.baseUrl}/api';
+  static const Duration _cacheDuration = Duration(minutes: 5);
+  static final Map<String, dynamic> _cache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
 
   // Get auth token for API requests
   static String? _getAuthToken() {
@@ -25,119 +28,130 @@ class TargetService {
     };
   }
 
+  // Check if cached data is still valid
+  static bool _isCacheValid(String key) {
+    if (!_cacheTimestamps.containsKey(key)) return false;
+    final timestamp = _cacheTimestamps[key]!;
+    return DateTime.now().difference(timestamp) < _cacheDuration;
+  }
+
+  // Get cached data
+  static dynamic _getCachedData(String key) {
+    if (_isCacheValid(key)) {
+      return _cache[key];
+    }
+    _cache.remove(key);
+    _cacheTimestamps.remove(key);
+    return null;
+  }
+
+  // Cache data
+  static void _cacheData(String key, dynamic data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now();
+  }
+
   // Get all targets for the current user
-  static Future<List<Target>> getTargets() async {
+  static Future<List<Target>> getTargets({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final cacheKey = 'targets_page_$page';
+    final cachedData = _getCachedData(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
     try {
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception('User is not authenticated');
+        print('Error: No authentication token found');
+        return [];
       }
 
-      try {
-        final response = await http
-            .get(
-              Uri.parse('$baseUrl/targets'),
-              headers: await _headers(),
-            )
-            .timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/targets?page=$page&limit=$limit'),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          final List<dynamic> data = jsonDecode(response.body);
-          return data.map((json) => Target.fromJson(json)).toList();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          final targets = (data['data'] as List)
+              .map((item) => Target.fromJson(item))
+              .toList();
+
+          _cacheData(cacheKey, targets);
+          return targets;
         }
-        // If the server returns 404, it means the endpoint doesn't exist yet
-        else if (response.statusCode == 404) {
-          print('Targets API endpoint not found, returning mock data');
-          return _getMockTargets();
-        } else {
-          throw Exception('Failed to load targets: ${response.statusCode}');
-        }
-      } catch (timeoutError) {
-        // If timeout or connection error, return mock data
-        print(
-            'Connection error or timeout, returning mock data: $timeoutError');
-        return _getMockTargets();
       }
+      return [];
     } catch (e) {
       print('Error fetching targets: $e');
-      // Return mock data for development until backend is ready
-      return _getMockTargets();
+      return [];
     }
   }
 
   // Create a new target
-  static Future<Target> createTarget(Target target) async {
+  static Future<Target?> createTarget(Target target) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception('User is not authenticated');
+        print('Error: No authentication token found');
+        return null;
       }
 
-      try {
-        final response = await http
-            .post(
-              Uri.parse('$baseUrl/targets'),
-              headers: await _headers(),
-              body: jsonEncode(target.toJson()),
-            )
-            .timeout(const Duration(seconds: 5));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/targets'),
+            headers: await _headers(),
+            body: jsonEncode(target.toJson()),
+          )
+          .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 201) {
-          final data = jsonDecode(response.body);
-          return Target.fromJson(data);
-        } else {
-          throw Exception('Failed to create target: ${response.statusCode}');
-        }
-      } catch (timeoutError) {
-        // Return mock response for development
-        print(
-            'Connection error or timeout, returning mock response: $timeoutError');
-        return target.copyWith(id: DateTime.now().millisecondsSinceEpoch);
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return Target.fromJson(data);
       }
+      return null;
     } catch (e) {
       print('Error creating target: $e');
-      // Return mock response for development
-      return target.copyWith(id: DateTime.now().millisecondsSinceEpoch);
+      return null;
     }
   }
 
   // Update an existing target
-  static Future<Target> updateTarget(Target target) async {
+  static Future<Target?> updateTarget(Target target) async {
     try {
       if (target.id == null) {
-        throw Exception('Target ID is required for update');
+        print('Error: Target ID is required for update');
+        return null;
       }
 
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception('User is not authenticated');
+        print('Error: No authentication token found');
+        return null;
       }
 
-      try {
-        final response = await http
-            .put(
-              Uri.parse('$baseUrl/targets/${target.id}'),
-              headers: await _headers(),
-              body: jsonEncode(target.toJson()),
-            )
-            .timeout(const Duration(seconds: 5));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/targets/${target.id}'),
+            headers: await _headers(),
+            body: jsonEncode(target.toJson()),
+          )
+          .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          return Target.fromJson(data);
-        } else {
-          throw Exception('Failed to update target: ${response.statusCode}');
-        }
-      } catch (timeoutError) {
-        // Return mock response for development
-        print(
-            'Connection error or timeout, returning mock response: $timeoutError');
-        return target;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return Target.fromJson(data);
       }
+      return null;
     } catch (e) {
       print('Error updating target: $e');
-      // For development, return the target instead of throwing
-      return target;
+      return null;
     }
   }
 
@@ -146,191 +160,111 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception('User is not authenticated');
+        print('Error: No authentication token found');
+        return false;
       }
 
-      try {
-        final response = await http
-            .delete(
-              Uri.parse('$baseUrl/targets/$targetId'),
-              headers: await _headers(),
-            )
-            .timeout(const Duration(seconds: 5));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/targets/$targetId'),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          return true;
-        } else {
-          throw Exception('Failed to delete target: ${response.statusCode}');
-        }
-      } catch (timeoutError) {
-        // Return mock success for development
-        print(
-            'Connection error or timeout, returning mock success: $timeoutError');
-        return true;
-      }
+      return response.statusCode == 200;
     } catch (e) {
       print('Error deleting target: $e');
-      // For development, return success instead of throwing
-      return true;
+      return false;
     }
   }
 
   // Update target progress
-  static Future<Target> updateTargetProgress(int targetId, int newValue) async {
+  static Future<Target?> updateTargetProgress(
+      int targetId, int newValue) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception('User is not authenticated');
+        print('Error: No authentication token found');
+        return null;
       }
 
-      try {
-        final response = await http
-            .patch(
-              Uri.parse('$baseUrl/targets/$targetId/progress'),
-              headers: await _headers(),
-              body: jsonEncode({'currentValue': newValue}),
-            )
-            .timeout(const Duration(seconds: 5));
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/targets/$targetId/progress'),
+            headers: await _headers(),
+            body: jsonEncode({'currentValue': newValue}),
+          )
+          .timeout(const Duration(seconds: 5));
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          return Target.fromJson(data);
-        } else {
-          throw Exception(
-              'Failed to update target progress: ${response.statusCode}');
-        }
-      } catch (timeoutError) {
-        // Mock updating a target's progress
-        print(
-            'Connection error or timeout, returning mock data: $timeoutError');
-        // For development, create a mock updated target
-        final mockTargets = _getMockTargets();
-        final targetIndex = mockTargets.indexWhere((t) => t.id == targetId);
-        if (targetIndex != -1) {
-          final updatedTarget =
-              mockTargets[targetIndex].copyWith(currentValue: newValue);
-          return updatedTarget;
-        } else {
-          // If target not found in mock data, create a new one with the updated progress
-          return Target(
-            id: targetId,
-            title: 'Mock Target',
-            description: 'Mock target created for development',
-            type: TargetType.SALES,
-            userId: int.tryParse(GetStorage().read('userId') ?? '1') ?? 1,
-            targetValue: newValue * 2, // Just a simple mock value
-            currentValue: newValue,
-            startDate: DateTime.now().subtract(const Duration(days: 10)),
-            endDate: DateTime.now().add(const Duration(days: 20)),
-            isCompleted: false,
-          );
-        }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return Target.fromJson(data);
       }
+      return null;
     } catch (e) {
       print('Error updating target progress: $e');
-      // For development, create a mock updated target
-      return Target(
-        id: targetId,
-        title: 'Mock Target',
-        description: 'Mock target created from error handling',
-        type: TargetType.SALES,
-        userId: int.tryParse(GetStorage().read('userId') ?? '1') ?? 1,
-        targetValue: newValue * 2, // Just a simple mock value
-        currentValue: newValue,
-        startDate: DateTime.now().subtract(const Duration(days: 10)),
-        endDate: DateTime.now().add(const Duration(days: 20)),
-        isCompleted: false,
-      );
+      return null;
     }
   }
 
   // Get user's sales data from the last two weeks
-  static Future<Map<String, dynamic>> getSalesData() async {
+  static Future<Map<String, dynamic>> getSalesData({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final cacheKey = 'sales_data_page_$page';
+    final cachedData = _getCachedData(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
     try {
-      // Get current user ID
-      final box = GetStorage();
-      final userId = box.read('userId');
-      if (userId == null) {
-        throw Exception('User ID not found');
+      final token = _getAuthToken();
+      if (token == null) {
+        print('Error: No authentication token found');
+        return {
+          'totalItemsSold': 0,
+          'orderCount': 0,
+          'recentOrders': <dynamic>[],
+          'hasMore': false,
+        };
       }
 
-      // Calculate two weeks ago date
-      final twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
+      final response = await http.get(
+        Uri.parse(
+            '$baseUrl/orders/sales-summary?days=14&page=$page&limit=$limit'),
+        headers: await _headers(),
+      );
 
-      // Get all orders for the user
-      final response = await ApiService.getOrders(limit: 100);
-      final orders = response.data;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          final result = {
+            'totalItemsSold': data['totalItemsSold'] ?? 0,
+            'orderCount': data['orderCount'] ?? 0,
+            'recentOrders': data['recentOrders'] ?? <dynamic>[],
+            'hasMore': data['hasMore'] ?? false,
+          };
 
-      // Calculate total items sold and total orders in the last two weeks
-      int totalItemsSold = 0;
-      final recentOrders = <Order>[];
-
-      for (var order in orders) {
-        if (order.createdAt.isAfter(twoWeeksAgo)) {
-          recentOrders.add(order);
-          for (var item in order.orderItems) {
-            totalItemsSold += item.quantity;
-          }
+          _cacheData(cacheKey, result);
+          return result;
         }
       }
 
       return {
-        'totalItemsSold': totalItemsSold,
-        'orderCount': recentOrders.length,
-        'recentOrders': recentOrders,
+        'totalItemsSold': 0,
+        'orderCount': 0,
+        'recentOrders': <dynamic>[],
+        'hasMore': false,
       };
     } catch (e) {
-      print('Error getting sales data: $e');
+      print('Error fetching sales data: $e');
       return {
         'totalItemsSold': 0,
         'orderCount': 0,
-        'recentOrders': <Order>[],
+        'recentOrders': <dynamic>[],
+        'hasMore': false,
       };
     }
-  }
-
-  // Mock data for targets - for development until backend is ready
-  static List<Target> _getMockTargets() {
-    final now = DateTime.now();
-    final userId = int.tryParse(GetStorage().read('userId') ?? '1') ?? 1;
-
-    return [
-      Target(
-        id: 1,
-        title: 'Monthly Products Sold',
-        description: 'Achieve monthly sales quota for Q2',
-        type: TargetType.SALES,
-        userId: userId,
-        targetValue: 50,
-        currentValue: 32,
-        startDate: now.subtract(const Duration(days: 15)),
-        endDate: now.add(const Duration(days: 15)),
-        isCompleted: false,
-      ),
-      Target(
-        id: 2,
-        title: 'Weekly Products Sold',
-        description: 'This week\'s product sales target',
-        type: TargetType.SALES,
-        userId: userId,
-        targetValue: 20,
-        currentValue: 8,
-        startDate: now.subtract(const Duration(days: 5)),
-        endDate: now.add(const Duration(days: 7)),
-        isCompleted: false,
-      ),
-      Target(
-        id: 3,
-        title: 'Last Month Products Sold',
-        description: 'Previous month sales results',
-        type: TargetType.SALES,
-        userId: userId,
-        targetValue: 100,
-        currentValue: 100,
-        startDate: now.subtract(const Duration(days: 45)),
-        endDate: now.subtract(const Duration(days: 15)),
-        isCompleted: true,
-      ),
-    ];
   }
 }

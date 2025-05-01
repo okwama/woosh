@@ -80,6 +80,38 @@ class Product {
     return storeQuantity.quantity;
   }
 
+  // Helper method to get maximum quantity available in a region
+  int getMaxQuantityInRegion(int regionId) {
+    print('Checking stock for region $regionId');
+    print('Total store quantities: ${storeQuantities.length}');
+
+    // Filter store quantities for stores in the specified region
+    final regionStoreQuantities = storeQuantities.where((sq) {
+      final store = sq.store;
+      final matches = store != null && store.regionId == regionId;
+      print(
+          'Store ${sq.storeId}: region=${store?.regionId}, quantity=${sq.quantity}, matches=$matches');
+      return matches;
+    }).toList();
+
+    print(
+        'Found ${regionStoreQuantities.length} stores in region with product');
+
+    if (regionStoreQuantities.isEmpty) {
+      print('No stores found in region $regionId');
+      return 0; // No stores in the region have this product
+    }
+
+    // Find the maximum quantity among stores in the region
+    final maxQuantity = regionStoreQuantities.fold<int>(
+      0,
+      (max, sq) => sq.quantity > max ? sq.quantity : max,
+    );
+
+    print('Maximum quantity in region: $maxQuantity');
+    return maxQuantity;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

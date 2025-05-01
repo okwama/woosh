@@ -57,38 +57,38 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
         DateFormat('yyyy-MM-dd HH:mm').format(notice.createdAt);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16.0),
+      margin: const EdgeInsets.only(bottom: 8.0),
       width: double.infinity,
       constraints: const BoxConstraints(
-        minHeight: 120,
-        maxHeight: 200,
+        minHeight: 70,
+        maxHeight: 140,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16.0),
+        borderRadius: BorderRadius.circular(12.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withOpacity(0.08),
             spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16.0),
+          borderRadius: BorderRadius.circular(12.0),
           onTap: () {
             // Show full notice in a dialog
             showDialog(
               context: context,
               builder: (context) => Dialog(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.0),
+                  borderRadius: BorderRadius.circular(12.0),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,30 +100,30 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                             child: Text(
                               notice.title,
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close),
+                            icon: const Icon(Icons.close, size: 20),
                             onPressed: () => Navigator.pop(context),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                       SingleChildScrollView(
                         child: Text(
                           notice.content,
-                          style: const TextStyle(fontSize: 16),
+                          style: const TextStyle(fontSize: 14),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                       Text(
                         'Posted on: $formattedDate',
                         style: TextStyle(
                           color: Colors.grey.shade600,
-                          fontSize: 14,
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -133,7 +133,7 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
             );
           },
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(8.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -141,24 +141,24 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Theme.of(context).primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
                         Icons.notifications_active,
                         color: Theme.of(context).primaryColor,
-                        size: 20,
+                        size: 16,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         notice.title,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -166,19 +166,17 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Text(
-                    notice.content,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 6),
+                Text(
+                  notice.content,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -186,14 +184,14 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
                       formattedDate,
                       style: TextStyle(
                         color: Colors.grey.shade600,
-                        fontSize: 12,
+                        fontSize: 10,
                       ),
                     ),
                     Text(
                       'Tap to read more',
                       style: TextStyle(
                         color: Theme.of(context).primaryColor,
-                        fontSize: 12,
+                        fontSize: 10,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -209,7 +207,7 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
 
   @override
   Widget build(BuildContext context) {
-      return Scaffold(
+    return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
         title: 'Notice Board',

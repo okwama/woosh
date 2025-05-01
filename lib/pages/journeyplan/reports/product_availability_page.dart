@@ -6,7 +6,7 @@ import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/report/productReport_model.dart';
 import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
 import 'package:woosh/services/api_service.dart';
-
+//           productReport: report.productReport,
 class ProductAvailabilityPage extends BaseReportPage {
   const ProductAvailabilityPage({
     super.key,

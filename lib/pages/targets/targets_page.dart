@@ -28,10 +28,16 @@ class _TargetsPageState extends State<TargetsPage>
   List<Order> _userOrders = [];
   bool _isLoading = true;
   bool _isLoadingOrders = true;
+  bool _isLoadingMore = false;
   String? _errorMessage;
-  String _sortOption = 'endDate'; // Default sort by end date
+  String _sortOption = 'endDate';
   int _totalItemsSold = 0;
   DateTime _twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
+  static const int _prefetchThreshold = 200;
+  static const int _precachePages = 2;
+  int _currentPage = 1;
+  bool _hasMoreOrders = true;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -39,12 +45,23 @@ class _TargetsPageState extends State<TargetsPage>
     _tabController = TabController(length: 3, vsync: this);
     _loadTargets();
     _loadUserOrders();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - _prefetchThreshold) {
+      if (!_isLoadingMore && _hasMoreOrders) {
+        _loadMoreOrders();
+      }
+    }
   }
 
   Future<void> _loadTargets() async {
@@ -55,15 +72,41 @@ class _TargetsPageState extends State<TargetsPage>
 
     try {
       final targets = await TargetService.getTargets();
-      setState(() {
-        _targets = targets;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _targets = targets;
+          _isLoading = false;
+        });
+        // Precache next pages if available
+        _precacheNextTargets();
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load targets: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load targets: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _precacheNextTargets() async {
+    try {
+      // Precache next set of targets
+      final nextTargets = await TargetService.getTargets(
+        page: _currentPage + 1,
+        limit: 10,
+      );
+
+      if (mounted && nextTargets.isNotEmpty) {
+        ApiService.cacheData(
+          'targets_page_${_currentPage + 1}',
+          nextTargets,
+          validity: const Duration(minutes: 5),
+        );
+      }
+    } catch (e) {
+      print('Precaching targets failed: $e');
     }
   }
 
@@ -73,22 +116,148 @@ class _TargetsPageState extends State<TargetsPage>
     });
 
     try {
+      // Try to get cached data first
+      final cachedData =
+          await ApiService.getCachedData<Map<String, dynamic>>('sales_data');
+
+      if (cachedData != null) {
+        if (mounted) {
+          setState(() {
+            _totalItemsSold = cachedData['totalItemsSold'];
+            _userOrders = cachedData['recentOrders'];
+            _isLoadingOrders = false;
+          });
+        }
+        return;
+      }
+
       final salesData = await TargetService.getSalesData();
 
-      setState(() {
-        _totalItemsSold = salesData['totalItemsSold'];
-        _userOrders = salesData['recentOrders'];
-        _isLoadingOrders = false;
-      });
+      if (mounted) {
+        setState(() {
+          _totalItemsSold = salesData['totalItemsSold'];
+          _userOrders = salesData['recentOrders'];
+          _isLoadingOrders = false;
+        });
+
+        // Cache the sales data
+        ApiService.cacheData(
+          'sales_data',
+          salesData,
+          validity: const Duration(minutes: 5),
+        );
+
+        // Precache next pages of orders
+        _precacheNextOrders();
+      }
     } catch (e) {
       print('Error loading orders: $e');
-      setState(() {
-        _isLoadingOrders = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingOrders = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreOrders() async {
+    if (_isLoadingMore || !_hasMoreOrders) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      // Try to get cached data first
+      final cachedData = await ApiService.getCachedData<List<Order>>(
+          'orders_page_${_currentPage + 1}');
+
+      if (cachedData != null) {
+        if (mounted) {
+          setState(() {
+            _userOrders.addAll(cachedData);
+            _currentPage++;
+            _isLoadingMore = false;
+            _hasMoreOrders = _currentPage < _precachePages + 1;
+          });
+        }
+        return;
+      }
+
+      final salesData = await TargetService.getSalesData(
+        page: _currentPage + 1,
+        limit: 10,
+      );
+
+      if (mounted) {
+        setState(() {
+          _userOrders.addAll(salesData['recentOrders']);
+          _currentPage++;
+          _isLoadingMore = false;
+          _hasMoreOrders = salesData['hasMore'];
+        });
+
+        // Cache the new data
+        ApiService.cacheData(
+          'orders_page_$_currentPage',
+          salesData['recentOrders'],
+          validity: const Duration(minutes: 5),
+        );
+
+        // Precache next pages
+        _precacheNextOrders();
+      }
+    } catch (e) {
+      print('Error loading more orders: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _precacheNextOrders() async {
+    if (!_hasMoreOrders) return;
+
+    final nextPage = _currentPage + 1;
+    final endPage = nextPage + _precachePages;
+
+    for (int page = nextPage; page < endPage; page++) {
+      try {
+        final salesData = await TargetService.getSalesData(
+          page: page,
+          limit: 10,
+        );
+
+        if (mounted && salesData['recentOrders'].isNotEmpty) {
+          ApiService.cacheData(
+            'orders_page_$page',
+            salesData['recentOrders'],
+            validity: const Duration(minutes: 5),
+          );
+        }
+      } catch (e) {
+        print('Precaching orders failed for page $page: $e');
+      }
     }
   }
 
   Future<void> _refreshData() async {
+    // Clear existing cache
+    for (int i = 1; i <= _precachePages; i++) {
+      ApiService.removeFromCache('targets_page_$i');
+      ApiService.removeFromCache('orders_page_$i');
+    }
+    ApiService.removeFromCache('sales_data');
+
+    // Reset state
+    setState(() {
+      _currentPage = 1;
+      _hasMoreOrders = true;
+      _userOrders = [];
+    });
+
     await Future.wait([
       _loadTargets(),
       _loadUserOrders(),
@@ -403,6 +572,25 @@ class _TargetsPageState extends State<TargetsPage>
   }
 
   Widget _buildTargetList(List<Target> targets, String emptyMessage) {
+    if (_isLoading) {
+      return ListView.builder(
+        padding: const EdgeInsets.all(8.0),
+        itemCount: 3,
+        itemBuilder: (context, index) {
+          return AnimationConfiguration.staggeredList(
+            position: index,
+            duration: const Duration(milliseconds: 375),
+            child: SlideAnimation(
+              verticalOffset: 50.0,
+              child: FadeInAnimation(
+                child: _buildSkeletonCard(),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     if (targets.isEmpty) {
       return Center(
         child: Column(
@@ -423,11 +611,25 @@ class _TargetsPageState extends State<TargetsPage>
       onRefresh: _refreshData,
       child: AnimationLimiter(
         child: ListView.builder(
+          controller: _scrollController,
           padding: const EdgeInsets.all(8.0),
-          itemCount: targets.length + 1, // +1 for the sales data card
+          itemCount: targets.length + 1 + (_hasMoreOrders ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == 0) {
-              return _buildSalesDataCard();
+              return _isLoadingOrders
+                  ? _buildSkeletonSalesCard()
+                  : _buildSalesDataCard();
+            }
+
+            if (index == targets.length + 1) {
+              return _isLoadingMore
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : const SizedBox.shrink();
             }
 
             final target = targets[index - 1];
@@ -462,7 +664,7 @@ class _TargetsPageState extends State<TargetsPage>
                     color: Theme.of(context).primaryColor, size: 16),
                 const SizedBox(width: 6),
                 const Text(
-                  'My Sales Activity',
+                  'Sales Summary',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -483,7 +685,7 @@ class _TargetsPageState extends State<TargetsPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Items sold in the last two weeks:',
+                        'Total items sold:',
                         style: TextStyle(color: Colors.grey[700], fontSize: 12),
                       ),
                       const SizedBox(height: 4),
@@ -496,9 +698,50 @@ class _TargetsPageState extends State<TargetsPage>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'From ${_userOrders.where((o) => o.createdAt.isAfter(_twoWeeksAgo)).length} orders',
+                        'From ${_userOrders.length} orders',
                         style: TextStyle(color: Colors.grey[600], fontSize: 11),
                       ),
+                      if (_userOrders.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Recent Orders:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ..._userOrders.map((order) {
+                          final orderData = order as Map<String, dynamic>;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4.0),
+                            child: Row(
+                              children: [
+                                Icon(Icons.shopping_bag,
+                                    size: 12, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${orderData['totalItems']} items',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  DateFormat('MMM d, yyyy').format(
+                                    DateTime.parse(orderData['createdAt']),
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
                     ],
                   ),
           ],
@@ -653,33 +896,6 @@ class _TargetsPageState extends State<TargetsPage>
                   ),
                 ),
               ],
-              if (!target.isCompleted) ...[
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: ShaderMask(
-                        shaderCallback: (bounds) =>
-                            goldGradient.createShader(bounds),
-                        child: const Icon(Icons.update,
-                            size: 14, color: Colors.white),
-                      ),
-                      onPressed: () => _updateProgress(target),
-                      label: GradientText(
-                        'Update Progress',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
           ),
         ),
@@ -700,63 +916,158 @@ class _TargetsPageState extends State<TargetsPage>
     }
   }
 
-  void _updateProgress(Target target) async {
-    final TextEditingController progressController = TextEditingController(
-      text: target.currentValue.toString(),
-    );
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const GradientText('Update Progress'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildSkeletonCard() {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 3.0),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Target: ${target.title}'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 120,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Container(
+                  width: 80,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: 200,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
             const SizedBox(height: 16),
-            TextField(
-              controller: progressController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Current Progress',
-                hintText: 'Enter current value (max: ${target.targetValue})',
-                border: const OutlineInputBorder(),
+            Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 100,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonSalesCard() {
+    return Card(
+      margin: const EdgeInsets.all(6.0),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 100,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: 120,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: 80,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: 150,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          GoldGradientButton(
-            onPressed: () {
-              final value = int.tryParse(progressController.text) ?? 0;
-              Navigator.pop(context, value);
-            },
-            child: const Text('Update'),
-          ),
-        ],
       ),
     );
-
-    if (result != null) {
-      try {
-        await TargetService.updateTargetProgress(target.id!, result);
-        _refreshData();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Progress updated successfully')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update progress: $e')),
-          );
-        }
-      }
-    }
   }
 }

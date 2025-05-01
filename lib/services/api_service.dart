@@ -35,18 +35,25 @@ import 'image_upload.dart';
 class ApiCache {
   static final Map<String, dynamic> _cache = {};
   static final Map<String, DateTime> _cacheTimestamp = {};
-  static const Duration cacheValidity = Duration(minutes: 5);
+  static final Map<String, Duration> _cacheDuration = {};
+  static const Duration defaultCacheValidity = Duration(minutes: 5);
 
-  static void set(String key, dynamic data) {
+  static void set(String key, dynamic data, {Duration? validity}) {
     _cache[key] = data;
     _cacheTimestamp[key] = DateTime.now();
+    _cacheDuration[key] = validity ?? defaultCacheValidity;
   }
 
   static dynamic get(String key) {
     if (!_cache.containsKey(key)) return null;
-    if (DateTime.now().difference(_cacheTimestamp[key]!) > cacheValidity) {
+
+    final timestamp = _cacheTimestamp[key]!;
+    final duration = _cacheDuration[key] ?? defaultCacheValidity;
+
+    if (DateTime.now().difference(timestamp) > duration) {
       _cache.remove(key);
       _cacheTimestamp.remove(key);
+      _cacheDuration.remove(key);
       return null;
     }
     return _cache[key];
@@ -55,6 +62,19 @@ class ApiCache {
   static void clear() {
     _cache.clear();
     _cacheTimestamp.clear();
+    _cacheDuration.clear();
+  }
+
+  static void remove(String key) {
+    _cache.remove(key);
+    _cacheTimestamp.remove(key);
+    _cacheDuration.remove(key);
+  }
+
+  static void setCacheDuration(String key, Duration duration) {
+    if (_cache.containsKey(key)) {
+      _cacheDuration[key] = duration;
+    }
   }
 }
 
@@ -249,39 +269,69 @@ class ApiService {
     }
   }
 
+  // Clear outlets cache
+  static void clearOutletsCache() {
+    final box = GetStorage();
+    final keys = box.getKeys();
+    for (final key in keys) {
+      if (key.startsWith('outlets_page_')) {
+        ApiCache.remove(key);
+      }
+    }
+  }
+
   // Keep fetchOutlets for backward compatibility
   @Deprecated('Use fetchClients() instead')
-  static Future<List<Outlet>> fetchOutlets() async {
+  static Future<List<Outlet>> fetchOutlets({
+    int page = 1,
+    int limit = 10,
+  }) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        throw Exception("Authentication token is missing");
+        throw Exception('User is not authenticated');
       }
 
-      final response = await http
-          .get(
-        Uri.parse('$baseUrl/outlets'),
+      // Generate cache key based on page and limit
+      final cacheKey = 'outlets_page_${page}_limit_${limit}';
+
+      // Try to get from cache first
+      final cachedData = ApiCache.get(cacheKey);
+      if (cachedData != null) {
+        return (cachedData as List)
+            .map((json) => Outlet.fromJson(json))
+            .toList();
+      }
+
+      final queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      final uri =
+          Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
+      final response = await http.get(
+        uri,
         headers: await _headers(),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception("Connection timeout");
-        },
       );
 
-      final handledResponse = await _handleResponse(response);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
 
-      if (handledResponse.statusCode == 200) {
-        final List<dynamic> data = json.decode(handledResponse.body);
+        // Cache the response with a shorter duration for paginated data
+        ApiCache.set(
+          cacheKey,
+          data,
+          validity: const Duration(minutes: 2),
+        );
+
         return data.map((json) => Outlet.fromJson(json)).toList();
       } else {
-        throw Exception(
-            'Failed to load outlets: ${handledResponse.statusCode}');
+        throw Exception('Failed to load outlets: ${response.statusCode}');
       }
     } catch (e) {
-      handleNetworkError(e);
-      rethrow;
+      print('Error fetching outlets: $e');
+      throw Exception('Failed to load outlets: $e');
     }
   }
 
@@ -338,34 +388,25 @@ class ApiService {
   }
 
   // Fetch Journey Plans
-  static Future<List<JourneyPlan>> fetchJourneyPlans() async {
+  static Future<List<JourneyPlan>> fetchJourneyPlans(
+      {int page = 1, int limit = 10}) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
       }
 
-      print(
-          'Fetching journey plans with token: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
+      final queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
 
-      final response = await http
-          .get(
-        Uri.parse('$baseUrl/journey-plans'),
-        headers: await _headers(),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception("Connection timeout");
-        },
-      );
-
-      print('Journey plans response status: ${response.statusCode}');
-      print('Journey plans response body: ${response.body}');
+      final uri = Uri.parse('$baseUrl/journey-plans')
+          .replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: await _headers());
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = jsonDecode(response.body);
-
         if (responseBody.containsKey('data') && responseBody['data'] is List) {
           final List<dynamic> journeyPlansJson = responseBody['data'];
           return journeyPlansJson
@@ -375,14 +416,10 @@ class ApiService {
           throw Exception(
               'Unexpected response format: missing data field or not a list');
         }
-      } else if (response.statusCode == 401) {
-        throw Exception("Unauthorized: Please log in again");
       } else {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(
-            'Failed to load journey plans: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+        throw Exception('Failed to load journey plans: ${response.statusCode}');
       }
-    } on Exception catch (e) {
+    } catch (e) {
       print('Error in fetchJourneyPlans: $e');
       throw Exception('An error occurred while fetching journey plans: $e');
     }
@@ -683,11 +720,12 @@ class ApiService {
   }
 
   // Get products (independent of outlets)
-  static Future<List<Product>> getProducts() async {
+  static Future<List<Product>> getProducts(
+      {int page = 1, int limit = 20}) async {
     try {
       print('[Products] Fetching products from API');
       final response = await http.get(
-        Uri.parse('$baseUrl${Config.productsEndpoint}'),
+        Uri.parse('$baseUrl${Config.productsEndpoint}?page=$page&limit=$limit'),
         headers: await _headers(),
       );
 
@@ -791,6 +829,17 @@ class ApiService {
           }
           requestBody['details'] = {
             'comment': report.feedbackReport!.comment,
+          };
+          break;
+        case ReportType.PRODUCT_RETURN:
+          if (report.productReturn == null) {
+            throw Exception('Product return details are missing');
+          }
+          requestBody['details'] = {
+            'productName': report.productReturn!.productName,
+            'quantity': report.productReturn!.quantity,
+            'reason': report.productReturn!.reason,
+            'imageUrl': report.productReturn!.imageUrl,
           };
           break;
       }
@@ -1690,20 +1739,134 @@ class ApiService {
     required double amount,
     required File imageFile,
   }) async {
-    final uri = Uri.parse('$baseUrl/outlets/$clientId/payments');
-    final request = http.MultipartRequest('POST', uri);
-    final token = _getAuthToken();
-    if (token != null) {
-      request.headers['Authorization'] = 'Bearer $token';
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      print('\n=== DEBUG: Payment Upload Request ===');
+      print('Token exists: ${token.isNotEmpty}');
+      print('Token length: ${token.length}');
+      print('Token sample: ${token.substring(0, 10)}...');
+
+      final uri = Uri.parse('$baseUrl/outlets/$clientId/payments');
+      print('URL: $uri');
+      print('ClientId: $clientId');
+      print('Amount: $amount');
+      print('Image exists: ${await imageFile.exists()}');
+      print('Image path: ${imageFile.path}');
+      print('Image size: ${await imageFile.length()} bytes');
+
+      final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll({
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        });
+
+      print('\nDEBUG: Request Headers');
+      print('Headers: ${request.headers}');
+
+      request.fields['amount'] = amount.toString();
+      print('\nDEBUG: Request Fields');
+      print('Fields: ${request.fields}');
+
+      if (kIsWeb) {
+        print('\nDEBUG: Web Platform File Upload');
+        final bytes = await imageFile.readAsBytes();
+        print('File bytes length: ${bytes.length}');
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            bytes,
+            filename: 'payment_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            contentType: MediaType('image', 'jpeg'),
+          ),
+        );
+      } else {
+        print('\nDEBUG: Mobile Platform File Upload');
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'image',
+            imageFile.path,
+            filename: imageFile.path.split('/').last,
+            contentType: MediaType('image', imageFile.path.split('.').last),
+          ),
+        );
+      }
+
+      print('\nDEBUG: Request Files');
+      print('Files count: ${request.files.length}');
+      for (var file in request.files) {
+        print('File field: ${file.field}');
+        print('File filename: ${file.filename}');
+        print('File length: ${file.length}');
+        print('File contentType: ${file.contentType}');
+      }
+
+      print('\nDEBUG: Sending Request');
+      final streamedResponse = await request.send();
+      print('Response status code: ${streamedResponse.statusCode}');
+
+      final response = await http.Response.fromStream(streamedResponse);
+      print('\nDEBUG: Response Body');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode != 201) {
+        final errorBody = json.decode(response.body);
+        print('\nDEBUG: Error Details');
+        print('Error: ${errorBody['error']}');
+        print('Status code: ${response.statusCode}');
+        throw Exception(
+            errorBody['error'] ?? 'Failed to upload payment: ${response.body}');
+      }
+
+      print('\nDEBUG: Upload Successful');
+      print('Status code: ${response.statusCode}');
+      print('Response: ${response.body}');
+    } catch (e) {
+      print('\nDEBUG: Exception Details');
+      print('Type: ${e.runtimeType}');
+      print('Message: $e');
+      print('Stack trace: ${StackTrace.current}');
+      rethrow;
     }
-    request.fields['amount'] = amount.toString();
-    request.files.add(
-      await http.MultipartFile.fromPath('image', imageFile.path),
-    );
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-    if (response.statusCode != 201) {
-      throw Exception('Failed to upload payment: ${response.body}');
+  }
+
+  static T? getCachedData<T>(String key) {
+    return ApiCache.get(key) as T?;
+  }
+
+  static void cacheData<T>(String key, T data, {Duration? validity}) {
+    ApiCache.set(key, data, validity: validity);
+  }
+
+  static void clearCache() {
+    ApiCache.clear();
+  }
+
+  static void removeFromCache(String key) {
+    ApiCache.remove(key);
+  }
+
+  static Future<JourneyPlan?> getActiveVisit() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/journey-plans?status=in_progress'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data != null && data['data'] != null && data['data'].isNotEmpty) {
+          // Return the first in-progress visit
+          return JourneyPlan.fromJson(data['data'][0]);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting active visit: $e');
+      return null;
     }
   }
 }

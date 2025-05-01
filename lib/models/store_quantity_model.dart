@@ -1,14 +1,18 @@
+import 'store_model.dart';
+
 class StoreQuantity {
   final int id;
   final int quantity;
   final int storeId;
   final int productId;
+  final Store? store;
 
   StoreQuantity({
     required this.id,
     required this.quantity,
     required this.storeId,
     required this.productId,
+    this.store,
   });
 
   factory StoreQuantity.fromJson(Map<String, dynamic> json) {
@@ -17,6 +21,7 @@ class StoreQuantity {
       quantity: json['quantity'],
       storeId: json['storeId'],
       productId: json['productId'],
+      store: json['store'] != null ? Store.fromJson(json['store']) : null,
     );
   }
 
@@ -26,6 +31,7 @@ class StoreQuantity {
       'quantity': quantity,
       'storeId': storeId,
       'productId': productId,
+      if (store != null) 'store': store!.toJson(),
     };
   }
 

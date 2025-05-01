@@ -1,5 +1,5 @@
 import 'package:get/get.dart';
-import 'package:woosh/pages/journeyplan/reports/feedback_report_page.dart';
+import 'package:woosh/pages/journeyplan/feedback_report_page.dart';
 import 'package:woosh/pages/journeyplan/reports/product_availability_page.dart';
 import 'package:woosh/pages/journeyplan/reports/visibility_activity_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';

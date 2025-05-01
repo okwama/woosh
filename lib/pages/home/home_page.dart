@@ -16,6 +16,7 @@ import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../targets/targets_page.dart';
+import 'package:woosh/services/session_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -109,8 +110,23 @@ class _HomePageState extends State<HomePage> {
         ),
       );
 
-      // Clear all stored data
+      // Record logout on the server
       final box = GetStorage();
+      final salesRep = box.read('salesRep');
+      String? userId;
+      if (salesRep != null && salesRep is Map<String, dynamic>) {
+        userId = salesRep['id']?.toString();
+      }
+      if (userId != null) {
+        try {
+          await SessionService.recordLogout(userId);
+        } catch (e) {
+          // Optionally show a message, but proceed with local logout
+          print('Failed to record logout on server: $e');
+        }
+      }
+
+      // Clear all stored data
       await box.erase();
 
       // Close loading indicator

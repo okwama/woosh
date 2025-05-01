@@ -6,6 +6,7 @@ import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/report/feedbackReport_model.dart';
 import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
 
+
 class FeedbackReportPage extends BaseReportPage {
   const FeedbackReportPage({super.key, required super.journeyPlan})
       : super(

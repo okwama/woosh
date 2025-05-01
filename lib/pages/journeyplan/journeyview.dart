@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -18,6 +17,7 @@ import 'package:woosh/services/universal_file.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:get/get.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -39,8 +39,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   bool _isCheckingIn = false;
   bool _isFetchingLocation = false;
   bool _isWithinGeofence = false;
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
   double _distanceToClient = 0.0;
   StreamSubscription<Position>? _positionStreamSubscription;
 
@@ -75,8 +73,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       _getCurrentPosition();
     }
 
-    _initializeCamera();
-
     // Determine journey state and handle accordingly
     if (widget.journeyPlan.isPending) {
       // Only start location updates for pending journeys
@@ -95,10 +91,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
 
-    // Cancel camera controller
-    _cameraController?.dispose();
-    _cameraController = null;
-
     // Dispose of text controller
     _notesController.dispose();
 
@@ -110,17 +102,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _cameraController;
-
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.inactive) {
-      cameraController.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initializeCamera();
-    }
+    // No camera controller logic needed
   }
 
   @override
@@ -138,65 +120,145 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     ImageCache().clear();
     ImageCache().clearLiveImages();
     ApiCache.clear();
-    // Release camera resources if not in use
-    if (_cameraController != null && !_cameraController!.value.isInitialized) {
-      _cameraController?.dispose();
-      _cameraController = null;
+    // No camera resources to release
+  }
+
+  Color _getStatusColor(int status) {
+    switch (status) {
+      case JourneyPlan.statusInProgress:
+        return Colors.blue;
+      case JourneyPlan.statusCheckedIn:
+        return Colors.orange;
+      case JourneyPlan.statusCompleted:
+        return Colors.green;
+      case JourneyPlan.statusCancelled:
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
-  Future<void> _initializeCamera() async {
-    try {
-      // First check camera permission
-      if (!kIsWeb) {
-        final status = await Permission.camera.status;
-        if (status.isDenied) {
-          final result = await Permission.camera.request();
-          if (result.isDenied) {
-            throw Exception('Camera permission denied');
-          }
-        }
-      }
+  String _getStatusText(int status) {
+    switch (status) {
+      case JourneyPlan.statusInProgress:
+        return 'In Progress';
+      case JourneyPlan.statusCheckedIn:
+        return 'Checked In';
+      case JourneyPlan.statusCompleted:
+        return 'Completed';
+      case JourneyPlan.statusCancelled:
+        return 'Cancelled';
+      default:
+        return 'Pending';
+    }
+  }
 
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        throw Exception('No cameras available');
-      }
+  void _checkIn() async {
+    // First check if there's an active visit
+    final activeVisit = await ApiService.getActiveVisit();
+    print('Current journey plan status: ${widget.journeyPlan.status}');
+    print('Active visit found: ${activeVisit != null}');
 
-      if (_cameraController != null) {
-        await _cameraController!.dispose();
-      }
-
-      _cameraController = CameraController(
-        cameras.first,
-        ResolutionPreset.medium, // Lower resolution for better performance
-        enableAudio: false,
+    // Check if current journey plan is already in progress
+    if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
+      Get.snackbar(
+        'Already Checked In',
+        'You are already checked in to this visit.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
       );
-
-      await _cameraController!.initialize();
-
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-        print('Camera initialized successfully');
-      }
-    } catch (e) {
-      print('Failed to initialize camera: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Camera error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-      _isCameraInitialized = false;
+      return;
     }
-  }
 
-  Future<void> _checkIn() async {
+    // If there's an active visit and it's not this one, and it's not completed
+    if (activeVisit != null &&
+        activeVisit.id != widget.journeyPlan.id &&
+        !activeVisit.isCompleted) {
+      Get.dialog(
+        AlertDialog(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Active Visit Found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You have an active visit with:',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                activeVisit.clientName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(activeVisit.status).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _getStatusText(activeVisit.status),
+                  style: TextStyle(
+                    color: _getStatusColor(activeVisit.status),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Please complete your current visit before starting a new one.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                Get.toNamed('/journey-view', arguments: activeVisit);
+              },
+              child: const Text('Go to Active Visit'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     try {
       setState(() {
         _isCheckingIn = true;
@@ -218,7 +280,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         return;
       }
 
-      // Open camera directly
+      // Open camera using image_picker
       await _openCameraAndCapture();
     } catch (e) {
       if (!mounted) return;
@@ -236,42 +298,26 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
   Future<void> _openCameraAndCapture() async {
     try {
-      if (kIsWeb) {
-        // For web platforms, use ImagePicker with camera source only
-        final ImagePicker picker = ImagePicker();
-        final XFile? image = await picker.pickImage(
-          source: ImageSource.camera,
-          maxWidth: 1920,
-          maxHeight: 1080,
-          imageQuality: 85,
-        );
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
 
-        if (image == null) {
-          setState(() {
-            _isCheckingIn = false;
-          });
-          return;
-        }
-
-        // For web, we'll use the path
-        _capturedImage = kIsWeb ? null : File(image.path);
-        _imageUrl = kIsWeb ? image.path : null;
-
-        // Show confirmation dialog
-        await _showConfirmationDialog(kIsWeb ? image : _capturedImage);
-      } else {
-        // For mobile platforms, we need to initialize the camera
-        if (!_isCameraInitialized || _cameraController == null) {
-          await _initializeCamera();
-
-          if (!_isCameraInitialized || _cameraController == null) {
-            throw Exception('Camera could not be initialized');
-          }
-        }
-
-        // Show the camera preview in a dialog
-        await _showCameraPreviewDialog();
+      if (image == null) {
+        setState(() {
+          _isCheckingIn = false;
+        });
+        return;
       }
+
+      _capturedImage = File(image.path);
+      _imageUrl = null;
+
+      // Show confirmation dialog
+      await _showConfirmationDialog(_capturedImage);
     } catch (e) {
       print('Error capturing image: $e');
       if (mounted) {
@@ -289,148 +335,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _showCameraPreviewDialog() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog.fullscreen(
-        child: Stack(
-          children: [
-            // Camera Preview
-            SizedBox(
-              width: double.infinity,
-              height: double.infinity,
-              child: ClipRRect(
-                child: CameraPreview(_cameraController!),
-              ),
-            ),
-            // Top Bar with Close Button
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        setState(() {
-                          _isCheckingIn = false;
-                        });
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.flip_camera_ios,
-                          color: Colors.white),
-                      onPressed: () async {
-                        final cameras = await availableCameras();
-                        if (cameras.length < 2) return;
-
-                        // Find the next camera
-                        final currentCamera = _cameraController!.description;
-                        final nextCamera = cameras.firstWhere(
-                          (camera) =>
-                              camera.lensDirection !=
-                              currentCamera.lensDirection,
-                          orElse: () => cameras.first,
-                        );
-
-                        // Dispose of the current controller
-                        await _cameraController!.dispose();
-
-                        // Create a new controller with the next camera
-                        _cameraController = CameraController(
-                          nextCamera,
-                          ResolutionPreset.medium,
-                          enableAudio: false,
-                        );
-
-                        // Initialize the new controller
-                        await _cameraController!.initialize();
-
-                        // Update the UI
-                        if (mounted) {
-                          setState(() {});
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Bottom Bar with Capture Button
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FloatingActionButton(
-                      onPressed: () async {
-                        try {
-                          final image = await _cameraController!.takePicture();
-                          Navigator.pop(context);
-
-                          _capturedImage = File(image.path);
-
-                          // Show confirmation dialog
-                          await _showConfirmationDialog(_capturedImage);
-                        } catch (e) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Failed to capture image: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          setState(() {
-                            _isCheckingIn = false;
-                          });
-                        }
-                      },
-                      backgroundColor: Colors.white,
-                      child: const Icon(Icons.camera, color: Colors.black),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showConfirmationDialog(dynamic imageFile) async {
+  Future<void> _showConfirmationDialog(File? imageFile) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -448,12 +353,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 ),
               ),
             ),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 300),
-              child: kIsWeb && imageFile is XFile
-                  ? Image.network(imageFile.path)
-                  : Image.file(imageFile),
-            ),
+            if (imageFile != null)
+              Container(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: Image.file(imageFile),
+              ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(

@@ -2,16 +2,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
+
 import 'package:woosh/models/report/productReport_model.dart';
-import 'package:woosh/models/report/visibilityReport_model.dart';
 import 'package:woosh/models/report/feedbackReport_model.dart';
+import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/models/report/productReturn_model.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/feedback_report_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_report_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/visibility_report_page.dart';
+import 'package:woosh/pages/journeyplan/reports/product_availability_page.dart';
+import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -63,34 +71,28 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     }
   }
 
-  Future<void> _refreshData() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> _loadExistingReports() async {
     try {
-      // Reload products
-      await _loadProducts();
+      final reports = await _apiService.getReports(
+        journeyPlanId: widget.journeyPlan.id,
+      );
+      setState(() {
+        _submittedReports = reports;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading existing reports: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
-      // Load any existing reports for this journey
-      try {
-        final reports = await _apiService.getReports(
-          journeyPlanId: widget.journeyPlan.id,
-        );
-        setState(() {
-          _submittedReports = reports;
-        });
-      } catch (e) {
-        print('Error loading existing reports: $e');
-      }
-
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
+    await _loadExistingReports();
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Reports refreshed')),
       );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -233,6 +235,21 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
             ),
           );
           break;
+        case ReportType.PRODUCT_RETURN:
+          report = Report(
+            type: ReportType.PRODUCT_RETURN,
+            journeyPlanId: widget.journeyPlan.id,
+            salesRepId: salesRepId,
+            clientId: widget.journeyPlan.client.id,
+            productReturn: ProductReturn(
+              reportId: 0,
+              productName: _selectedProduct?.name,
+              reason: _commentController.text,
+              imageUrl: imageUrl,
+              quantity: int.tryParse(_quantityController.text),
+            ),
+          );
+          break;
       }
 
       // Debug: Validate report object before submission
@@ -263,6 +280,13 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
           }
           print(
               'REPORT SUBMISSION DEBUG: FeedbackReport: Comment: ${report.feedbackReport?.comment}');
+          break;
+        case ReportType.PRODUCT_RETURN:
+          if (report.productReturn == null) {
+            throw Exception('Product return details are missing');
+          }
+          print(
+              'REPORT SUBMISSION DEBUG: ProductReturn: Product: ${report.productReturn?.productName}, Reason: ${report.productReturn?.reason}, Quantity: ${report.productReturn?.quantity}');
           break;
       }
 
@@ -295,7 +319,6 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   }
 
   bool _areAllReportsSubmitted() {
-    // Check if at least one report of each type has been submitted
     bool hasProductReport =
         _submittedReports.any((r) => r.type == ReportType.PRODUCT_AVAILABILITY);
     bool hasVisibilityReport =
@@ -314,130 +337,12 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     _imageUrl = null;
   }
 
-  Widget _buildReportForm() {
-    switch (_selectedReportType) {
-      case ReportType.PRODUCT_AVAILABILITY:
-        return Column(
-          children: [
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_products.isEmpty)
-              const Center(
-                child: Text(
-                  'No products available',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-              )
-            else
-              DropdownButtonFormField<Product>(
-                value: _selectedProduct,
-                decoration: const InputDecoration(
-                  labelText: 'Select Product',
-                  border: OutlineInputBorder(),
-                ),
-                items: _products.map((product) {
-                  return DropdownMenuItem(
-                    value: product,
-                    child: Text(product.name),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedProduct = value);
-                },
-              ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _commentController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Comment',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        );
-
-      case ReportType.VISIBILITY_ACTIVITY:
-        return Column(
-          children: [
-            Center(
-              child: _imageFile != null || _imageUrl != null
-                  ? Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        _imageFile != null
-                            ? Image.file(
-                                _imageFile!,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              )
-                            : Image.network(
-                                _imageUrl!,
-                                height: 200,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            setState(() {
-                              _imageFile = null;
-                              _imageUrl = null;
-                            });
-                          },
-                        ),
-                      ],
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: _pickImage,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Take Photo'),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _commentController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Comment',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        );
-
-      case ReportType.FEEDBACK:
-        return TextField(
-          controller: _commentController,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Feedback',
-            hintText: 'Enter your feedback here...',
-            border: OutlineInputBorder(),
-          ),
-        );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'Reports',
+        title: 'Reports & Sales',
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -454,163 +359,244 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
             // Outlet Info Card
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.store, size: 24),
-                        const SizedBox(width: 8),
+                        const Icon(Icons.store, size: 20),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             widget.journeyPlan.client.name,
                             style: const TextStyle(
-                              fontSize: 18,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Text(
                       widget.journeyPlan.client.address,
                       style: TextStyle(
                         color: Colors.grey.shade600,
+                        fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Report Type Selection
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Report Type',
+                      'Actions',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    // // Sales Button
+                    // SizedBox(
+                    //   width: double.infinity,
+                    //   child: ElevatedButton.icon(
+                    //     onPressed: () {
+                    //       Navigator.push(
+                    //         context,
+                    //         MaterialPageRoute(
+                    //           builder: (context) => SalesPage(
+                    //             journeyPlan: widget.journeyPlan,
+                    //           ),
+                    //         ),
+                    //       );
+                    //     },
+                    //     style: ElevatedButton.styleFrom(
+                    //       backgroundColor: Theme.of(context).primaryColor,
+                    //       foregroundColor: Colors.white,
+                    //       alignment: Alignment.centerLeft,
+                    //       padding: const EdgeInsets.symmetric(
+                    //           vertical: 8, horizontal: 12),
+                    //       minimumSize: const Size.fromHeight(36),
+                    //     ),
+                    //     icon: const Icon(Icons.shopping_cart, size: 18),
+                    //     label: const Text('Post Sales',
+                    //         style: TextStyle(fontSize: 13)),
+                    //   ),
+                    // ),
+                    const SizedBox(height: 6),
+                    // Product Availability Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          setState(() {
-                            _selectedReportType =
-                                ReportType.PRODUCT_AVAILABILITY;
-                            _resetForm();
-                          });
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductReportPage(
+                                journeyPlan: widget.journeyPlan,
+                                onReportSubmitted: () {
+                                  setState(() {
+                                    _submittedReports.add(Report(
+                                      type: ReportType.PRODUCT_AVAILABILITY,
+                                      journeyPlanId: widget.journeyPlan.id,
+                                      salesRepId:
+                                          GetStorage().read('salesRep')['id'],
+                                      clientId: widget.journeyPlan.client.id,
+                                    ));
+                                  });
+                                  if (_areAllReportsSubmitted()) {
+                                    widget.onAllReportsSubmitted?.call();
+                                  }
+                                },
+                              ),
+                            ),
+                          );
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedReportType ==
-                                  ReportType.PRODUCT_AVAILABILITY
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade200,
-                          foregroundColor: _selectedReportType ==
-                                  ReportType.PRODUCT_AVAILABILITY
-                              ? Colors.white
-                              : Colors.black87,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                        ),
-                        icon: const Icon(Icons.inventory),
-                        label: const Text('Product Availability'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _selectedReportType =
-                                ReportType.VISIBILITY_ACTIVITY;
-                            _resetForm();
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedReportType ==
-                                  ReportType.VISIBILITY_ACTIVITY
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade200,
-                          foregroundColor: _selectedReportType ==
-                                  ReportType.VISIBILITY_ACTIVITY
-                              ? Colors.white
-                              : Colors.black87,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                        ),
-                        icon: const Icon(Icons.photo_camera),
-                        label: const Text('Visibility Activity'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _selectedReportType = ReportType.FEEDBACK;
-                            _resetForm();
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _selectedReportType == ReportType.FEEDBACK
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey.shade200,
-                          foregroundColor:
-                              _selectedReportType == ReportType.FEEDBACK
-                                  ? Colors.white
-                                  : Colors.black87,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                        ),
-                        icon: const Icon(Icons.feedback),
-                        label: const Text('Feedback'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Report Form
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildReportForm(),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submitReport,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 12),
+                          minimumSize: const Size.fromHeight(36),
                         ),
-                        child: _isSubmitting
-                            ? const CircularProgressIndicator(
-                                color: Colors.white)
-                            : const Text('Submit Report'),
+                        icon: const Icon(Icons.inventory, size: 18),
+                        label: const Text('Product Availability',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Visibility Activity Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => VisibilityReportPage(
+                                journeyPlan: widget.journeyPlan,
+                                onReportSubmitted: () {
+                                  setState(() {
+                                    _submittedReports.add(Report(
+                                      type: ReportType.VISIBILITY_ACTIVITY,
+                                      journeyPlanId: widget.journeyPlan.id,
+                                      salesRepId:
+                                          GetStorage().read('salesRep')['id'],
+                                      clientId: widget.journeyPlan.client.id,
+                                    ));
+                                  });
+                                  if (_areAllReportsSubmitted()) {
+                                    widget.onAllReportsSubmitted?.call();
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 12),
+                          minimumSize: const Size.fromHeight(36),
+                        ),
+                        icon: const Icon(Icons.photo_camera, size: 18),
+                        label: const Text('Visibility Activity',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Feedback Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FeedbackReportPage(
+                                journeyPlan: widget.journeyPlan,
+                                onReportSubmitted: () {
+                                  setState(() {
+                                    _submittedReports.add(Report(
+                                      type: ReportType.FEEDBACK,
+                                      journeyPlanId: widget.journeyPlan.id,
+                                      salesRepId:
+                                          GetStorage().read('salesRep')['id'],
+                                      clientId: widget.journeyPlan.client.id,
+                                    ));
+                                  });
+                                  if (_areAllReportsSubmitted()) {
+                                    widget.onAllReportsSubmitted?.call();
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 12),
+                          minimumSize: const Size.fromHeight(36),
+                        ),
+                        icon: const Icon(Icons.feedback, size: 18),
+                        label: const Text('Feedback',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Product Return Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductReturnPage(
+                                journeyPlan: widget.journeyPlan,
+                                onReportSubmitted: () {
+                                  setState(() {
+                                    _submittedReports.add(Report(
+                                      type: ReportType.PRODUCT_RETURN,
+                                      journeyPlanId: widget.journeyPlan.id,
+                                      salesRepId:
+                                          GetStorage().read('salesRep')['id'],
+                                      clientId: widget.journeyPlan.client.id,
+                                    ));
+                                  });
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 12),
+                          minimumSize: const Size.fromHeight(36),
+                        ),
+                        icon: const Icon(Icons.assignment_return, size: 18),
+                        label: const Text('Product Return',
+                            style: TextStyle(fontSize: 13)),
                       ),
                     ),
                   ],
@@ -619,26 +605,26 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
             ),
 
             // Checkout Button
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Complete Visit',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     const Text(
                       'When you have completed all required tasks, check out to mark this visit as complete.',
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -646,20 +632,22 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          minimumSize: const Size.fromHeight(36),
                         ),
-                        icon: const Icon(Icons.check_circle),
+                        icon: const Icon(Icons.check_circle, size: 18),
                         label: _isCheckingOut
                             ? const SizedBox(
-                                height: 20,
-                                width: 20,
+                                height: 16,
+                                width: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
                                       Colors.white),
                                 ),
                               )
-                            : const Text('CHECK OUT'),
+                            : const Text('CHECK OUT',
+                                style: TextStyle(fontSize: 13)),
                       ),
                     ),
                   ],

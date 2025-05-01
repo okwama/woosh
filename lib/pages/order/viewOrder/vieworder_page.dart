@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/utils/date_utils.dart';
+import 'package:woosh/widgets/skeleton_loader.dart';
 
 class ViewOrdersPage extends StatefulWidget {
   const ViewOrdersPage({super.key});
@@ -17,11 +18,13 @@ class ViewOrdersPage extends StatefulWidget {
 
 class _ViewOrdersPageState extends State<ViewOrdersPage> {
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   List<Order> _orders = [];
-  String? _error;
   int _page = 1;
   static const int _limit = 10;
   bool _hasMore = true;
+  static const int _prefetchThreshold = 200;
+  static const int _precachePages = 2; // Number of pages to precache
 
   final currencyFormat = NumberFormat.currency(
     locale: 'en_KE',
@@ -45,52 +48,206 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels ==
-        _scrollController.position.maxScrollExtent) {
-      if (!_isLoading && _hasMore) {
-        _loadOrders(page: _page + 1);
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - _prefetchThreshold) {
+      if (!_isLoadingMore && _hasMore) {
+        _loadMoreOrders();
       }
     }
   }
 
-  Future<void> _loadOrders({int? page}) async {
+  Future<void> _loadOrders() async {
     if (_isLoading) return;
 
     setState(() {
       _isLoading = true;
-      _error = null;
-      if (page == 1) {
-        _orders = [];
-      }
+      _page = 1;
+      _hasMore = true;
+      _orders = [];
     });
 
     try {
-      final response = await ApiService.getOrders(
-        page: page ?? _page,
-        limit: _limit,
+      // Load initial page
+      final response = await _retryApiCall(
+        () => ApiService.getOrders(page: 1, limit: _limit),
+        maxRetries: 3,
+        timeout: const Duration(seconds: 15),
       );
 
-      setState(() {
-        if (page == 1) {
+      if (mounted) {
+        setState(() {
           _orders = response.data;
-        } else {
-          _orders.addAll(response.data);
+          _isLoading = false;
+          _hasMore = response.page < response.totalPages;
+        });
+
+        // Precache next pages if available
+        if (_hasMore) {
+          _precacheNextPages();
         }
-        _page = page ?? _page;
-        _hasMore = response.page < response.totalPages;
-        _isLoading = false;
-      });
+      }
     } catch (e) {
-      setState(() {
-        _error = 'Failed to load orders: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        // Auto-retry after delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _loadOrders();
+        });
+      }
     }
   }
 
-  Future<void> _refreshOrders() {
-    _page = 1;
-    return _loadOrders(page: 1);
+  Future<void> _precacheNextPages() async {
+    if (!_hasMore) return;
+
+    final nextPage = _page + 1;
+    final endPage = nextPage + _precachePages;
+
+    for (int page = nextPage; page < endPage; page++) {
+      try {
+        final response = await _retryApiCall(
+          () => ApiService.getOrders(page: page, limit: _limit),
+          maxRetries: 2,
+          timeout: const Duration(seconds: 10),
+        );
+
+        if (mounted && response.data.isNotEmpty) {
+          // Cache the data for future use
+          ApiService.cacheData(
+            'orders_page_$page',
+            response.data,
+            validity: const Duration(minutes: 5),
+          );
+        }
+      } catch (e) {
+        // Silently fail for precaching
+        print('Precaching failed for page $page: $e');
+      }
+    }
+  }
+
+  Future<void> _loadMoreOrders() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      // Try to get cached data first
+      final cachedData = await ApiService.getCachedData<List<Order>>(
+          'orders_page_${_page + 1}');
+
+      if (cachedData != null) {
+        if (mounted) {
+          setState(() {
+            _orders.addAll(cachedData);
+            _page++;
+            _isLoadingMore = false;
+            _hasMore = _page <
+                _precachePages +
+                    1; // Check if we've reached the precached limit
+          });
+        }
+        return;
+      }
+
+      // If no cached data, fetch from API
+      final response = await _retryApiCall(
+        () => ApiService.getOrders(page: _page + 1, limit: _limit),
+        maxRetries: 3,
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (mounted) {
+        setState(() {
+          _orders.addAll(response.data);
+          _page++;
+          _isLoadingMore = false;
+          _hasMore = response.page < response.totalPages;
+        });
+
+        // Precache next pages if available
+        if (_hasMore) {
+          _precacheNextPages();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+        // Auto-retry after delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _loadMoreOrders();
+        });
+      }
+    }
+  }
+
+  Future<T> _retryApiCall<T>(
+    Future<T> Function() apiCall, {
+    int maxRetries = 3,
+    Duration timeout = const Duration(seconds: 15),
+    Duration retryDelay = const Duration(seconds: 2),
+  }) async {
+    int attempts = 0;
+    while (true) {
+      try {
+        attempts++;
+        return await apiCall().timeout(timeout);
+      } catch (e) {
+        if (attempts >= maxRetries) {
+          rethrow;
+        }
+        print('Retry attempt $attempts of $maxRetries after error: $e');
+        await Future.delayed(retryDelay * attempts); // Exponential backoff
+      }
+    }
+  }
+
+  Future<void> _refreshOrders() async {
+    try {
+      // Clear existing cache before refresh
+      for (int i = 1; i <= _precachePages; i++) {
+        ApiService.removeFromCache('orders_page_$i');
+      }
+
+      // Reset state
+      setState(() {
+        _page = 1;
+        _hasMore = true;
+        _orders = [];
+      });
+
+      // Load fresh data
+      await _loadOrders();
+
+      // Show success feedback
+      if (mounted) {
+        Get.snackbar(
+          'Success',
+          'Orders refreshed successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Get.snackbar(
+          'Error',
+          'Failed to refresh orders',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    }
   }
 
   Future<void> _deleteOrder(Order order) async {
@@ -146,324 +303,191 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
       backgroundColor: appBackground,
       appBar: GradientAppBar(
         title: 'My Orders',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              // Show loading indicator in app bar
+              setState(() {
+                _isLoading = true;
+              });
+              _refreshOrders().then((_) {
+                if (mounted) {
+                  setState(() {
+                    _isLoading = false;
+                  });
+                }
+              });
+            },
+          ),
+        ],
       ),
-      body: _error != null && _orders.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _refreshOrders,
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            )
+      body: _isLoading && _orders.isEmpty
+          ? const OrdersListSkeleton()
           : RefreshIndicator(
               onRefresh: _refreshOrders,
+              color: Theme.of(context).primaryColor,
+              backgroundColor: Colors.white,
+              strokeWidth: 2.0,
+              displacement: 40.0,
+              edgeOffset: 0.0,
               child: CustomScrollView(
                 controller: _scrollController,
                 slivers: [
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
-                    sliver: _orders.isEmpty && _isLoading
-                        ? const SliverToBoxAdapter(
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : _orders.isEmpty
-                            ? SliverToBoxAdapter(
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.shopping_basket_outlined,
-                                        size: 48,
-                                        color: Colors.grey.shade300,
-                                      ),
-                                      const Text('No orders found'),
-                                    ],
+                    sliver: _orders.isEmpty
+                        ? SliverToBoxAdapter(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.shopping_basket_outlined,
+                                    size: 48,
+                                    color: Colors.grey.shade300,
                                   ),
-                                ),
-                              )
-                            : SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                    if (index == _orders.length) {
-                                      return const Center(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: CircularProgressIndicator(),
-                                        ),
-                                      );
-                                    }
-
-                                    final order = _orders[index];
-                                    final firstItem =
-                                        order.orderItems.isNotEmpty
-                                            ? order.orderItems.first
-                                            : null;
-                                    final totalItems = order.orderItems.length;
-                                    // final totalPrice = order.orderItems.fold(
-                                    //     0.0,
-                                    //     (sum, item) =>
-                                    //         sum +
-                                    //         (item.product?.price ?? 0) *
-                                    //             item.quantity);
-
-                                    return Container(
-                                      margin: const EdgeInsets.only(bottom: 16),
-                                      child: Material(
-                                        borderRadius: BorderRadius.circular(12),
-                                        color: Colors.white,
-                                        elevation: 2,
-                                        child: InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          onTap: () {
-                                            Get.to(
-                                              () =>
-                                                  OrderDetailPage(order: order),
-                                              transition:
-                                                  Transition.rightToLeft,
-                                            );
-                                          },
+                                  const Text('No orders found'),
+                                ],
+                              ),
+                            ),
+                          )
+                        : SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                if (index == _orders.length) {
+                                  return _isLoadingMore
+                                      ? const Center(
                                           child: Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                            padding: EdgeInsets.all(8.0),
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        )
+                                      : const SizedBox.shrink();
+                                }
+
+                                final order = _orders[index];
+                                final firstItem = order.orderItems.isNotEmpty
+                                    ? order.orderItems.first
+                                    : null;
+                                final totalItems = order.orderItems.length;
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  child: Material(
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.white,
+                                    elevation: 1,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(8),
+                                      onTap: () {
+                                        Get.to(
+                                          () => OrderDetailPage(order: order),
+                                          transition: Transition.rightToLeft,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
-                                                // Header with status and date
-                                                Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment
-                                                          .spaceBetween,
-                                                  children: [
-                                                    Container(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4),
-                                                      decoration: BoxDecoration(
-                                                        color: Theme.of(context)
-                                                            .primaryColor
-                                                            .withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(4),
-                                                      ),
-                                                      child: Text(
-                                                        'Order #${order.id}',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Theme.of(context)
-                                                                  .primaryColor,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      DateFormatter
-                                                          .formatDateTime(
-                                                              order.createdAt),
-                                                      style: const TextStyle(
-                                                        color: Colors.grey,
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Row(
-                                                  children: [
-                                                    Text(
-                                                      '${order.client.name}',
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        color: Color.fromARGB(
-                                                            255, 4, 4, 4),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                // Main product preview
-                                                // if (firstItem != null)
-                                                //   Row(
-                                                //     children: [
-                                                //       Container(
-                                                //         width: 60,
-                                                //         height: 60,
-                                                //         decoration: BoxDecoration(
-                                                //           color: Colors.grey
-                                                //               .shade200,
-                                                //           borderRadius:
-                                                //               BorderRadius
-                                                //                   .circular(8),
-                                                //         ),
-                                                //         child: Icon(
-                                                //           Icons.shopping_bag,
-                                                //           color: Theme.of(
-                                                //                   context)
-                                                //               .primaryColor,
-                                                //         ),
-                                                //       ),
-                                                //       const SizedBox(width: 12),
-                                                //       Expanded(
-                                                //         child: Column(
-                                                //           crossAxisAlignment:
-                                                //               CrossAxisAlignment
-                                                //                   .start,
-                                                //           children: [
-                                                //             Text(
-                                                //               firstItem.product
-                                                //                       ?.name ??
-                                                //                   'Product',
-                                                //               style:
-                                                //                   const TextStyle(
-                                                //                 fontWeight:
-                                                //                     FontWeight
-                                                //                         .w500,
-                                                //               ),
-                                                //             ),
-                                                //             const SizedBox(
-                                                //                 height: 4),
-                                                //             Text(
-                                                //               '${firstItem.quantity} × \Ksh ${firstItem.product?.price.toStringAsFixed(2) ?? '0.00'}',
-                                                //               style:
-                                                //                   const TextStyle(
-                                                //                 color: Colors
-                                                //                     .grey,
-                                                //                 fontSize: 12,
-                                                //               ),
-                                                //             ),
-                                                //           ],
-                                                //         ),
-                                                //       ),
-                                                //     ],
-                                                //   ),
-                                                const SizedBox(height: 12),
-                                                // Order summary
                                                 Container(
-                                                  padding:
-                                                      const EdgeInsets.all(12),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
                                                   decoration: BoxDecoration(
-                                                    color: Colors.grey
-                                                        .withOpacity(0.05),
+                                                    color: Theme.of(context)
+                                                        .primaryColor
+                                                        .withOpacity(0.1),
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            8),
+                                                            4),
                                                   ),
-                                                  child: Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .spaceBetween,
-                                                    children: [
-                                                      Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            totalItems > 1
-                                                                ? '+${totalItems - 1} more items'
-                                                                : '1 item',
-                                                            style:
-                                                                const TextStyle(
-                                                              fontSize: 12,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 4),
-                                                          // Text(
-                                                          //   order.outlet.name,
-                                                          //   style: const TextStyle(
-                                                          //       fontSize: 12,
-                                                          //       color:
-                                                          //           Color.fromARGB(255, 4, 4, 4)),
-                                                          // ),
-                                                        ],
-                                                      ),
-                                                      // Text(
-                                                      //   currencyFormat.format(totalPrice),
-                                                      //   style: TextStyle(
-                                                      //     fontWeight:
-                                                      //         FontWeight.bold,
-                                                      //     color: Theme.of(
-                                                      //             context)
-                                                      //         .primaryColor,
-                                                      //   ),
-                                                      // ),
-                                                    ],
+                                                  child: Text(
+                                                    'Order #${order.id}',
+                                                    style: TextStyle(
+                                                      color: Theme.of(context)
+                                                          .primaryColor,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 12,
+                                                    ),
                                                   ),
                                                 ),
-                                                const SizedBox(height: 12),
-                                                // Action buttons
-                                                Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.end,
-                                                  children: [
-                                                    // TextButton(
-                                                    //   onPressed: () =>
-                                                    //       _deleteOrder(order),
-                                                    //   style: TextButton.styleFrom(
-                                                    //     foregroundColor:
-                                                    //         Colors.red,
-                                                    //   ),
-                                                    //   child: const Text('Delete'),
-                                                    // ),
-                                                    const SizedBox(width: 8),
-                                                    // ElevatedButton(
-                                                    //   onPressed: () {
-                                                    //     Get.to(
-                                                    //       () => OrderDetailPage(
-                                                    //           order: order),
-                                                    //       transition: Transition
-                                                    //           .rightToLeft,
-                                                    //     );
-                                                    //   },
-                                                    //   style: ElevatedButton
-                                                    //       .styleFrom(
-                                                    //     backgroundColor: Theme.of(
-                                                    //             context)
-                                                    //         .primaryColor,
-                                                    //   ),
-                                                    //   child: const Text(
-                                                    //       'View Details',
-                                                    //       style: TextStyle(
-                                                    //           color:
-                                                    //               Colors.white)),
-                                                    // ),
-                                                  ],
+                                                Text(
+                                                  DateFormatter.formatDateTime(
+                                                      order.createdAt),
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 11,
+                                                  ),
                                                 ),
                                               ],
                                             ),
-                                          ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  '${order.client.name}',
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Color.fromARGB(
+                                                        255, 4, 4, 4),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey
+                                                    .withOpacity(0.05),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        totalItems > 1
+                                                            ? '+${totalItems - 1} more items'
+                                                            : '1 item',
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    );
-                                  },
-                                  childCount:
-                                      _orders.length + (_hasMore ? 1 : 0),
-                                ),
-                              ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              childCount: _orders.length + (_hasMore ? 1 : 0),
+                            ),
+                          ),
                   ),
-                  if (_hasMore && _orders.isNotEmpty)
-                    const SliverToBoxAdapter(
-                      child: Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

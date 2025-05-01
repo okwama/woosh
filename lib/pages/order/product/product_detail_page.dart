@@ -11,6 +11,7 @@ import 'package:woosh/pages/order/cart_page.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:get_storage/get_storage.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Outlet outlet;
@@ -33,6 +34,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       TextEditingController(text: '1');
   final CartController _cartController = Get.find<CartController>();
   PriceOption? _selectedPriceOption;
+  int? _regionId;
+  final _storage = GetStorage();
 
   @override
   void initState() {
@@ -42,12 +45,32 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       _selectedPriceOption = widget.product.priceOptions.first;
       print('Selected price option: $_selectedPriceOption');
     }
+
+    // Get region ID from user's authentication data
+    final userData = _storage.read('salesRep');
+    if (userData != null) {
+      _regionId = userData['region_id'];
+      print('User region ID: $_regionId');
+    } else {
+      print('Warning: No user data found in storage');
+    }
   }
 
   void _adjustQuantity(int delta) {
+    if (_regionId == null) {
+      Get.snackbar(
+        'Error',
+        'Cannot adjust quantity: No region assigned to your account',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     final currentValue = int.tryParse(_quantityController.text) ?? 0;
     final newValue = currentValue + delta;
-    final maxStock = widget.product.getQuantityForStore(widget.outlet.id);
+    final maxStock = widget.product.getMaxQuantityInRegion(_regionId!);
 
     if (newValue > 0 && newValue <= maxStock) {
       _quantityController.text = newValue.toString();
@@ -55,8 +78,18 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   void _addToCart() {
-    print(
-        'Available price options: [38;5;2m${widget.product.priceOptions}[0m');
+    if (_regionId == null) {
+      Get.snackbar(
+        'Error',
+        'Cannot add to cart: No region assigned to your account',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    print('Available price options: ${widget.product.priceOptions}');
     print('Selected price option: $_selectedPriceOption');
 
     if (_selectedPriceOption == null) {
@@ -100,12 +133,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       }
     }
 
-    // Check stock availability
-    final availableStock = widget.product.getQuantityForStore(widget.outlet.id);
+    // Check stock availability using region-based check
+    final availableStock = widget.product.getMaxQuantityInRegion(_regionId!);
     if (quantity > availableStock) {
       Get.snackbar(
         'Error',
-        'Not enough stock available',
+        'Not enough stock available in your region',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -149,7 +182,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final availableStock = widget.product.getQuantityForStore(widget.outlet.id);
+    final availableStock = _regionId != null
+        ? widget.product.getMaxQuantityInRegion(_regionId!)
+        : 0;
     final isOutOfStock = availableStock <= 0;
     final theme = Theme.of(context);
 
@@ -157,6 +192,30 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Get.back(),
+        ),
+        title: Text(
+          widget.product.name,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          _CartIconButton(
+            cartController: _cartController,
+            outlet: widget.outlet,
+            order: widget.order,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -165,18 +224,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             pinned: true,
             backgroundColor: Colors.white,
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black87),
-              onPressed: () => Get.back(),
-            ),
-            actions: [
-              _CartIconButton(
-                cartController: _cartController,
-                outlet: widget.outlet,
-                order: widget.order,
-              ),
-              const SizedBox(width: 8),
-            ],
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
               background: _ProductHeroImage(product: widget.product),
             ),
@@ -213,13 +261,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    isOutOfStock ? 'Out of stock' : '$availableStock in stock',
+                    _regionId == null
+                        ? 'No region assigned to your account'
+                        : isOutOfStock
+                            ? 'Out of stock'
+                            : 'In stock',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: isOutOfStock
+                      color: _regionId == null
                           ? const Color(0xFFD93025)
-                          : const Color(0xFF1E8E3E),
+                          : isOutOfStock
+                              ? const Color(0xFFD93025)
+                              : const Color(0xFF1E8E3E),
                     ),
                   ),
                 ),
@@ -227,7 +281,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 const SizedBox(height: 24),
 
                 // Quantity Selector
-                if (!isOutOfStock)
+                if (!isOutOfStock && availableStock > 0)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

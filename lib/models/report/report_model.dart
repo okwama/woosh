@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:woosh/models/report/feedbackReport_model.dart';
 import 'package:woosh/models/report/productReport_model.dart';
 import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/models/report/productReturn_model.dart';
 
 enum ReportType {
   PRODUCT_AVAILABILITY,
   VISIBILITY_ACTIVITY,
   FEEDBACK,
+  PRODUCT_RETURN,
 }
 
 class Report {
@@ -22,6 +24,7 @@ class Report {
   final ProductReport? productReport;
   final VisibilityReport? visibilityReport;
   final FeedbackReport? feedbackReport;
+  final ProductReturn? productReturn;
 
   Report({
     this.id,
@@ -34,6 +37,7 @@ class Report {
     this.productReport,
     this.visibilityReport,
     this.feedbackReport,
+    this.productReturn,
   });
 
   factory Report.fromJson(Map<String, dynamic> json) {
@@ -75,6 +79,7 @@ class Report {
     ProductReport? productReport;
     VisibilityReport? visibilityReport;
     FeedbackReport? feedbackReport;
+    ProductReturn? productReturn;
 
     // Parse specific report data based on type
     try {
@@ -103,6 +108,11 @@ class Report {
             );
           }
           break;
+        case ReportType.PRODUCT_RETURN:
+          if (json['productReturn'] != null) {
+            productReturn = ProductReturn.fromJson(json['productReturn']);
+          }
+          break;
       }
     } catch (e) {
       print('Error parsing specific report data: $e');
@@ -124,6 +134,7 @@ class Report {
       productReport: productReport,
       visibilityReport: visibilityReport,
       feedbackReport: feedbackReport,
+      productReturn: productReturn,
     );
   }
 
@@ -140,6 +151,7 @@ class Report {
       // Add specific report details based on type
       if (_getSpecificReportJson() != null)
         'specificReport': _getSpecificReportJson(),
+      'productReturn': productReturn?.toJson(),
     };
   }
 
@@ -151,6 +163,8 @@ class Report {
         return visibilityReport?.toJson();
       case ReportType.FEEDBACK:
         return feedbackReport?.toJson();
+      case ReportType.PRODUCT_RETURN:
+        return productReturn?.toJson();
       default:
         return null;
     }
@@ -165,6 +179,8 @@ class Report {
         return visibilityReport?.comment ?? '';
       case ReportType.FEEDBACK:
         return feedbackReport?.comment ?? '';
+      case ReportType.PRODUCT_RETURN:
+        return productReturn?.reason ?? '';
       default:
         return '';
     }
@@ -267,6 +283,8 @@ class Report {
         return ReportType.VISIBILITY_ACTIVITY;
       case 'FEEDBACK':
         return ReportType.FEEDBACK;
+      case 'PRODUCT_RETURN':
+        return ReportType.PRODUCT_RETURN;
       default:
         print('Unknown report type: $typeStr');
         throw ArgumentError('Invalid report type format: $typeStr');

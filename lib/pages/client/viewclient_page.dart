@@ -7,6 +7,7 @@ import 'package:woosh/pages/client/addclient_page.dart';
 import 'package:woosh/pages/client/clientdetails.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/skeleton_loader.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
@@ -22,33 +23,57 @@ class ViewClientPage extends StatefulWidget {
 
 class _ViewClientPageState extends State<ViewClientPage> {
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   List<Outlet> _outlets = [];
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  int _currentPage = 1;
+  bool _hasMore = true;
+  static const int _pageSize = 10;
+  static const int _prefetchThreshold =
+      200; // Start loading 200px before bottom
 
   @override
   void initState() {
     super.initState();
     _loadOutlets();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - _prefetchThreshold &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadMoreOutlets();
+    }
   }
 
   Future<void> _loadOutlets() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentPage = 1;
+      _hasMore = true;
     });
 
     try {
-      final outlets = await ApiService.fetchOutlets();
+      // Clear cache when refreshing
+      ApiService.clearOutletsCache();
+
+      final outlets = await ApiService.fetchOutlets(page: 1, limit: _pageSize);
       setState(() {
         _outlets = outlets;
         _isLoading = false;
+        _hasMore = outlets.length >= _pageSize;
       });
     } catch (e) {
       setState(() {
@@ -56,46 +81,79 @@ class _ViewClientPageState extends State<ViewClientPage> {
             'Unable to connect to the server. Please check your internet connection and try again.';
         _isLoading = false;
       });
+      _showErrorDialog();
+    }
+  }
 
-      // Show error dialog with retry option
+  Future<void> _loadMoreOutlets() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final newOutlets = await ApiService.fetchOutlets(
+        page: _currentPage + 1,
+        limit: _pageSize,
+      );
+
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Connection Error'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Unable to load outlets. This could be due to:'),
-                const SizedBox(height: 8),
-                Text('• No internet connection'),
-                Text('• Server is temporarily unavailable'),
-                Text('• Database connection issues'),
-                const SizedBox(height: 16),
-                const Text('Would you like to retry?'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _loadOutlets();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Retry'),
-              ),
+        setState(() {
+          _outlets.addAll(newOutlets);
+          _currentPage++;
+          _isLoadingMore = false;
+          _hasMore = newOutlets.length >= _pageSize;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+        _showErrorDialog();
+      }
+    }
+  }
+
+  void _showErrorDialog() {
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Connection Error'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Unable to load outlets. This could be due to:'),
+              const SizedBox(height: 8),
+              Text('• No internet connection'),
+              Text('• Server is temporarily unavailable'),
+              Text('• Database connection issues'),
+              const SizedBox(height: 16),
+              const Text('Would you like to retry?'),
             ],
           ),
-        );
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _loadOutlets();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -148,21 +206,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           // Outlets List
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading outlets...',
-                          style: TextStyle(
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? const ClientListSkeleton()
                 : _errorMessage != null
                     ? Center(
                         child: Column(
@@ -235,8 +279,21 @@ class _ViewClientPageState extends State<ViewClientPage> {
                               key: const PageStorageKey('outlets_list'),
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),
-                              itemCount: _getFilteredOutlets().length,
+                              itemCount: _getFilteredOutlets().length +
+                                  (_hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
+                                if (index == _getFilteredOutlets().length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16.0),
+                                    child: Center(
+                                      child: _isLoadingMore
+                                          ? const CircularProgressIndicator()
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  );
+                                }
+
                                 final outlet = _getFilteredOutlets()[index];
                                 return Card(
                                   key: ValueKey('outlet_${outlet.id}_$index'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
@@ -8,6 +9,7 @@ import 'package:woosh/pages/order/product/product_detail_page.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/skeleton_loader.dart';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;
@@ -25,42 +27,151 @@ class ProductsGridPage extends StatefulWidget {
 
 class _ProductsGridPageState extends State<ProductsGridPage> {
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   String? _error;
   List<Product> _products = [];
   List<Product> _filteredProducts = [];
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  int _currentPage = 1;
+  bool _hasMore = true;
+  static const int _pageSize = 20;
+  static const int _prefetchThreshold = 200;
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - _prefetchThreshold &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadMoreProducts();
+    }
   }
 
   Future<void> _loadProducts() async {
     setState(() {
       _isLoading = true;
       _error = null;
+      _currentPage = 1;
+      _hasMore = true;
     });
 
     try {
-      print('[ProductsGrid] Loading products...');
-      final products = await ApiService.getProducts();
+      final products = await _retryApiCall(
+        () => ApiService.getProducts(page: 1, limit: _pageSize),
+        maxRetries: 3,
+        timeout: const Duration(seconds: 15),
+      );
 
       if (mounted) {
         setState(() {
           _products = products;
           _filteredProducts = products;
           _isLoading = false;
-          print('[ProductsGrid] Loaded ${products.length} products');
+          _hasMore = products.length >= _pageSize;
         });
+        _precacheProductImages(products);
       }
     } catch (e) {
-      print('[ProductsGrid] Error loading products: $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
           _isLoading = false;
         });
+        // Auto-refresh after a short delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _loadProducts();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreProducts() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final newProducts = await _retryApiCall(
+        () => ApiService.getProducts(
+          page: _currentPage + 1,
+          limit: _pageSize,
+        ),
+        maxRetries: 3,
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (mounted) {
+        setState(() {
+          _products.addAll(newProducts);
+          _filteredProducts.addAll(newProducts);
+          _currentPage++;
+          _isLoadingMore = false;
+          _hasMore = newProducts.length >= _pageSize;
+        });
+        _precacheProductImages(newProducts);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+        // Auto-retry loading more after a short delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _loadMoreProducts();
+        });
+      }
+    }
+  }
+
+  Future<T> _retryApiCall<T>(
+    Future<T> Function() apiCall, {
+    int maxRetries = 3,
+    Duration timeout = const Duration(seconds: 15),
+    Duration retryDelay = const Duration(seconds: 2),
+  }) async {
+    int attempts = 0;
+    while (true) {
+      try {
+        attempts++;
+        return await apiCall().timeout(timeout);
+      } catch (e) {
+        if (attempts >= maxRetries) {
+          rethrow;
+        }
+        print('Retry attempt $attempts of $maxRetries after error: $e');
+        await Future.delayed(retryDelay * attempts); // Exponential backoff
+      }
+    }
+  }
+
+  void _precacheProductImages(List<Product> products) {
+    if (Get.context == null) return;
+
+    for (var product in products) {
+      if (product.imageUrl?.isNotEmpty ?? false) {
+        try {
+          final imageUrl = ImageUtils.getGridUrl(product.imageUrl!);
+          final imageProvider = NetworkImage(imageUrl);
+          precacheImage(imageProvider, Get.context!);
+        } catch (e) {
+          print('Failed to precache image for product ${product.id}: $e');
+          continue;
+        }
       }
     }
   }
@@ -108,19 +219,23 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(8),
                         ),
-                        child: Image.network(
-                          ImageUtils.getGridUrl(product.imageUrl!),
+                        child: CachedNetworkImage(
+                          imageUrl: ImageUtils.getGridUrl(product.imageUrl!),
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[200],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 32,
-                                color: Colors.grey,
-                              ),
-                            );
-                          },
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 32,
+                              color: Colors.grey,
+                            ),
+                          ),
                         ),
                       )
                     : Container(
@@ -134,7 +249,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
               ),
             ),
             Container(
-              height: 48, // Fixed height
+              height: 48,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
@@ -156,16 +271,6 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                   ),
-                  // if (product.price != null) ...[
-                  //   const SizedBox(height: 2),
-                  //   Text(
-                  //     'Ksh ${product.price!.toStringAsFixed(2)}',
-                  //     style: TextStyle(
-                  //       fontSize: 12,
-                  //       color: Theme.of(context).primaryColor.withOpacity(0.8),
-                  //     ),
-                  //   ),
-                  // ],
                 ],
               ),
             ),
@@ -181,9 +286,23 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
       backgroundColor: appBackground,
       appBar: GradientAppBar(
         title: widget.outlet.name,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _currentPage = 1;
+                _hasMore = true;
+                _products.clear();
+                _filteredProducts.clear();
+              });
+              _loadProducts();
+            },
+          ),
+        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+      body: _isLoading && _products.isEmpty
+          ? const ProductsGridSkeleton()
           : Column(
               children: [
                 Padding(
@@ -206,39 +325,40 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                     ),
                   ),
                 ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
                 Expanded(
-                  child: GridView.builder(
-                    key: const PageStorageKey('products_grid'),
-                    padding: const EdgeInsets.all(8),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.75, // Adjusted for price display
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
+                  child: RefreshIndicator(
+                    onRefresh: _loadProducts,
+                    child: GridView.builder(
+                      key: const PageStorageKey('products_grid'),
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.75,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: _filteredProducts.length + (_hasMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _filteredProducts.length) {
+                          return _isLoadingMore
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : const SizedBox.shrink();
+                        }
+                        return _buildProductCard(
+                            _filteredProducts[index], index);
+                      },
                     ),
-                    itemCount: _filteredProducts.length,
-                    itemBuilder: (context, index) =>
-                        _buildProductCard(_filteredProducts[index], index),
                   ),
                 ),
               ],
             ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }

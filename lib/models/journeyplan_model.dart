@@ -206,4 +206,6 @@ class JourneyPlan {
       'checkoutLongitude': checkoutLongitude,
     };
   }
+
+  String get clientName => client?.name ?? 'Unknown Client';
 }
