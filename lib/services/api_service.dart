@@ -346,6 +346,14 @@ class ApiService {
   static Future<JourneyPlan> createJourneyPlan(int clientId, DateTime dateTime,
       {String? notes}) async {
     try {
+      print(
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes');
+      // Debug: print the entire request body and user
+      print('--- Incoming createJourneyPlan request ---');
+      print(
+          'req.body: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes');
+      print('req.user: $clientId');
+
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
@@ -373,7 +381,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: await headers(),
+        headers: await _headers(),
         body: jsonEncode(requestBody),
       );
 
@@ -726,14 +734,21 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, String>> getHeaders() async {
+    final token = _getAuthToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   // Get products (independent of outlets)
-  static Future<List<Product>> getProducts(
-      {int page = 1, int limit = 20}) async {
+  static Future<List<Product>> getProducts() async {
     try {
       print('[Products] Fetching products from API');
       final response = await http.get(
-        Uri.parse('$baseUrl/products'),
-        headers: await _headers(),
+        Uri.parse('$baseUrl${Config.productsEndpoint}'),
+        headers: await getHeaders(),
       );
 
       print('[Products] Response status: ${response.statusCode}');
@@ -752,8 +767,9 @@ class ApiService {
       ApiCache.set('products', responseData['data']);
 
       final products = (responseData['data'] as List).map((item) {
-        print('[Products] Processing product: ${item['name']}');
-        print('[Products] Price options: ${item['priceOptions']}');
+        // Debug log the raw item
+        print('[Products] Raw item before parsing: $item');
+
         // Ensure storeQuantities is included in the response
         if (!item.containsKey('storeQuantities')) {
           item['storeQuantities'] = [];

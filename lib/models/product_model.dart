@@ -4,9 +4,10 @@ import 'store_quantity_model.dart';
 class Product {
   final int id;
   final String name;
+  // ignore: non_constant_identifier_names
   final int category_id;
   final String category;
-  final String description;
+  final String? description;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? imageUrl;
@@ -20,7 +21,7 @@ class Product {
     required this.name,
     required this.category_id,
     required this.category,
-    this.description = '',
+    this.description,
     required this.createdAt,
     required this.updatedAt,
     this.imageUrl,
@@ -31,29 +32,36 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    print('[Product] Creating product from JSON: ${json['name']}');
-    print('[Product] Price options in JSON: ${json['priceOptions']}');
-    return Product(
-      id: json['id'],
-      name: json['name'],
-      category_id: json['category_id'],
-      category: json['category'],
-      description: json['description'] ?? '',
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
-      imageUrl: json['image'],
-      clientId: json['clientId'],
-      priceOptions: (json['priceOptions'] as List<dynamic>?)?.map((e) {
-            print('[Product] Creating price option from: $e');
-            return PriceOption.fromJson(e as Map<String, dynamic>);
-          }).toList() ??
-          [],
-      storeQuantities: (json['storeQuantities'] as List<dynamic>?)
-              ?.map((e) => StoreQuantity.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      packSize: json['packSize'],
-    );
+    try {
+      print('[Product] Parsing JSON: $json');
+      return Product(
+        id: json['id'] ?? 0,
+        name: json['name'] ?? '',
+        category_id: json['category_id'] ?? 0,
+        category: json['category'] ?? '',
+        description: json['description'],
+        createdAt: DateTime.parse(
+            json['createdAt'] ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.parse(
+            json['updatedAt'] ?? DateTime.now().toIso8601String()),
+        imageUrl: json['image'],
+        clientId: json['clientId'],
+        priceOptions: (json['priceOptions'] as List<dynamic>?)
+                ?.map((e) => PriceOption.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        storeQuantities: (json['storeQuantities'] as List<dynamic>?)
+                ?.map((e) => StoreQuantity.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        packSize: json['packSize'],
+      );
+    } catch (e, stackTrace) {
+      print('[Product] Error parsing JSON: $e');
+      print('[Product] Stack trace: $stackTrace');
+      print('[Product] Problematic JSON: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -91,7 +99,9 @@ class Product {
     // Filter store quantities for stores in the specified region
     final regionStoreQuantities = storeQuantities.where((sq) {
       final store = sq.store;
-      final matches = store != null && store.regionId == regionId;
+      // Handle nullable regionId
+      final matches = store != null &&
+          (store.regionId == regionId || store.regionId == null);
       print(
           'Store ${sq.storeId}: region=${store?.regionId}, quantity=${sq.quantity}, matches=$matches');
       return matches;

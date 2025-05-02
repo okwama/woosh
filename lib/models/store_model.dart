@@ -1,20 +1,28 @@
 class Store {
   final int id;
   final String name;
-  final int regionId;
+  final int? regionId;
 
   Store({
     required this.id,
     required this.name,
-    required this.regionId,
+    this.regionId,
   });
 
   factory Store.fromJson(Map<String, dynamic> json) {
-    return Store(
-      id: json['id'],
-      name: json['name'],
-      regionId: json['regionId'],
-    );
+    try {
+      print('[Store] Parsing JSON: $json');
+      return Store(
+        id: json['id'] ?? 0,
+        name: json['name'] ?? '',
+        regionId: json['regionId'] ?? json['region_id'],
+      );
+    } catch (e, stackTrace) {
+      print('[Store] Error parsing JSON: $e');
+      print('[Store] Stack trace: $stackTrace');
+      print('[Store] Problematic JSON: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -35,5 +43,5 @@ class Store {
           regionId == other.regionId;
 
   @override
-  int get hashCode => id.hashCode ^ name.hashCode ^ regionId.hashCode;
+  int get hashCode => id.hashCode ^ name.hashCode ^ (regionId?.hashCode ?? 0);
 }
