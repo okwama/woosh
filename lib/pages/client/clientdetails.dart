@@ -267,10 +267,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             ),
                             _ticketRow("Client", outlet.name),
                             _ticketRow("Address", outlet.address),
-                            if (outlet.balance != null &&
-                                outlet.balance!.isNotEmpty)
-                              _ticketRow("Balance", "Ksh ${outlet.balance!}",
-                                  highlight: true),
+                            _ticketRow("Balance",
+                                "Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}",
+                                highlight: true),
                             if (outlet.email != null &&
                                 outlet.email!.isNotEmpty)
                               _ticketRow("Email", outlet.email!),

@@ -311,7 +311,7 @@ class _LoginPageState extends State<LoginPage> {
             Get.toNamed('/register');
           },
           child: GradientText(
-            'Sign Up',
+            'Contact Admin',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),

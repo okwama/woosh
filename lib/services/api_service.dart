@@ -97,7 +97,7 @@ class PaginatedResponse<T> {
 
 class ApiService {
   static const String baseUrl = '${Config.baseUrl}/api';
-  static const Duration tokenExpirationDuration = Duration(hours: 5);
+  static const Duration tokenExpirationDuration = Duration(hours: 9);
   static bool _isRefreshing = false;
   static Future<bool>? _refreshFuture;
 
@@ -121,7 +121,7 @@ class ApiService {
 
       // Check if token expires in less than 1 hour
       final exp = DateTime.fromMillisecondsSinceEpoch(decodedMap['exp'] * 1000);
-      return exp.difference(DateTime.now()) < const Duration(hours: 1);
+      return exp.difference(DateTime.now()) < const Duration(hours: 2);
     } catch (e) {
       print('Error checking token expiration: $e');
       return false;
@@ -373,7 +373,7 @@ class ApiService {
 
       final response = await http.post(
         Uri.parse('$baseUrl/journey-plans'),
-        headers: await _headers(),
+        headers: await headers(),
         body: jsonEncode(requestBody),
       );
 
