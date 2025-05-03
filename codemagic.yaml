@@ -4,8 +4,8 @@ workflows:
     environment:
       vars:
         # Add any environment variables here
-        XCODE_WORKSPACE: "whoosh.xcworkspace"
-        XCODE_SCHEME: "whoosh"
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
       xcode: latest
     scripts:
       - name: Build iOS app
@@ -18,7 +18,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - your-email@example.com
+          - benjamin@citlogisticssystems.com
       app_store_connect:
         api_key: $APP_STORE_CONNECT_API_KEY
         key_id: $APP_STORE_KEY_ID
