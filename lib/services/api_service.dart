@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
@@ -1763,6 +1763,7 @@ class ApiService {
     required int clientId,
     required double amount,
     required File imageFile,
+    Uint8List? imageBytes,
   }) async {
     try {
       final token = _getAuthToken();
@@ -1779,9 +1780,6 @@ class ApiService {
       print('URL: $uri');
       print('ClientId: $clientId');
       print('Amount: $amount');
-      print('Image exists: ${await imageFile.exists()}');
-      print('Image path: ${imageFile.path}');
-      print('Image size: ${await imageFile.length()} bytes');
 
       final request = http.MultipartRequest('POST', uri)
         ..headers.addAll({
@@ -1796,20 +1794,22 @@ class ApiService {
       print('\nDEBUG: Request Fields');
       print('Fields: ${request.fields}');
 
-      if (kIsWeb) {
+      if (kIsWeb && imageBytes != null) {
         print('\nDEBUG: Web Platform File Upload');
-        final bytes = await imageFile.readAsBytes();
-        print('File bytes length: ${bytes.length}');
+        print('Image bytes length: ${imageBytes.length}');
         request.files.add(
           http.MultipartFile.fromBytes(
             'image',
-            bytes,
+            imageBytes,
             filename: 'payment_${DateTime.now().millisecondsSinceEpoch}.jpg',
             contentType: MediaType('image', 'jpeg'),
           ),
         );
       } else {
         print('\nDEBUG: Mobile Platform File Upload');
+        print('Image exists: ${await imageFile.exists()}');
+        print('Image path: ${imageFile.path}');
+        print('Image size: ${await imageFile.length()} bytes');
         request.files.add(
           await http.MultipartFile.fromPath(
             'image',
@@ -1948,11 +1948,10 @@ class ApiService {
         throw Exception('User ID not found. Please login again.');
       }
 
-      // Calculate total amount from items
-      double totalAmount = items.fold(
-          0,
-          (sum, item) =>
-              sum + (item['unitPrice'] as double) * (item['quantity'] as int));
+      print('[UpliftSale] Creating sale with data:');
+      print('clientId: $clientId');
+      print('userId: $userId');
+      print('items: $items');
 
       final response = await _dio.post(
         '${baseUrl}/uplift-sales',
@@ -1960,10 +1959,12 @@ class ApiService {
           'clientId': clientId,
           'userId': userId,
           'items': items,
-          'totalAmount': totalAmount,
         },
         options: Options(headers: authHeaders),
       );
+
+      print('[UpliftSale] Response status: ${response.statusCode}');
+      print('[UpliftSale] Response data: ${response.data}');
 
       if (response.statusCode == 201) {
         return response.data;

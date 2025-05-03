@@ -9,6 +9,8 @@ import 'package:woosh/models/clientPayment_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ClientDetailsPage extends StatefulWidget {
   final Outlet outlet;
@@ -145,7 +147,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                   TextField(
                     controller: _amountController,
                     keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Amount'),
                   ),
                   const SizedBox(height: 12),
@@ -155,11 +157,23 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                         onPressed: uploading
                             ? null
                             : () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(
-                                    source: ImageSource.gallery);
-                                if (file != null) {
-                                  setState(() => pickedFile = file);
+                                try {
+                                  final picker = ImagePicker();
+                                  final file = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    maxWidth: 1024,
+                                    maxHeight: 1024,
+                                    imageQuality: 85,
+                                  );
+                                  if (file != null) {
+                                    setState(() => pickedFile = file);
+                                  }
+                                } catch (e) {
+                                  print('Error picking image: $e');
+                                  setState(() {
+                                    errorMessage =
+                                        'Failed to select image. Please try again.';
+                                  });
                                 }
                               },
                         icon: const Icon(Icons.image),
@@ -167,7 +181,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                       ),
                       const SizedBox(width: 8),
                       if (pickedFile != null)
-                        Text('Selected', style: TextStyle(color: Colors.green)),
+                        const Text('Selected',
+                            style: TextStyle(color: Colors.green)),
                     ],
                   ),
                 ],
@@ -191,20 +206,47 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             return;
                           }
 
-                          setState(() => uploading = true);
+                          setState(() {
+                            uploading = true;
+                            errorMessage = null;
+                          });
+
                           try {
+                            File? imageFile;
+
+                            if (kIsWeb) {
+                              // For web, we'll pass the XFile directly
+                              imageFile = null;
+                            } else {
+                              // For mobile, convert XFile to File
+                              imageFile = File(pickedFile!.path);
+                            }
+
                             await ApiService.uploadClientPayment(
                               clientId: widget.outlet.id,
                               amount: amount,
-                              imageFile: File(pickedFile!.path),
+                              imageFile: imageFile ?? File(pickedFile!.path),
+                              imageBytes: kIsWeb
+                                  ? await pickedFile!.readAsBytes()
+                                  : null,
                             );
+
                             if (mounted) {
                               Navigator.pop(context);
                               _fetchPayments();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Payment uploaded successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
                             }
                           } catch (e) {
+                            print('Error uploading payment: $e');
                             setState(() {
-                              errorMessage = 'Failed to upload payment: $e';
+                              errorMessage =
+                                  'Failed to upload payment. Please try again.';
                               uploading = false;
                             });
                           }
