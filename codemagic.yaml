@@ -43,7 +43,6 @@ workflows:
     environment:
       vars:
         GRADLE_FILE: build.gradle
-      android_sdk: latest
     scripts:
       - name: Set up Android SDK
         script: |
