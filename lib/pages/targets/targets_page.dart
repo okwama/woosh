@@ -32,7 +32,7 @@ class _TargetsPageState extends State<TargetsPage>
   String? _errorMessage;
   String _sortOption = 'endDate';
   int _totalItemsSold = 0;
-  DateTime _twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
+  final DateTime _twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
   static const int _prefetchThreshold = 200;
   static const int _precachePages = 2;
   int _currentPage = 1;
@@ -118,7 +118,7 @@ class _TargetsPageState extends State<TargetsPage>
     try {
       // Try to get cached data first
       final cachedData =
-          await ApiService.getCachedData<Map<String, dynamic>>('sales_data');
+          ApiService.getCachedData<Map<String, dynamic>>('sales_data');
 
       if (cachedData != null) {
         if (mounted) {
@@ -169,7 +169,7 @@ class _TargetsPageState extends State<TargetsPage>
 
     try {
       // Try to get cached data first
-      final cachedData = await ApiService.getCachedData<List<Order>>(
+      final cachedData = ApiService.getCachedData<List<Order>>(
           'orders_page_${_currentPage + 1}');
 
       if (cachedData != null) {

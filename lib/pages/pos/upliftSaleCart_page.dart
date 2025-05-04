@@ -176,7 +176,7 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
       }
 
       final response = await ApiService.createUpliftSale(
-        clientId: widget.outlet.id!,
+        clientId: widget.outlet.id,
         items: orderItems,
       );
 
@@ -355,10 +355,9 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                       ),
                     ),
                   Text(
-                    'Quantity: ${item.quantity}' +
-                        (packSize != null
-                            ? ' pack(s) (${totalPieces} pcs)'
-                            : ''),
+                    'Quantity: ${item.quantity}${packSize != null
+                            ? ' pack(s) ($totalPieces pcs)'
+                            : ''}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -400,8 +399,7 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: () {
                         final newQuantity = item.quantity + 1;
-                        if (item.product.storeQuantities == null ||
-                            newQuantity <=
+                        if (newQuantity <=
                                 item.product.storeQuantities.first.quantity) {
                           _cartController.updateItemQuantity(item, newQuantity);
                         } else {

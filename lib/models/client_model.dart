@@ -41,6 +41,7 @@ class Client extends Outlet {
     );
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'id': id,

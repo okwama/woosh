@@ -11,7 +11,6 @@ import 'package:http/http.dart' as http;
 import 'package:woosh/pages/managers/checkin_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'dart:convert';
-import 'package:get_storage/get_storage.dart';
 
 
 class OutletLocationService {

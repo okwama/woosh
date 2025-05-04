@@ -14,7 +14,7 @@ class PaginatedListView<T> extends StatefulWidget {
   final ScrollController? scrollController;
 
   const PaginatedListView({
-    Key? key,
+    super.key,
     required this.items,
     required this.itemBuilder,
     required this.onLoadMore,
@@ -25,7 +25,7 @@ class PaginatedListView<T> extends StatefulWidget {
     this.errorWidget,
     this.loadingWidget,
     this.scrollController,
-  }) : super(key: key);
+  });
 
   @override
   State<PaginatedListView<T>> createState() => _PaginatedListViewState<T>();

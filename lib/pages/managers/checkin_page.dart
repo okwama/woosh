@@ -473,8 +473,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       final lastKnown = await Geolocator.getLastKnownPosition();
       final now = DateTime.now();
       if (lastKnown != null &&
-          lastKnown.timestamp != null &&
-          now.difference(lastKnown.timestamp!).inMinutes < 10) {
+          now.difference(lastKnown.timestamp).inMinutes < 10) {
         setState(() {
           _currentPosition = lastKnown;
         });

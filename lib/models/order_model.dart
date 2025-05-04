@@ -2,6 +2,7 @@ import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/user_model.dart';
 import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/price_option_model.dart';
 
 enum OrderStatus { PENDING, COMPLETED, CANCELLED }
 
@@ -13,6 +14,7 @@ class Order {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OrderItem> orderItems;
+  final double? _totalAmount; // Store the total amount from the database
 
   Order({
     required this.id,
@@ -22,11 +24,29 @@ class Order {
     required this.createdAt,
     required this.updatedAt,
     required this.orderItems,
-  });
+    double? totalAmount,
+  }) : _totalAmount = totalAmount;
 
-  // Calculate total amount based on order items
+  // Get total amount from database or calculate from order items if not available
   double get totalAmount {
-    return orderItems.fold(0, (total, item) => total);
+    // If we have a total amount from the database, use it
+    if (_totalAmount != null) {
+      return _totalAmount;
+    }
+    
+    // Otherwise calculate from order items
+    return orderItems.fold(0.0, (total, item) {
+      if (item.product == null || item.priceOptionId == null) return total;
+      
+      // Find the matching price option
+      final priceOption = item.product!.priceOptions.firstWhere(
+        (opt) => opt.id == item.priceOptionId,
+        orElse: () => PriceOption(id: 0, option: '', value: 0, categoryId: 0),
+      );
+      
+      // Calculate the item price
+      return total + (priceOption.value * item.quantity);
+    });
   }
 
   // Default status is PENDING
@@ -92,9 +112,21 @@ class Order {
         updatedAt = DateTime.now();
       }
 
+      // Parse totalAmount from JSON if available
+      double? totalAmount;
+      if (json['totalAmount'] != null) {
+        try {
+          totalAmount = double.parse(json['totalAmount'].toString());
+        } catch (e) {
+          print('Error parsing totalAmount: $e');
+          print('Original value: ${json['totalAmount']}');
+        }
+      }
+      
       return Order(
         id: json['id'] as int,
         quantity: json['quantity'] ?? 0,
+        totalAmount: totalAmount,
         // Create user and client objects with safe fallbacks
         user: userData != null
             ? SalesRep.fromJson(userData)

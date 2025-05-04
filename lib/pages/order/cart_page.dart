@@ -88,16 +88,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
 
       // Validate outlet ID
       final outletId = widget.outlet.id;
-      if (outletId == null) {
-        Get.snackbar(
-          'Error',
-          'Invalid outlet selected',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
 
       // Validate cart has items
       if (cartController.items.isEmpty) {
@@ -114,7 +104,9 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
       // Prepare order items
       final List<Map<String, dynamic>> orderItems = [];
       for (var item in cartController.items) {
+        debugPrint('--- [Cart Debug] Preparing item: productId: ${item.productId}, quantity: ${item.quantity}, priceOptionId: ${item.priceOptionId}');
         if (item.product == null) {
+          debugPrint('[Cart Debug] Product is null for item: $item');
           Get.snackbar(
             'Error',
             'Invalid product in cart',
@@ -126,6 +118,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         }
 
         if (item.quantity <= 0) {
+          debugPrint('[Cart Debug] Invalid quantity (${item.quantity}) for product: ${item.product?.name ?? "Unknown Product"}');
           Get.snackbar(
             'Error',
             'Invalid quantity for ${item.product?.name ?? "Unknown Product"}',
@@ -143,7 +136,11 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         });
       }
 
-      if (widget.order == null) {
+      debugPrint('--- [Cart Debug] Final orderItems to send:');
+    for (var oi in orderItems) {
+      debugPrint('[Cart Debug] orderItem: productId: ${oi['productId']}, quantity: ${oi['quantity']}, priceOptionId: ${oi['priceOptionId']}');
+    }
+    if (widget.order == null) {
         // Create new order
         try {
           final order = await ApiService.createOrder(
@@ -315,10 +312,9 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       ),
                     ),
                   Text(
-                    'Quantity: ${item.quantity}' +
-                        (packSize != null
-                            ? ' pack(s) (${totalPieces} pcs)'
-                            : ''),
+                    'Quantity: ${item.quantity}${packSize != null
+                            ? ' pack(s) ($totalPieces pcs)'
+                            : ''}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,

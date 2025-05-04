@@ -94,10 +94,10 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
 
   Future<void> _loadCachedData() async {
     try {
-      final cachedPlans = await ApiService.getCachedData<List<JourneyPlan>>(
+      final cachedPlans = ApiService.getCachedData<List<JourneyPlan>>(
           _journeyPlansCacheKey);
       final cachedClients =
-          await ApiService.getCachedData<List<Client>>(_clientsCacheKey);
+          ApiService.getCachedData<List<Client>>(_clientsCacheKey);
 
       if (cachedPlans != null && cachedClients != null) {
         setState(() {

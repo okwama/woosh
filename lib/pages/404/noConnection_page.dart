@@ -8,10 +8,10 @@ class NoConnectionPage extends StatelessWidget {
   final String? message;
 
   const NoConnectionPage({
-    Key? key,
+    super.key,
     this.onRetry,
     this.message,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

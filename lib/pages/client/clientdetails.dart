@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:woosh/models/clientPayment_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -121,7 +120,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   }
 
   Future<void> _showAddPaymentDialog() async {
-    final _amountController = TextEditingController();
+    final amountController = TextEditingController();
     XFile? pickedFile;
     bool uploading = false;
     String? errorMessage;
@@ -145,7 +144,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                       ),
                     ),
                   TextField(
-                    controller: _amountController,
+                    controller: amountController,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Amount'),
@@ -197,7 +196,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                       ? null
                       : () async {
                           final amount =
-                              double.tryParse(_amountController.text);
+                              double.tryParse(amountController.text);
                           if (amount == null || pickedFile == null) {
                             setState(() {
                               errorMessage =

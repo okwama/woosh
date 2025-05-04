@@ -155,7 +155,7 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
                                         const SizedBox(width: 4),
                                         Flexible(
                                           child: Text(
-                                            'Attachment: ${leave.attachment!.split('/').last.length > 8 ? leave.attachment!.split('/').last.substring(0, 8) + '...' : leave.attachment!.split('/').last}',
+                                            'Attachment: ${leave.attachment!.split('/').last.length > 8 ? '${leave.attachment!.split('/').last.substring(0, 8)}...' : leave.attachment!.split('/').last}',
                                             style:
                                                 const TextStyle(fontSize: 14),
                                           ),

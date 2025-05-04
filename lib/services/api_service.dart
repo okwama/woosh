@@ -300,7 +300,7 @@ class ApiService {
       }
 
       // Generate cache key based on page and limit
-      final cacheKey = 'outlets_page_${page}_limit_${limit}';
+      final cacheKey = 'outlets_page_${page}_limit_$limit';
 
       // Try to get from cache first
       final cachedData = ApiCache.get(cacheKey);
@@ -932,8 +932,9 @@ class ApiService {
 
       // Build query parameters
       final queryParams = <String, String>{};
-      if (journeyPlanId != null)
+      if (journeyPlanId != null) {
         queryParams['journeyPlanId'] = journeyPlanId.toString();
+      }
       if (clientId != null) queryParams['clientId'] = clientId.toString();
       if (salesRepId != null) queryParams['salesRepId'] = salesRepId.toString();
 
@@ -1022,10 +1023,26 @@ class ApiService {
     try {
       await _initDioHeaders();
 
+      // Get user info from storage to include region and country IDs
+      final box = GetStorage();
+      final salesRep = box.read('salesRep');
+      
+      // Extract region and country IDs from the stored user data
+      final int? regionId = salesRep != null && salesRep is Map<String, dynamic> 
+          ? salesRep['region_id'] ?? salesRep['regionId']
+          : null;
+      final int? countryId = salesRep != null && salesRep is Map<String, dynamic>
+          ? salesRep['countryId']
+          : null;
+          
       final requestBody = {
         'clientId': clientId,
         'orderItems': items,
+        'regionId': regionId,
+        'countryId': countryId,
       };
+      
+      print('[Order Debug] Including user region/country: regionId=$regionId, countryId=$countryId');
 
       print('=== Creating Order ===');
       print('Request URL: $baseUrl/orders');
@@ -1493,7 +1510,7 @@ class ApiService {
           print(
               'PASSWORD UPDATE: Response body length: ${response.body.length}');
           print(
-              'PASSWORD UPDATE: Response body sample: ${response.body.length > 100 ? response.body.substring(0, 100) + '...' : response.body}');
+              'PASSWORD UPDATE: Response body sample: ${response.body.length > 100 ? '${response.body.substring(0, 100)}...' : response.body}');
         } else {
           print('PASSWORD UPDATE: Response body is empty');
         }
@@ -1954,7 +1971,7 @@ class ApiService {
       print('items: $items');
 
       final response = await _dio.post(
-        '${baseUrl}/uplift-sales',
+        '$baseUrl/uplift-sales',
         data: {
           'clientId': clientId,
           'userId': userId,

@@ -49,8 +49,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
   // Notes-related variables
   final TextEditingController _notesController = TextEditingController();
-  bool _isEditingNotes = false;
-  bool _isSavingNotes = false;
+  final bool _isEditingNotes = false;
+  final bool _isSavingNotes = false;
 
   // Geofencing constants
   static const double GEOFENCE_RADIUS_METERS =

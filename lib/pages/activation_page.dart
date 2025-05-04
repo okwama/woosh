@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:woosh/pages/login/login_page.dart';
 
 class ActivationPage extends StatelessWidget {
+  const ActivationPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

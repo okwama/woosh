@@ -307,7 +307,7 @@ class _UserStatsPageState extends State<UserStatsPage> {
       print('Fetching stats for user $_userId with params: $urlParams');
 
       // Clear cache for this specific key
-      final cacheKey = '${_userId}_${urlParams}';
+      final cacheKey = '${_userId}_$urlParams';
       _cache.remove(cacheKey);
 
       // Load data in parallel
@@ -420,12 +420,6 @@ class _UserStatsPageState extends State<UserStatsPage> {
   }
 
   bool _isValidData(Map<String, dynamic> data) {
-    if (data == null) {
-      print('Login data is null');
-      return false;
-    }
-
-    // Check for required fields based on analyticsController.js response
     final requiredFields = [
       'userId',
       'totalHours',
@@ -475,12 +469,6 @@ class _UserStatsPageState extends State<UserStatsPage> {
   }
 
   bool _isValidJourneyData(Map<String, dynamic> data) {
-    if (data == null) {
-      print('Journey data is null');
-      return false;
-    }
-
-    // Check for required fields based on analyticsController.js response
     final requiredFields = [
       'userId',
       'totalPlans',

@@ -137,7 +137,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
 
     try {
       // Try to get cached data first
-      final cachedData = await ApiService.getCachedData<List<Order>>(
+      final cachedData = ApiService.getCachedData<List<Order>>(
           'orders_page_${_page + 1}');
 
       if (cachedData != null) {
@@ -210,20 +210,40 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
 
   Future<void> _refreshOrders() async {
     try {
+      // Show loading indicator without clearing existing data
+      setState(() {
+        _isLoading = true;
+      });
+      
       // Clear existing cache before refresh
       for (int i = 1; i <= _precachePages; i++) {
         ApiService.removeFromCache('orders_page_$i');
       }
 
-      // Reset state
-      setState(() {
-        _page = 1;
-        _hasMore = true;
-        _orders = [];
-      });
-
+      // Reset pagination state but keep existing orders
+      _page = 1;
+      _hasMore = true;
+      
       // Load fresh data
-      await _loadOrders();
+      final response = await _retryApiCall(
+        () => ApiService.getOrders(page: 1, limit: _limit),
+        maxRetries: 3,
+        timeout: const Duration(seconds: 15),
+      );
+      
+      // Update with new data only after successfully loading
+      if (mounted) {
+        setState(() {
+          _orders = response.data;
+          _isLoading = false;
+          _hasMore = response.page < response.totalPages;
+        });
+        
+        // Precache next pages if available
+        if (_hasMore) {
+          _precacheNextPages();
+        }
+      }
 
       // Show success feedback
       if (mounted) {
@@ -247,6 +267,42 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
           duration: const Duration(seconds: 3),
         );
       }
+    }
+  }
+
+  // Refresh only a specific order by its ID without clearing the screen
+  Future<void> _refreshSingleOrder(int orderId) async {
+    try {
+      // Find the current index of the order to update
+      final currentIndex = _orders.indexWhere((o) => o.id == orderId);
+      if (currentIndex == -1) return; // Order not found in list
+      
+      // Store a reference to the current order for comparison later
+      final currentOrder = _orders[currentIndex];
+      
+      // Use the existing getOrders API with a small limit
+      // This is more efficient than reloading all orders
+      final response = await _retryApiCall(
+        () => ApiService.getOrders(page: 1, limit: 20),
+        maxRetries: 2,
+        timeout: const Duration(seconds: 10),
+      );
+      
+      // Find the updated order in the response
+      final updatedOrder = response.data.firstWhere(
+        (o) => o.id == orderId,
+        orElse: () => currentOrder, // Keep current if not found
+      );
+      
+      // Update only this order in the list if it's different
+      if (mounted && updatedOrder != currentOrder) {
+        setState(() {
+          _orders[currentIndex] = updatedOrder;
+        });
+      }
+    } catch (e) {
+      // Handle error silently - the old data is still valid
+      print('Error refreshing order $orderId: $e');
     }
   }
 
@@ -381,10 +437,19 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(8),
                                       onTap: () {
-                                        Get.to(
+                                        // Navigate to order detail and refresh on return if needed
+                                        final future = Get.to(
                                           () => OrderDetailPage(order: order),
                                           transition: Transition.rightToLeft,
                                         );
+                                        
+                                        // Use null-safe then() to handle the result
+                                        future?.then((result) {
+                                          // Refresh only the specific order if an update was made
+                                          if (result == true) {
+                                            _refreshSingleOrder(order.id);
+                                          }
+                                        });
                                       },
                                       child: Padding(
                                         padding: const EdgeInsets.all(12),
@@ -437,7 +502,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                             Row(
                                               children: [
                                                 Text(
-                                                  '${order.client.name}',
+                                                  order.client.name,
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                     color: Color.fromARGB(

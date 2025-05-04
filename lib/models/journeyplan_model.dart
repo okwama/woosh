@@ -207,5 +207,5 @@ class JourneyPlan {
     };
   }
 
-  String get clientName => client?.name ?? 'Unknown Client';
+  String get clientName => client.name ?? 'Unknown Client';
 }

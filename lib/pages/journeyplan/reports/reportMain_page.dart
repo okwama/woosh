@@ -44,7 +44,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
   Product? _selectedProduct;
   File? _imageFile;
   String? _imageUrl;
-  ReportType _selectedReportType = ReportType.PRODUCT_AVAILABILITY;
+  final ReportType _selectedReportType = ReportType.PRODUCT_AVAILABILITY;
   List<Product> _products = [];
   List<Report> _submittedReports = [];
   bool _isCheckingOut = false;

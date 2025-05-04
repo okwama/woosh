@@ -159,7 +159,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     String successMsg = 'Item added to cart';
     if (widget.product.packSize != null) {
       final totalPieces = quantity * (widget.product.packSize ?? 1);
-      successMsg = 'Added $quantity pack(s) (${totalPieces} pieces) to cart';
+      successMsg = 'Added $quantity pack(s) ($totalPieces pieces) to cart';
     }
     Get.snackbar(
       'Success',
@@ -499,7 +499,7 @@ class _PriceRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              currentStock! > 0 ? '${currentStock} in stock' : 'Out of stock',
+              currentStock! > 0 ? '$currentStock in stock' : 'Out of stock',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,

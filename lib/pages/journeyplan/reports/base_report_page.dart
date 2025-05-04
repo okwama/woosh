@@ -41,7 +41,7 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
         final box = GetStorage();
         final salesRepData = box.read('salesRep');
 
-        if (salesRepData == null || !(salesRepData is Map<String, dynamic>)) {
+        if (salesRepData == null || salesRepData is! Map<String, dynamic>) {
           throw Exception("Authentication error: No valid salesRep data found");
         }
 
@@ -220,6 +220,7 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
     return const SizedBox.shrink(); // To be implemented by subclasses
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -260,8 +261,6 @@ class BaseReportPage extends StatefulWidget {
 
 class _BaseReportPageState extends State<BaseReportPage>
     with BaseReportPageMixin {
-  @override
-  Widget build(BuildContext context) => super.build(context);
 
   @override
   Future<void> onSubmit() async {

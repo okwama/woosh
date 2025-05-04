@@ -17,10 +17,10 @@ class ViewClientPage extends StatefulWidget {
   final bool forUpliftSale;
 
   const ViewClientPage({
-    Key? key,
+    super.key,
     this.forOrderCreation = false,
     this.forUpliftSale = false,
-  }) : super(key: key);
+  });
 
   @override
   State<ViewClientPage> createState() => _ViewClientPageState();

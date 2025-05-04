@@ -45,45 +45,27 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     try {
       // Calculate total quantity from order items
-      final totalQuantity =
-          _orderItems.fold(0, (sum, item) => sum + item.quantity);
+      final totalQuantity = _orderItems.fold(0, (sum, item) => sum + item.quantity);
 
-      // Create updated order
-      final updatedOrder = Order(
-        id: widget.order!.id,
-        quantity: totalQuantity,
-        user: widget.order!.user,
-        client: widget.order!.client,
-        createdAt: widget.order!.createdAt,
-        updatedAt: DateTime.now(),
-        orderItems: _orderItems,
-      );
-
+      // Log the update operation
+      print('Updating order #${widget.order!.id} with ${_orderItems.length} items, total quantity: $totalQuantity');
+      
       // Call API to update order
-      final updatedOrderJson = await ApiService.updateOrder(
+      await ApiService.updateOrder(
         orderId: widget.order!.id,
         orderItems: _orderItems.map((item) => item.toJson()).toList(),
       );
 
-      if (updatedOrderJson != null) {
-        Get.snackbar(
-          'Success',
-          'Order updated successfully',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-        Get.back(result: updatedOrder);
-      } else {
-        Get.snackbar(
-          'Error',
-          'Failed to update order',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
+      Get.snackbar(
+        'Success',
+        'Order updated successfully',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+      // Return true to indicate an update was made
+      Get.back(result: true);
+        } catch (e) {
       Get.snackbar(
         'Error',
         'An error occurred: $e',
@@ -148,26 +130,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
 
     final theme = Theme.of(context);
-    final totalAmount = _orderItems.fold(
-      0.0,
-      (sum, item) {
-        if (item.product == null || item.priceOptionId == null) return sum;
-
-        // Find the matching price option
-        final priceOption = item.product!.priceOptions.firstWhere(
-          (opt) => opt.id == item.priceOptionId,
-          orElse: () => PriceOption(
-            id: 0,
-            option: '',
-            value: 0,
-            categoryId: 0,
-          ),
-        );
-
-        // Use the price option value for calculation
-        return sum + (priceOption.value * item.quantity);
-      },
-    );
+    // Use the totalAmount from the order model instead of recalculating
+    final totalAmount = widget.order!.totalAmount;
 
     return Scaffold(
       appBar: AppBar(
@@ -199,7 +163,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 else
                   ..._orderItems
                       .map((item) => _buildOrderItemTile(item))
-                      .toList(),
+                      ,
 
                 // Total Amount Section
                 const SizedBox(height: 24),

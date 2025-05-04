@@ -1,7 +1,12 @@
 class Config {
+<<<<<<< Updated upstream
 static const String baseUrl =  'https://https-github-com-okwama-woosh-api.vercel.app';
   //static const String baseUrl = 'https://192.168.100.6:5000';
+=======
+//static const String baseUrl =  'https://https-github-com-okwama-woosh-api.vercel.app';
+>>>>>>> Stashed changes
   // static const String baseUrl = 'https://https-github-com-okwama-woosh-api.vercel.app';
+   static const String baseUrl = 'http://192.168.0.107:5000';
   static const String apiVersion = 'v1';
   static const String imageBaseUrl =
       'https://https-github-com-okwama-woosh-api.vercel.app/uploads';

@@ -319,7 +319,7 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
                       const Icon(Icons.timer, size: 12),
                       const SizedBox(width: 2),
                       Text(
-                        '${session.formattedDuration}',
+                        session.formattedDuration,
                         style: const TextStyle(fontSize: 11),
                       ),
                       const Spacer(),
