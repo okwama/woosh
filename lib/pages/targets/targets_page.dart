@@ -390,21 +390,21 @@ class _TargetsPageState extends State<TargetsPage>
                     ),
                   ],
                 ),
-      floatingActionButton: GradientFAB(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const AddEditTargetPage(),
-            ),
-          );
+      // floatingActionButton: GradientFAB(
+      //   onPressed: () async {
+      //     final result = await Navigator.push(
+      //       context,
+      //       MaterialPageRoute(
+      //         builder: (context) => const AddEditTargetPage(),
+      //       ),
+      //     );
 
-          if (result == true) {
-            _refreshData();
-          }
-        },
-        icon: const Icon(Icons.add),
-      ),
+      //     if (result == true) {
+      //       _refreshData();
+      //     }
+      //   },
+      //   icon: const Icon(Icons.add),
+      // ),
     );
   }
 

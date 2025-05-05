@@ -1,14 +1,18 @@
 import 'dart:convert';
 import 'package:woosh/models/report/feedbackReport_model.dart';
 import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/product_return_item_model.dart';
+import 'package:woosh/models/report/product_sample_item_model.dart';
 import 'package:woosh/models/report/visibilityReport_model.dart';
 import 'package:woosh/models/report/productReturn_model.dart';
+import 'package:woosh/models/report/productSample_model.dart';
 
 enum ReportType {
   PRODUCT_AVAILABILITY,
   VISIBILITY_ACTIVITY,
   FEEDBACK,
   PRODUCT_RETURN,
+  PRODUCT_SAMPLE, // Added PRODUCT_SAMPLE
 }
 
 class Report {
@@ -19,12 +23,15 @@ class Report {
   final int? orderId;
   final int? clientId;
   final DateTime? createdAt;
+  final List<ProductReturnItem>? productReturnItems;
+  final List<ProductSampleItem>? productSampleItems;
 
   // Related reports
   final ProductReport? productReport;
   final VisibilityReport? visibilityReport;
   final FeedbackReport? feedbackReport;
   final ProductReturn? productReturn;
+  final ProductSample? productSample; // Added ProductSample
 
   Report({
     this.id,
@@ -38,6 +45,9 @@ class Report {
     this.visibilityReport,
     this.feedbackReport,
     this.productReturn,
+    this.productSample, // Added ProductSample
+    this.productReturnItems,
+    this.productSampleItems,
   });
 
   factory Report.fromJson(Map<String, dynamic> json) {
@@ -75,11 +85,28 @@ class Report {
       reportType = ReportType.FEEDBACK; // Default if we can't parse
     }
 
+    // Parse items arrays for returns and samples
+    List<ProductReturnItem>? productReturnItems;
+    if (json['productReturnItems'] != null &&
+        json['productReturnItems'] is List) {
+      productReturnItems = (json['productReturnItems'] as List)
+          .map((item) => ProductReturnItem.fromJson(item))
+          .toList();
+    }
+    List<ProductSampleItem>? productSampleItems;
+    if (json['productSampleItems'] != null &&
+        json['productSampleItems'] is List) {
+      productSampleItems = (json['productSampleItems'] as List)
+          .map((item) => ProductSampleItem.fromJson(item))
+          .toList();
+    }
+
     // Initialize specific report types to null
     ProductReport? productReport;
     VisibilityReport? visibilityReport;
     FeedbackReport? feedbackReport;
     ProductReturn? productReturn;
+    ProductSample? productSample; // Added ProductSample initialization
 
     // Parse specific report data based on type
     try {
@@ -113,6 +140,11 @@ class Report {
             productReturn = ProductReturn.fromJson(json['productReturn']);
           }
           break;
+        case ReportType.PRODUCT_SAMPLE: // Handle PRODUCT_SAMPLE case
+          if (json['productSample'] != null) {
+            productSample = ProductSample.fromJson(json['productSample']);
+          }
+          break;
       }
     } catch (e) {
       print('Error parsing specific report data: $e');
@@ -135,6 +167,9 @@ class Report {
       visibilityReport: visibilityReport,
       feedbackReport: feedbackReport,
       productReturn: productReturn,
+      productSample: productSample, // Added ProductSample
+      productReturnItems: productReturnItems,
+      productSampleItems: productSampleItems,
     );
   }
 
@@ -148,10 +183,16 @@ class Report {
       if (orderId != null) 'orderId': orderId,
       if (clientId != null) 'clientId': clientId,
       if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
-      // Add specific report details based on type
       if (_getSpecificReportJson() != null)
         'specificReport': _getSpecificReportJson(),
       'productReturn': productReturn?.toJson(),
+      'productSample': productSample?.toJson(),
+      if (productReturnItems != null)
+        'productReturnItems':
+            productReturnItems!.map((e) => e.toJson()).toList(),
+      if (productSampleItems != null)
+        'productSampleItems':
+            productSampleItems!.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -165,6 +206,8 @@ class Report {
         return feedbackReport?.toJson();
       case ReportType.PRODUCT_RETURN:
         return productReturn?.toJson();
+      case ReportType.PRODUCT_SAMPLE: // Added case for ProductSample
+        return productSample?.toJson();
       default:
         return null;
     }
@@ -181,6 +224,9 @@ class Report {
         return feedbackReport?.comment ?? '';
       case ReportType.PRODUCT_RETURN:
         return productReturn?.reason ?? '';
+      case ReportType.PRODUCT_SAMPLE: // Added ProductSample comment
+        return productSample?.reason ??
+            ''; // Assuming 'description' exists in ProductSample
       default:
         return '';
     }
@@ -191,6 +237,7 @@ class Report {
     switch (type) {
       case ReportType.VISIBILITY_ACTIVITY:
         return visibilityReport?.imageUrl;
+      case ReportType.PRODUCT_SAMPLE: // Added ProductSample imageUrl
       default:
         return null;
     }
@@ -261,33 +308,23 @@ class Report {
 
   @override
   String toString() {
-    return 'Report{id: $id, type: $type, journeyPlanId: $journeyPlanId, salesRepId: $salesRepId, clientId: $clientId, createdAt: $createdAt}';
+    return 'Report{id: $id, type: $type, journeyPlanId: $journeyPlanId, salesRepId: $salesRepId, orderId: $orderId, clientId: $clientId, createdAt: $createdAt, productReport: $productReport, visibilityReport: $visibilityReport, feedbackReport: $feedbackReport, productReturn: $productReturn, productSample: $productSample}';
   }
 
-  // Static helper method to parse report type
-  static ReportType _parseReportType(dynamic typeValue) {
-    print(
-        'Parsing report type from value: $typeValue (${typeValue.runtimeType})');
-    if (typeValue == null) {
-      throw ArgumentError('Invalid report type format: null');
-    }
-
-    String typeStr = typeValue.toString().toUpperCase();
-
-    switch (typeStr) {
-      case 'PRODUCT_AVAILABILITY':
-      case 'PRODUCT':
+  static ReportType _parseReportType(String type) {
+    switch (type.toLowerCase()) {
+      case 'product_availability':
         return ReportType.PRODUCT_AVAILABILITY;
-      case 'VISIBILITY_ACTIVITY':
-      case 'VISIBILITY':
+      case 'visibility_activity':
         return ReportType.VISIBILITY_ACTIVITY;
-      case 'FEEDBACK':
+      case 'feedback':
         return ReportType.FEEDBACK;
-      case 'PRODUCT_RETURN':
+      case 'product_return':
         return ReportType.PRODUCT_RETURN;
+      case 'product_sample': // Added case for PRODUCT_SAMPLE
+        return ReportType.PRODUCT_SAMPLE;
       default:
-        print('Unknown report type: $typeStr');
-        throw ArgumentError('Invalid report type format: $typeStr');
+        throw Exception('Unknown report type: $type');
     }
   }
 }

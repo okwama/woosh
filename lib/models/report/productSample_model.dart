@@ -1,15 +1,13 @@
-class ProductReturn {
+class ProductSample {
   final int reportId;
   final String? productName;
   final String? reason;
-  final String? imageUrl;
   final int? quantity;
 
-  ProductReturn({
+  ProductSample({
     required this.reportId,
     this.productName,
     this.reason,
-    this.imageUrl,
     this.quantity,
   });
 
@@ -22,14 +20,12 @@ class ProductReturn {
     };
   }
 
-  factory ProductReturn.fromJson(Map<String, dynamic> json) {
-    return ProductReturn(
+  factory ProductSample.fromJson(Map<String, dynamic> json) {
+    return ProductSample(
       reportId: json['reportId'] ?? 0,
       productName: json['productName'],
       reason: json['reason'],
-      imageUrl: json['imageUrl'],
       quantity: json['quantity'],
     );
   }
 }
-

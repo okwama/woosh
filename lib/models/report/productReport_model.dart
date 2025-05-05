@@ -1,6 +1,7 @@
 class ProductReport {
   final int reportId;
   final String? productName;
+  final int? productId;
   final int? quantity;
   final String? comment;
   final DateTime createdAt;
@@ -8,6 +9,7 @@ class ProductReport {
   ProductReport({
     required this.reportId,
     this.productName,
+    this.productId,
     this.quantity,
     this.comment,
     DateTime? createdAt,
@@ -17,6 +19,7 @@ class ProductReport {
     return {
       'reportId': reportId,
       'productName': productName,
+      'productId': productId,
       'quantity': quantity,
       'comment': comment,
       'createdAt': createdAt.toIso8601String(),
@@ -32,6 +35,7 @@ class ProductReport {
     return ProductReport(
       reportId: map['reportId'],
       productName: map['productName'],
+      
       quantity: map['quantity'] != null
           ? int.parse(map['quantity'].toString())
           : null,
@@ -40,4 +44,6 @@ class ProductReport {
           map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
     );
   }
+
+  int get id => reportId;
 }

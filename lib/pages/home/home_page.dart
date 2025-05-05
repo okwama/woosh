@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
 import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
@@ -347,10 +348,14 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                     MenuTile(
-                      title: 'View Uplift Sales',
-                      icon: Icons.list_alt,
+                      title: 'Product Return',
+                      icon: Icons.assignment_return,
                       onTap: () {
-                        Get.toNamed('/uplift-sales');
+                        Get.to(
+                          () => const ViewClientPage(forProductReturn: true),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
                       },
                     ),
                   ],

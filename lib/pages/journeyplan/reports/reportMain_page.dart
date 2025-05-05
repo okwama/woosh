@@ -13,6 +13,7 @@ import 'package:woosh/models/report/visibilityReport_model.dart';
 import 'package:woosh/models/report/productReturn_model.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/feedback_report_page.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_report_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_sample.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/visibility_report_page.dart';
 import 'package:woosh/pages/journeyplan/reports/product_availability_page.dart';
 import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
@@ -250,6 +251,9 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
             ),
           );
           break;
+        case ReportType.PRODUCT_SAMPLE:
+          // TODO: Implement product sample report creation
+          throw UnimplementedError('Product sample report not implemented yet');
       }
 
       // Debug: Validate report object before submission
@@ -288,6 +292,10 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
           print(
               'REPORT SUBMISSION DEBUG: ProductReturn: Product: ${report.productReturn?.productName}, Reason: ${report.productReturn?.reason}, Quantity: ${report.productReturn?.quantity}');
           break;
+        case ReportType.PRODUCT_SAMPLE:
+          // TODO: Implement product sample report debug/validation
+          throw UnimplementedError(
+              'Product sample report debug not implemented yet');
       }
 
       await _apiService.submitReport(report);
@@ -562,6 +570,45 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                     ),
                     const SizedBox(height: 6),
                     // Product Return Button
+                    // SizedBox(
+                    //   width: double.infinity,
+                    //   child: ElevatedButton.icon(
+                    //     onPressed: () {
+                    //       Navigator.push(
+                    //         context,
+                    //         MaterialPageRoute(
+                    //           builder: (context) => ProductReturnPage(
+                    //             journeyPlan: widget.journeyPlan,
+                    //             onReportSubmitted: () {
+                    //               setState(() {
+                    //                 _submittedReports.add(Report(
+                    //                   type: ReportType.PRODUCT_RETURN,
+                    //                   journeyPlanId: widget.journeyPlan.id,
+                    //                   salesRepId:
+                    //                       GetStorage().read('salesRep')['id'],
+                    //                   clientId: widget.journeyPlan.client.id,
+                    //                 ));
+                    //               });
+                    //             },
+                    //           ),
+                    //         ),
+                    //       );
+                    //     },
+                    //     style: ElevatedButton.styleFrom(
+                    //       backgroundColor: Colors.red,
+                    //       foregroundColor: Colors.white,
+                    //       alignment: Alignment.centerLeft,
+                    //       padding: const EdgeInsets.symmetric(
+                    //           vertical: 8, horizontal: 12),
+                    //       minimumSize: const Size.fromHeight(36),
+                    //     ),
+                    //     icon: const Icon(Icons.assignment_return, size: 18),
+                    //     label: const Text('Product Return',
+                    //         style: TextStyle(fontSize: 13)),
+                    //   ),
+                    // ),
+                    const SizedBox(height: 6),
+                    // Product Sample Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -569,12 +616,12 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ProductReturnPage(
+                              builder: (context) => ProductSamplePage(
                                 journeyPlan: widget.journeyPlan,
                                 onReportSubmitted: () {
                                   setState(() {
                                     _submittedReports.add(Report(
-                                      type: ReportType.PRODUCT_RETURN,
+                                      type: ReportType.PRODUCT_SAMPLE,
                                       journeyPlanId: widget.journeyPlan.id,
                                       salesRepId:
                                           GetStorage().read('salesRep')['id'],
@@ -587,7 +634,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                          backgroundColor: const Color.fromARGB(255, 145, 238, 122),
                           foregroundColor: Colors.white,
                           alignment: Alignment.centerLeft,
                           padding: const EdgeInsets.symmetric(
@@ -595,7 +642,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                           minimumSize: const Size.fromHeight(36),
                         ),
                         icon: const Icon(Icons.assignment_return, size: 18),
-                        label: const Text('Product Return',
+                        label: const Text('Product Sample',
                             style: TextStyle(fontSize: 13)),
                       ),
                     ),

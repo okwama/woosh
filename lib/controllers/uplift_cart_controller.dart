@@ -5,13 +5,11 @@ import 'package:woosh/models/outlet_model.dart';
 class UpliftCartItem {
   final Product product;
   final int quantity;
-  final int? priceOptionId;
   final double unitPrice;
 
   UpliftCartItem({
     required this.product,
     required this.quantity,
-    this.priceOptionId,
     required this.unitPrice,
   });
 
@@ -28,39 +26,30 @@ class UpliftCartController extends GetxController {
     currentOutlet = outlet;
   }
 
-  void addItem(Product product, int quantity, {int? priceOptionId}) {
-    final existingItemIndex = items.indexWhere(
-      (item) =>
-          item.product.id == product.id && item.priceOptionId == priceOptionId,
-    );
+void addItem(Product product, int quantity, double unitPrice) {
+  final existingItemIndex = items.indexWhere(
+    (item) => item.product.id == product.id && item.unitPrice == unitPrice,
+  );
 
-    if (existingItemIndex >= 0) {
-      // Update existing item
-      final existingItem = items[existingItemIndex];
-      items[existingItemIndex] = UpliftCartItem(
+  if (existingItemIndex >= 0) {
+    // Update existing item
+    final existingItem = items[existingItemIndex];
+    items[existingItemIndex] = UpliftCartItem(
+      product: product,
+      quantity: existingItem.quantity + quantity,
+      unitPrice: unitPrice,
+    );
+  } else {
+    // Add new item
+    items.add(
+      UpliftCartItem(
         product: product,
-        quantity: existingItem.quantity + quantity,
-        priceOptionId: priceOptionId,
-        unitPrice: existingItem.unitPrice,
-      );
-    } else {
-      // Add new item
-      final unitPrice = priceOptionId != null
-          ? product.priceOptions
-              .firstWhere((po) => po.id == priceOptionId)
-              .value
-              .toDouble()
-          : 0.0;
-      items.add(
-        UpliftCartItem(
-          product: product,
-          quantity: quantity,
-          priceOptionId: priceOptionId,
-          unitPrice: unitPrice,
-        ),
-      );
-    }
+        quantity: quantity,
+        unitPrice: unitPrice,
+      ),
+    );
   }
+}
 
   void updateItemQuantity(UpliftCartItem item, int newQuantity) {
     final index = items.indexOf(item);
@@ -68,7 +57,6 @@ class UpliftCartController extends GetxController {
       items[index] = UpliftCartItem(
         product: item.product,
         quantity: newQuantity,
-        priceOptionId: item.priceOptionId,
         unitPrice: item.unitPrice,
       );
     }

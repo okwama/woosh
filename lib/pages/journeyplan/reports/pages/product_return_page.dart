@@ -2,21 +2,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/productReturn_model.dart';
+import 'package:woosh/models/report/product_return_item_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProductReturnPage extends StatefulWidget {
-  final JourneyPlan journeyPlan;
+  final Outlet outlet;
   final VoidCallback? onReportSubmitted;
 
   const ProductReturnPage({
     super.key,
-    required this.journeyPlan,
+    required this.outlet,
     this.onReportSubmitted,
   });
 
@@ -25,15 +28,14 @@ class ProductReturnPage extends StatefulWidget {
 }
 
 class _ProductReturnPageState extends State<ProductReturnPage> {
-  final _reasonController = TextEditingController();
   final _quantityController = TextEditingController();
+  final _reasonController = TextEditingController();
   final _apiService = ApiService();
   bool _isSubmitting = false;
   bool _isLoading = true;
   Product? _selectedProduct;
-  File? _imageFile;
-  String? _imageUrl;
   List<Product> _products = [];
+  List<Map<String, dynamic>> _cart = [];
 
   @override
   void initState() {
@@ -57,104 +59,89 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
     }
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final pickedFile =
-          await ImagePicker().pickImage(source: ImageSource.camera);
-      if (pickedFile == null) return;
-
-      setState(() {
-        _imageFile = File(pickedFile.path);
-        _imageUrl = null;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
-      }
-    }
-  }
-
-  Future<String?> _uploadImage() async {
-    if (_imageFile == null) return null;
-
-    try {
-      final imageUrl = await ApiService.uploadImage(_imageFile!);
-      setState(() => _imageUrl = imageUrl);
-      return imageUrl;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading image: $e')),
-        );
-      }
-      return null;
-    }
-  }
-
-  Future<void> _submitReturn() async {
-    if (_isSubmitting) return;
-
-    // Validate form
+  void _addToCart() {
     if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a product')),
       );
       return;
     }
-
+    if (_quantityController.text.isEmpty ||
+        int.tryParse(_quantityController.text) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid quantity')),
+      );
+      return;
+    }
     if (_reasonController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a reason for return')),
+        const SnackBar(content: Text('Please enter a reason')),
       );
       return;
     }
+    setState(() {
+      _cart.add({
+        'product': _selectedProduct!,
+        'quantity': int.parse(_quantityController.text),
+        'reason': _reasonController.text.trim(),
+      });
+      _selectedProduct = null;
+      _quantityController.clear();
+      _reasonController.clear();
+    });
+  }
 
-    if (_imageFile == null && _imageUrl == null) {
+  void _removeFromCart(int index) {
+    setState(() {
+      _cart.removeAt(index);
+    });
+  }
+
+  Future<void> _submitCart() async {
+    if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please take a photo of the returned product')),
+        const SnackBar(content: Text('Cart is empty')),
       );
       return;
     }
-
     setState(() => _isSubmitting = true);
-
     try {
-      String? imageUrl = await _uploadImage();
-
-      // Get sales rep ID from storage
       final box = GetStorage();
       final salesRepData = box.read('salesRep');
       final int? salesRepId =
           salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
-
       if (salesRepId == null) {
         throw Exception(
             "User not authenticated: Could not determine salesRep ID");
       }
 
-      // Create and submit return report
+      // Build the list of ProductReturnItem
+      final items = _cart.map((item) {
+        final product = item['product'] as Product;
+        final quantity = item['quantity'] as int;
+        final reason = item['reason'] as String;
+        // Add imageUrl if you support it
+        return ProductReturnItem(
+          productName: product.name,
+          quantity: quantity,
+          reason: reason,
+          imageUrl: item['imageUrl'], // optional
+        );
+      }).toList();
+
+      // Submit a single report with all items
       final report = Report(
         type: ReportType.PRODUCT_RETURN,
-        journeyPlanId: widget.journeyPlan.id,
         salesRepId: salesRepId,
-        clientId: widget.journeyPlan.client.id,
-        productReturn: ProductReturn(
-          reportId: 0,
-          productName: _selectedProduct?.name,
-          reason: _reasonController.text,
-          imageUrl: imageUrl,
-          quantity: int.tryParse(_quantityController.text),
-        ),
+        clientId: widget.outlet.id, // Use the id from the outlet as clientId
+        productReturnItems: items,
       );
-
       await _apiService.submitReport(report);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Return report submitted successfully')),
+          const SnackBar(
+              content: Text('Product return report submitted successfully')),
         );
         widget.onReportSubmitted?.call();
         Navigator.pop(context);
@@ -162,7 +149,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting return: $e')),
+          SnackBar(content: Text('Error submitting report: $e')),
         );
       }
     } finally {
@@ -173,221 +160,190 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
   }
 
   @override
-  void dispose() {
-    _reasonController.dispose();
-    _quantityController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'Product Return',
+        title: 'Product Return Report',
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Selection
+            // Outlet Info Card
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Select Product',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    DropdownButtonFormField<Product>(
-                      value: _selectedProduct,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      ),
-                      items: _products.map((Product product) {
-                        return DropdownMenuItem<Product>(
-                          value: product,
-                          child: Text(product.name),
-                        );
-                      }).toList(),
-                      onChanged: (Product? newValue) {
-                        setState(() {
-                          _selectedProduct = newValue;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Quantity Input
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Quantity',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: _quantityController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Enter quantity',
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Reason Input
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Reason for Return',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: _reasonController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Enter reason for return',
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Photo Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Product Photo',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (_imageFile != null || _imageUrl != null)
-                      Container(
-                        height: 180,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
+                    Row(
+                      children: [
+                        const Icon(Icons.store, size: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.outlet.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _imageFile != null
-                              ? Image.file(_imageFile!, fit: BoxFit.cover)
-                              : Image.network(_imageUrl!, fit: BoxFit.cover),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.outlet.address,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Product Return Form
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_isLoading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_products.isEmpty)
+                      const Center(
+                        child: Text(
+                          'No products available',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
                         ),
                       )
                     else
-                      Container(
-                        height: 180,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
+                      DropdownButtonFormField<Product>(
+                        value: _selectedProduct,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Product',
+                          border: OutlineInputBorder(),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.camera_alt,
-                                size: 40, color: Colors.grey),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Take a photo of the returned product',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
+                        items: _products.map((product) {
+                          return DropdownMenuItem(
+                            value: product,
+                            child: Text(product.name),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() => _selectedProduct = value);
+                        },
                       ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _quantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _reasonController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Reason',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _pickImage,
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Take Photo'),
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _addToCart,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
+                        child: const Text('Add to Cart'),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Submit Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitReturn,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+            // Cart List
+            if (_cart.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Cart',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                      )
-                    : const Text('SUBMIT RETURN'),
+                      ),
+                      const SizedBox(height: 8),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _cart.length,
+                        itemBuilder: (context, index) {
+                          final item = _cart[index];
+                          final product = item['product'] as Product;
+                          final quantity = item['quantity'] as int;
+                          final reason = item['reason'] as String;
+                          return ListTile(
+                            title: Text(product.name),
+                            subtitle: Text('Qty: $quantity\nReason: $reason'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _removeFromCart(index),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting ? null : _submitCart,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: _isSubmitting
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white)
+                              : const Text('Submit All'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _reasonController.dispose();
+    super.dispose();
   }
 }

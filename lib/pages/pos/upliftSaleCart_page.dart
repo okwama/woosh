@@ -29,8 +29,7 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
   final RxBool _isLoadingProducts = false.obs;
   Product? _selectedProduct;
   int _quantity = 1;
-  int? _selectedPriceOptionId;
-
+  double? _unitPrice;
   @override
   void initState() {
     super.initState();
@@ -92,17 +91,28 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
       return;
     }
 
+    if (_unitPrice == null) {
+      Get.snackbar(
+        'Error',
+        'Please enter a unit price',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     _cartController.addItem(
       _selectedProduct!,
       _quantity,
-      priceOptionId: _selectedPriceOptionId,
+      _unitPrice! ?? 0.0, // or show an error if null
     );
 
     // Reset selection
     setState(() {
       _selectedProduct = null;
       _quantity = 1;
-      _selectedPriceOptionId = null;
+      _unitPrice = null;
     });
 
     Get.snackbar(
@@ -136,13 +146,13 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
           ElevatedButton(
             onPressed: () {
               Get.back(); // Close dialog
-              Get.offNamed('/orders'); // Go to orders page
+              Get.offNamed('/uplift-sales'); // Go to orders page
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
-            child: const Text('View Orders'),
+            child: const Text('View Sales'),
           ),
         ],
       ),
@@ -170,7 +180,6 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
         orderItems.add({
           'productId': item.product.id,
           'quantity': item.quantity,
-          'priceOptionId': item.priceOptionId,
           'unitPrice': item.unitPrice,
         });
       }
@@ -233,32 +242,26 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                 onChanged: (Product? product) {
                   setState(() {
                     _selectedProduct = product;
-                    _selectedPriceOptionId = null;
+                    _unitPrice = null;
                   });
                 },
               );
             }),
             if (_selectedProduct != null) ...[
               const SizedBox(height: 16),
-              if (_selectedProduct!.priceOptions.isNotEmpty)
-                DropdownButtonFormField<int>(
-                  value: _selectedPriceOptionId,
-                  decoration: const InputDecoration(
-                    labelText: 'Select Price Option',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _selectedProduct!.priceOptions.map((option) {
-                    return DropdownMenuItem<int>(
-                      value: option.id,
-                      child: Text('${option.option} - Ksh ${option.value}'),
-                    );
-                  }).toList(),
-                  onChanged: (int? value) {
-                    setState(() {
-                      _selectedPriceOptionId = value;
-                    });
-                  },
+              TextFormField(
+                initialValue: _unitPrice?.toString() ?? '',
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Unit Price',
+                  border: OutlineInputBorder(),
                 ),
+                onChanged: (value) {
+                  setState(() {
+                    _unitPrice = double.tryParse(value);
+                  });
+                },
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -346,18 +349,16 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (item.priceOptionId != null)
+                  if (item.unitPrice != null)
                     Text(
-                      'Price Option: ${item.product.priceOptions.firstWhereOrNull((po) => po.id == item.priceOptionId)?.option ?? 'Unknown'}',
+                      'Unit Price: ${item.unitPrice}',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
                     ),
                   Text(
-                    'Quantity: ${item.quantity}${packSize != null
-                            ? ' pack(s) ($totalPieces pcs)'
-                            : ''}',
+                    'Quantity: ${item.quantity}${packSize != null ? ' pack(s) ($totalPieces pcs)' : ''}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -400,7 +401,7 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                       onPressed: () {
                         final newQuantity = item.quantity + 1;
                         if (newQuantity <=
-                                item.product.storeQuantities.first.quantity) {
+                            item.product.storeQuantities.first.quantity) {
                           _cartController.updateItemQuantity(item, newQuantity);
                         } else {
                           Get.snackbar(
@@ -525,9 +526,18 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cart'),
+        title: const Text('Uplift Sales'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.inventory_2_outlined),
+          tooltip: 'Uplift Sales Report',
+          onPressed: () {
+            Get.toNamed('/uplift-sales');
+          },
+        ),
+      ],
       ),
       body: Column(
         children: [

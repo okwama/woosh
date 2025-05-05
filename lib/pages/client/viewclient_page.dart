@@ -11,15 +11,18 @@ import 'package:woosh/widgets/skeleton_loader.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
   final bool forUpliftSale;
+  final bool forProductReturn;
 
   const ViewClientPage({
     super.key,
     this.forOrderCreation = false,
     this.forUpliftSale = false,
+    this.forProductReturn = false,
   });
 
   @override
@@ -182,6 +185,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
         () => UpliftSaleCartPage(
           outlet: outlet,
         ),
+        transition: Transition.rightToLeft,
+      );
+    } else if (widget.forProductReturn) {
+      Get.to(
+        () => ProductReturnPage(outlet: outlet),
         transition: Transition.rightToLeft,
       );
     } else {

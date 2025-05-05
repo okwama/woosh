@@ -857,18 +857,37 @@ class ApiService {
           };
           break;
         case ReportType.PRODUCT_RETURN:
-          if (report.productReturn == null) {
-            throw Exception('Product return details are missing');
+          if (report.productReturnItems == null || report.productReturnItems!.isEmpty) {
+            throw Exception('Product return items are missing');
           }
           requestBody['details'] = {
-            'productName': report.productReturn!.productName,
-            'quantity': report.productReturn!.quantity,
-            'reason': report.productReturn!.reason,
-            'imageUrl': report.productReturn!.imageUrl,
+            'items': report.productReturnItems!
+                .map((item) => {
+                      'productName': item.productName,
+                      'quantity': item.quantity,
+                      'reason': item.reason,
+                    })
+                .toList(),
           };
           break;
+        case ReportType.PRODUCT_SAMPLE:
+          if (report.productSampleItems == null || report.productSampleItems!.isEmpty) {
+            throw Exception('Product sample items are missing');
+          }
+          requestBody['details'] = {
+            'items': report.productSampleItems!
+                .map((item) => {
+                      'productName': item.productName,
+                      'quantity': item.quantity,
+                      'reason': item.reason,
+                    })
+                .toList(),
+          };
+          break;
+        default:
+          // Optionally handle unknown types
+          break;
       }
-
       print('REPORT DEBUG: Request body: ${jsonEncode(requestBody)}');
 
       final response = await http.post(
@@ -1026,23 +1045,25 @@ class ApiService {
       // Get user info from storage to include region and country IDs
       final box = GetStorage();
       final salesRep = box.read('salesRep');
-      
+
       // Extract region and country IDs from the stored user data
-      final int? regionId = salesRep != null && salesRep is Map<String, dynamic> 
+      final int? regionId = salesRep != null && salesRep is Map<String, dynamic>
           ? salesRep['region_id'] ?? salesRep['regionId']
           : null;
-      final int? countryId = salesRep != null && salesRep is Map<String, dynamic>
-          ? salesRep['countryId']
-          : null;
-          
+      final int? countryId =
+          salesRep != null && salesRep is Map<String, dynamic>
+              ? salesRep['countryId']
+              : null;
+
       final requestBody = {
         'clientId': clientId,
         'orderItems': items,
         'regionId': regionId,
         'countryId': countryId,
       };
-      
-      print('[Order Debug] Including user region/country: regionId=$regionId, countryId=$countryId');
+
+      print(
+          '[Order Debug] Including user region/country: regionId=$regionId, countryId=$countryId');
 
       print('=== Creating Order ===');
       print('Request URL: $baseUrl/orders');
