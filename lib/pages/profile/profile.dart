@@ -4,9 +4,11 @@ import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:woosh/pages/managers/stats_page.dart';
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
+import 'package:woosh/pages/profile/targets/targets_page.dart';
 import 'package:woosh/pages/profile/user_stats_page.dart';
 import 'package:woosh/pages/profile/session_history_page.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/session_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
@@ -23,11 +25,85 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
+  bool isSessionActive = false;
+  bool isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkSessionStatus();
+  }
+
+  Future<void> _checkSessionStatus() async {
+    final box = GetStorage();
+    final userId = box.read<String>('userId');
+    if (userId != null) {
+      try {
+        final response = await SessionService.getSessionHistory(userId);
+        final sessions = response['sessions'] as List;
+        if (sessions.isNotEmpty) {
+          final lastSession = sessions.first;
+          setState(() {
+            isSessionActive = lastSession['logoutAt'] == null;
+          });
+        }
+      } catch (e) {
+        print('Error checking session status: $e');
+      }
+    }
+  }
+
+  Future<void> _toggleSession() async {
+    if (isProcessing) return;
+
+    setState(() => isProcessing = true);
+    final box = GetStorage();
+    final userId = box.read<String>('userId');
+
+    if (userId == null) {
+      Get.snackbar(
+        'Error',
+        'User ID not found',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      setState(() => isProcessing = false);
+      return;
+    }
+
+    try {
+      if (!isSessionActive) {
+        // Start session
+        await SessionService.recordLogin(userId);
+        setState(() => isSessionActive = true);
+        Get.snackbar(
+          'Success',
+          'Session started successfully',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        // End session
+        await SessionService.recordLogout(userId);
+        setState(() => isSessionActive = false);
+        Get.snackbar(
+          'Success',
+          'Session ended successfully',
+          backgroundColor: Colors.blue,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to ${isSessionActive ? 'end' : 'start'} session: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() => isProcessing = false);
+    }
   }
 
   @override
@@ -60,62 +136,150 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: Obx(
-        () => AnimationLimiter(
-          child: SingleChildScrollView(
-            child: Column(
-              children: AnimationConfiguration.toStaggeredList(
-                duration: const Duration(milliseconds: 375),
-                childAnimationBuilder: (widget) => SlideAnimation(
-                  verticalOffset: 50.0,
-                  child: FadeInAnimation(
-                    child: widget,
+      body: Stack(
+        children: [
+          Obx(
+            () => AnimationLimiter(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: AnimationConfiguration.toStaggeredList(
+                    duration: const Duration(milliseconds: 375),
+                    childAnimationBuilder: (widget) => SlideAnimation(
+                      verticalOffset: 50.0,
+                      child: FadeInAnimation(
+                        child: widget,
+                      ),
+                    ),
+                    children: [
+                      const SizedBox(height: 16),
+                      // Profile Image Section
+                      _buildProfileImageSection(),
+                      // Role Badge
+                      const SizedBox(height: 8),
+                      _buildRoleBadge(),
+                      const SizedBox(height: 16),
+                      // Profile Info Cards
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          children: [
+                            _buildInfoCard(
+                              context,
+                              icon: Icons.person,
+                              label: 'Name',
+                              value: controller.userName.value,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoCard(
+                              context,
+                              icon: Icons.email,
+                              label: 'Email',
+                              value: controller.userEmail.value,
+                            ),
+                            const SizedBox(height: 8),
+                            _buildInfoCard(
+                              context,
+                              icon: Icons.phone,
+                              label: 'Phone',
+                              value: controller.userPhone.value,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildActionButtons(),
+                            const SizedBox(
+                                height:
+                                    100), // Increased padding for bottom button
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                children: [
-                  const SizedBox(height: 16),
-                  // Profile Image Section
-                  _buildProfileImageSection(),
-                  // Role Badge
-                  const SizedBox(height: 8),
-                  _buildRoleBadge(),
-                  const SizedBox(height: 16),
-                  // Profile Info Cards
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      children: [
-                        _buildInfoCard(
-                          context,
-                          icon: Icons.person,
-                          label: 'Name',
-                          value: controller.userName.value,
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoCard(
-                          context,
-                          icon: Icons.email,
-                          label: 'Email',
-                          value: controller.userEmail.value,
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoCard(
-                          context,
-                          icon: Icons.phone,
-                          label: 'Phone',
-                          value: controller.userPhone.value,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildActionButtons(),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
-        ),
+          // Session Button at bottom
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+                top: 16,
+              ),
+              decoration: BoxDecoration(
+                color: appBackground,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Container(
+                  width: 200,
+                  child: Card(
+                    elevation: 2,
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InkWell(
+                      onTap: isProcessing ? null : _toggleSession,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSessionActive
+                                    ? Colors.red.withOpacity(0.1)
+                                    : Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                isSessionActive
+                                    ? Icons.stop_circle
+                                    : Icons.play_circle,
+                                color:
+                                    isSessionActive ? Colors.red : Colors.green,
+                                size: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isSessionActive ? 'End Session' : 'Start Session',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color:
+                                    isSessionActive ? Colors.red : Colors.green,
+                              ),
+                            ),
+                            if (isProcessing)
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -440,6 +604,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 ],
               ),
             ),
+
+
           ),
         ),
         const SizedBox(height: 8),
@@ -488,6 +654,58 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 ],
               ),
             ),
+
+            
+          ),
+        ),
+const SizedBox(height: 8),
+       Card(
+          elevation: 1,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: InkWell(
+            onTap: () {
+              Get.to(() => const TargetsPage());
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      Icons.history,
+                      color: Theme.of(context).primaryColor,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'View Targets',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: Colors.grey.shade600,
+                  )
+                ],
+              ),
+            ),
+
+
           ),
         ),
       ],

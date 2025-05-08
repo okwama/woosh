@@ -16,7 +16,7 @@ import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
-import '../targets/targets_page.dart';
+import '../profile/targets/targets_page.dart';
 import 'checkin_page.dart';
 
 class ManagerHomePage extends StatefulWidget {

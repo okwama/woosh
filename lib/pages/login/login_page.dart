@@ -7,6 +7,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:get_storage/get_storage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -79,19 +80,13 @@ class _LoginPageState extends State<LoginPage> {
       if (result['success']) {
         _authController.isLoggedIn.value = true;
 
-        // Get user role and ID from the result
+        // Get user role from the result
         final salesRep = result['salesRep'];
         final userRole = salesRep?['role'] ?? '';
-        final userId = salesRep?['id']?.toString();
 
-        if (userId != null) {
-          try {
-            // Record login session
-            await SessionService.recordLogin(userId);
-          } catch (e) {
-            print('Failed to record login session: $e');
-            // Continue with login even if session recording fails
-          }
+        // Store user ID for later use
+        if (salesRep?['id'] != null) {
+          GetStorage().write('userId', salesRep!['id'].toString());
         }
 
         // Redirect based on role

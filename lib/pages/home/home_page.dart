@@ -8,7 +8,9 @@ import 'package:woosh/pages/login/login_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
 import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 import 'package:woosh/pages/pos/uplift_sales_page.dart';
+import 'package:woosh/pages/task/task.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/task_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
@@ -19,7 +21,7 @@ import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
-import '../targets/targets_page.dart';
+import '../profile/targets/targets_page.dart';
 import 'package:woosh/services/session_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -33,13 +35,16 @@ class _HomePageState extends State<HomePage> {
   late String salesRepName;
   late String salesRepPhone;
   int _pendingJourneyPlans = 0;
+  int _pendingTasks = 0;
   bool _isLoading = true;
+  final TaskService _taskService = TaskService();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
     _loadPendingJourneyPlans();
+    _loadPendingTasks();
   }
 
   void _loadUserData() {
@@ -73,11 +78,25 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadPendingTasks() async {
+    try {
+      final tasks = await _taskService.getTasks();
+      setState(() {
+        _pendingTasks = tasks.length;
+      });
+    } catch (e) {
+      print('Error loading pending tasks: $e');
+    }
+  }
+
   Future<void> _refreshData() async {
     setState(() {
       _isLoading = true;
     });
-    await _loadPendingJourneyPlans();
+    await Future.wait([
+      _loadPendingJourneyPlans(),
+      _loadPendingTasks(),
+    ]);
     _loadUserData();
   }
 
@@ -305,14 +324,15 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                     MenuTile(
-                      title: 'Targets',
-                      icon: Icons.track_changes,
+                      title: 'Tasks',
+                      icon: Icons.task,
+                      badgeCount: _pendingTasks,
                       onTap: () {
                         Get.to(
-                          () => const TargetsPage(),
+                          () => const TaskPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
-                        );
+                        )?.then((_) => _loadPendingTasks());
                       },
                     ),
                     MenuTile(

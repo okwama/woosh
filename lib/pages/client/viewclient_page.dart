@@ -77,7 +77,12 @@ class _ViewClientPageState extends State<ViewClientPage> {
       // Clear cache when refreshing
       ApiService.clearOutletsCache();
 
-      final outlets = await ApiService.fetchOutlets(page: 1, limit: _pageSize);
+      final routeId = ApiService.getCurrentUserRouteId();
+      final outlets = await ApiService.fetchOutlets(
+        page: 1,
+        limit: _pageSize,
+        routeId: routeId,
+      );
       setState(() {
         _outlets = outlets;
         _isLoading = false;
@@ -101,9 +106,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
     });
 
     try {
+      final routeId = ApiService.getCurrentUserRouteId();
       final newOutlets = await ApiService.fetchOutlets(
         page: _currentPage + 1,
         limit: _pageSize,
+        routeId: routeId,
       );
 
       if (mounted) {

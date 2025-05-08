@@ -10,6 +10,7 @@ class SalesRep {
   final String? role;
   final String? region;
   final int? regionId;
+  final int? routeId;
   final int? status;
   final String? photoUrl;
   //final String? department;
@@ -22,6 +23,7 @@ class SalesRep {
     this.role,
     this.region,
     this.regionId,
+    this.routeId,
     this.status,
     this.photoUrl,
     //this.department,
@@ -38,6 +40,7 @@ class SalesRep {
         role: json['role'],
         region: json['region'],
         regionId: json['regionId'],
+        routeId: json['route_id'],
         status: json['status'],
         photoUrl: json['photoUrl'],
       );
@@ -52,6 +55,7 @@ class SalesRep {
       role: json['role'],
       region: json['region'],
       regionId: json['regionId'],
+      routeId: json['route_id'],
       status: json['status'],
       photoUrl: json['photoUrl'],
       //department: json['department'],
@@ -67,6 +71,7 @@ class SalesRep {
       'role': role,
       'region': region,
       'regionId': regionId,
+      'route_id': routeId,
       'status': status,
       'photoUrl': photoUrl,
       //'department': department,

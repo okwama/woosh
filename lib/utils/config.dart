@@ -1,8 +1,8 @@
 class Config {
-  // static const String baseUrl = 'http://wooshgold.com:5000';
-   static const String baseUrl = 'http://192.168.100.6:5000';
+  static const String baseUrl = 'http://wooshgold.com:5000';
+  // static const String baseUrl = 'http://192.168.100.6:5000';
   static const String apiVersion = 'v1';
-  static const String imageBaseUrl ='http://wooshgold.com:5000/uploads';
+  static const String imageBaseUrl = 'http://wooshgold.com:5000/uploads';
 
   // API Endpoints
   static const String loginEndpoint = '/auth/login';

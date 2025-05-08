@@ -100,6 +100,7 @@ class ApiService {
   static const Duration tokenExpirationDuration = Duration(hours: 9);
   static bool _isRefreshing = false;
   static Future<bool>? _refreshFuture;
+  static const String _updatedClientsKey = 'updated_client_locations';
 
   static String? _getAuthToken() {
     final box = GetStorage();
@@ -119,9 +120,9 @@ class ApiService {
       final decoded = utf8.decode(base64Url.decode(normalized));
       final Map<String, dynamic> decodedMap = json.decode(decoded);
 
-      // Check if token expires in less than 1 hour
+      // Check if token expires in less than 30 minutes
       final exp = DateTime.fromMillisecondsSinceEpoch(decodedMap['exp'] * 1000);
-      return exp.difference(DateTime.now()) < const Duration(hours: 2);
+      return exp.difference(DateTime.now()) < const Duration(minutes: 30);
     } catch (e) {
       print('Error checking token expiration: $e');
       return false;
@@ -198,7 +199,16 @@ class ApiService {
 
   static Future<dynamic> _handleResponse(http.Response response) async {
     if (response.statusCode == 401) {
-      await logout();
+      // Clear all stored data
+      final box = GetStorage();
+      await box.remove('token');
+      await box.remove('salesRep');
+
+      // Force logout and redirect to login
+      final authController = Get.find<AuthController>();
+      authController.isLoggedIn.value = false;
+      Get.offAllNamed('/login');
+
       throw Exception("Session expired. Please log in again.");
     }
     return response;
@@ -222,18 +232,30 @@ class ApiService {
     return null;
   }
 
-  // Fetch Clients (replaces fetchOutlets)
-  static Future<List<Client>> fetchClients() async {
+  // Fetch Clients with route filtering and pagination
+  static Future<PaginatedResponse<Client>> fetchClients({
+    int? routeId,
+    int page = 1,
+    int limit = 10,
+  }) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
       }
 
+      // Build query parameters
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+        if (routeId != null) 'route_id': routeId.toString(),
+      };
+
+      final uri =
+          Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
       final response = await http
           .get(
-        Uri.parse(
-            '$baseUrl/outlets'), // Keep using /outlets endpoint until backend is updated
+        uri,
         headers: await _headers(),
       )
           .timeout(
@@ -246,26 +268,39 @@ class ApiService {
       final handledResponse = await _handleResponse(response);
 
       if (handledResponse.statusCode == 200) {
-        final List<dynamic> data = json.decode(handledResponse.body);
-        return data.map((json) {
-          final outlet = Outlet.fromJson(json);
-          return Client(
-            id: outlet.id,
-            name: outlet.name,
-            address: outlet.address,
-            balance: outlet.balance,
-            latitude: outlet.latitude,
-            longitude: outlet.longitude,
-            email: outlet.email,
-            contact: outlet.contact,
-            taxPin: outlet.taxPin,
-            location: outlet.location,
-            clientType: outlet.clientType,
-            regionId: outlet.regionId ?? 0,
-            region: outlet.region ?? '',
-            countryId: outlet.countryId ?? 0,
+        final Map<String, dynamic> responseData =
+            json.decode(handledResponse.body);
+        if (responseData.containsKey('data') && responseData['data'] is List) {
+          final List<dynamic> data = responseData['data'];
+          return PaginatedResponse<Client>(
+            data: data.map((json) {
+              final outlet = Outlet.fromJson(json);
+              return Client(
+                id: outlet.id,
+                name: outlet.name,
+                address: outlet.address,
+                balance: outlet.balance,
+                latitude: outlet.latitude,
+                longitude: outlet.longitude,
+                email: outlet.email,
+                contact: outlet.contact,
+                taxPin: outlet.taxPin,
+                location: outlet.location,
+                clientType: outlet.clientType,
+                regionId: outlet.regionId ?? 0,
+                region: outlet.region ?? '',
+                countryId: outlet.countryId ?? 0,
+              );
+            }).toList(),
+            total: responseData['total'] ?? 0,
+            page: responseData['page'] ?? 1,
+            limit: responseData['limit'] ?? 10,
+            totalPages: responseData['totalPages'] ?? 1,
           );
-        }).toList();
+        } else {
+          throw Exception(
+              'Invalid response format: missing data field or not a list');
+        }
       } else {
         throw Exception(
             'Failed to load clients: ${handledResponse.statusCode}');
@@ -274,6 +309,37 @@ class ApiService {
       handleNetworkError(e);
       rethrow;
     }
+  }
+
+  // Get clients by route with pagination
+  static Future<PaginatedResponse<Client>> getClientsByRoute(
+    int routeId, {
+    int page = 1,
+    int limit = 10,
+  }) async {
+    return fetchClients(routeId: routeId, page: page, limit: limit);
+  }
+
+  // Get current user's route ID
+  static int? getCurrentUserRouteId() {
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+    if (salesRep != null && salesRep is Map<String, dynamic>) {
+      return salesRep['route_id'];
+    }
+    return null;
+  }
+
+  // Get clients for current user's route with pagination
+  static Future<PaginatedResponse<Client>> getClientsForCurrentRoute({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final routeId = getCurrentUserRouteId();
+    if (routeId == null) {
+      throw Exception('User route not found');
+    }
+    return getClientsByRoute(routeId, page: page, limit: limit);
   }
 
   // Clear outlets cache
@@ -292,6 +358,7 @@ class ApiService {
   static Future<List<Outlet>> fetchOutlets({
     int page = 1,
     int limit = 10,
+    int? routeId,
   }) async {
     try {
       final token = _getAuthToken();
@@ -299,8 +366,9 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
-      // Generate cache key based on page and limit
-      final cacheKey = 'outlets_page_${page}_limit_$limit';
+      // Generate cache key based on page, limit and route
+      final cacheKey =
+          'outlets_page_${page}_limit_$limit${routeId != null ? '_route_$routeId' : ''}';
 
       // Try to get from cache first
       final cachedData = ApiCache.get(cacheKey);
@@ -313,6 +381,7 @@ class ApiService {
       final queryParams = {
         'page': page.toString(),
         'limit': limit.toString(),
+        if (routeId != null) 'route_id': routeId.toString(),
       };
 
       final uri =
@@ -323,16 +392,22 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        if (responseData.containsKey('data') && responseData['data'] is List) {
+          final List<dynamic> data = responseData['data'];
 
-        // Cache the response with a shorter duration for paginated data
-        ApiCache.set(
-          cacheKey,
-          data,
-          validity: const Duration(minutes: 2),
-        );
+          // Cache the response with a shorter duration for paginated data
+          ApiCache.set(
+            cacheKey,
+            data,
+            validity: const Duration(minutes: 2),
+          );
 
-        return data.map((json) => Outlet.fromJson(json)).toList();
+          return data.map((json) => Outlet.fromJson(json)).toList();
+        } else {
+          throw Exception(
+              'Invalid response format: missing data field or not a list');
+        }
       } else {
         throw Exception('Failed to load outlets: ${response.statusCode}');
       }
@@ -743,64 +818,30 @@ class ApiService {
   }
 
   // Get products (independent of outlets)
-  static Future<List<Product>> getProducts() async {
+  static Future<List<Product>> getProducts({
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
     try {
-      print('[Products] Fetching products from API');
-      final response = await http.get(
-        Uri.parse('$baseUrl${Config.productsEndpoint}'),
-        headers: await getHeaders(),
+      await _initDioHeaders();
+      final response = await _dio.get(
+        '/products',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+          if (search != null && search.isNotEmpty) 'search': search,
+        },
       );
 
-      print('[Products] Response status: ${response.statusCode}');
-      print('[Products] Response body: ${response.body}');
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to load products: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'];
+        return data.map((json) => Product.fromJson(json)).toList();
       }
-
-      final responseData = json.decode(response.body);
-      if (!responseData.containsKey('data')) {
-        throw Exception('Invalid API response: missing data field');
-      }
-
-      // Cache the response
-      ApiCache.set('products', responseData['data']);
-
-      final products = (responseData['data'] as List).map((item) {
-        // Debug log the raw item
-        print('[Products] Raw item before parsing: $item');
-
-        // Ensure storeQuantities is included in the response
-        if (!item.containsKey('storeQuantities')) {
-          item['storeQuantities'] = [];
-        }
-        return Product.fromJson(item);
-      }).toList();
-
-      print('[Products] Successfully loaded ${products.length} products');
-
-      // Pre-cache images safely
-      if (Get.context != null) {
-        for (var product in products) {
-          if (product.imageUrl?.isNotEmpty ?? false) {
-            try {
-              final imageProvider = NetworkImage(product.imageUrl!);
-              precacheImage(imageProvider, Get.context!);
-            } catch (e) {
-              print(
-                  '[Products] Failed to precache image for product ${product.id}: $e');
-              // Continue with next product even if one fails
-              continue;
-            }
-          }
-        }
-      }
-
-      return products;
+      throw Exception('Failed to load products');
     } catch (e) {
-      print('[Products] Error loading products: $e');
-      handleNetworkError(e);
-      rethrow; // Let the UI handle the error
+      print('Error fetching products: $e');
+      rethrow;
     }
   }
 
@@ -857,7 +898,8 @@ class ApiService {
           };
           break;
         case ReportType.PRODUCT_RETURN:
-          if (report.productReturnItems == null || report.productReturnItems!.isEmpty) {
+          if (report.productReturnItems == null ||
+              report.productReturnItems!.isEmpty) {
             throw Exception('Product return items are missing');
           }
           requestBody['details'] = {
@@ -871,7 +913,8 @@ class ApiService {
           };
           break;
         case ReportType.PRODUCT_SAMPLE:
-          if (report.productSampleItems == null || report.productSampleItems!.isEmpty) {
+          if (report.productSampleItems == null ||
+              report.productSampleItems!.isEmpty) {
             throw Exception('Product sample items are missing');
           }
           requestBody['details'] = {
@@ -1369,16 +1412,25 @@ class ApiService {
 
   // Fix for SocketException catch blocks
   static Future<List<Outlet>> fetchOutletsByGeolocation(
-      double latitude, double longitude) async {
+    double latitude,
+    double longitude, {
+    int? routeId,
+  }) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
         throw Exception('User is not authenticated');
       }
 
+      final queryParams = {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+        if (routeId != null) 'route_id': routeId.toString(),
+      };
+
       final response = await http.get(
-        Uri.parse(
-            '$baseUrl/outlets/nearby?latitude=$latitude&longitude=$longitude'),
+        Uri.parse('$baseUrl/outlets/nearby')
+            .replace(queryParameters: queryParams),
         headers: await _headers(),
       );
 
@@ -1699,6 +1751,7 @@ class ApiService {
     int? regionId,
     String? region,
     int? countryId,
+    int? routeId,
   }) async {
     try {
       final token = _getAuthToken();
@@ -1722,6 +1775,7 @@ class ApiService {
           if (regionId != null) 'region_id': regionId,
           if (region != null) 'region': region,
           if (countryId != null) 'country': countryId,
+          if (routeId != null) 'route_id': routeId,
         }),
       );
 
@@ -2088,6 +2142,119 @@ class ApiService {
     } catch (e) {
       print('Error deleting uplift sale: $e');
       rethrow;
+    }
+  }
+
+  static bool hasClientLocationBeenUpdated(int clientId) {
+    final box = GetStorage();
+    final List<dynamic>? updatedClients = box.read(_updatedClientsKey);
+    return updatedClients?.contains(clientId) ?? false;
+  }
+
+  static void markClientLocationAsUpdated(int clientId) {
+    final box = GetStorage();
+    final List<dynamic> updatedClients = box.read(_updatedClientsKey) ?? [];
+    if (!updatedClients.contains(clientId)) {
+      updatedClients.add(clientId);
+      box.write(_updatedClientsKey, updatedClients);
+    }
+  }
+
+  // Update client location coordinates
+  static Future<Client> updateClientLocation({
+    required int clientId,
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      // Only send latitude and longitude for the update
+      final requestBody = {
+        'latitude': latitude,
+        'longitude': longitude,
+      };
+
+      print('Updating client location with data:');
+      print('Client ID: $clientId');
+      print('Request body: ${jsonEncode(requestBody)}');
+
+      // Use PATCH instead of PUT for partial updates
+      final response = await http.patch(
+        Uri.parse('$baseUrl/outlets/$clientId/location'),
+        headers: await _headers(),
+        body: jsonEncode(requestBody),
+      );
+
+      print('Update response status: ${response.statusCode}');
+      print('Update response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        // Mark this client's location as updated
+        markClientLocationAsUpdated(clientId);
+
+        final responseData = jsonDecode(response.body);
+        return Client.fromJson(responseData);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to update client location: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error updating client location: $e');
+      if (e is SocketException) {
+        throw Exception('Network error: Please check your connection.');
+      } else if (e is FormatException) {
+        throw Exception('Invalid response format.');
+      } else {
+        throw Exception('Unexpected error: $e');
+      }
+    }
+  }
+
+  // Get a single client by ID
+  static Future<Client> getClient(int clientId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/outlets/$clientId'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        // Add null checks and default values
+        return Client(
+          id: responseData['id'] ?? 0,
+          name: responseData['name'] ?? '',
+          address: responseData['address'] ?? '',
+          balance: responseData['balance']?.toString() ?? '0',
+          latitude: responseData['latitude']?.toDouble() ?? 0.0,
+          longitude: responseData['longitude']?.toDouble() ?? 0.0,
+          email: responseData['email'] ?? '',
+          contact: responseData['contact'] ?? '',
+          taxPin: responseData['tax_pin'] ?? '',
+          location: responseData['location'] ?? '',
+          clientType: responseData['client_type'] ?? 1,
+          regionId: responseData['region_id'] ?? 0,
+          region: responseData['region'] ?? '',
+          countryId: responseData['countryId'] ?? 0,
+        );
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to get client: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error getting client: $e');
+      throw Exception('An error occurred while getting client: $e');
     }
   }
 }

@@ -45,11 +45,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     try {
       // Calculate total quantity from order items
-      final totalQuantity = _orderItems.fold(0, (sum, item) => sum + item.quantity);
+      final totalQuantity =
+          _orderItems.fold(0, (sum, item) => sum + item.quantity);
 
       // Log the update operation
-      print('Updating order #${widget.order!.id} with ${_orderItems.length} items, total quantity: $totalQuantity');
-      
+      print(
+          'Updating order #${widget.order!.id} with ${_orderItems.length} items, total quantity: $totalQuantity');
+
       // Call API to update order
       await ApiService.updateOrder(
         orderId: widget.order!.id,
@@ -65,7 +67,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       );
       // Return true to indicate an update was made
       Get.back(result: true);
-        } catch (e) {
+    } catch (e) {
       Get.snackbar(
         'Error',
         'An error occurred: $e',
@@ -138,12 +140,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         title: Text('Order #${widget.order!.id}'),
         backgroundColor: theme.primaryColor,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _navigateToUpdateOrder,
-          ),
-        ],
       ),
       body: CustomScrollView(
         slivers: [
@@ -161,9 +157,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 if (_orderItems.isEmpty)
                   _buildEmptyState()
                 else
-                  ..._orderItems
-                      .map((item) => _buildOrderItemTile(item))
-                      ,
+                  ..._orderItems.map((item) => _buildOrderItemTile(item)),
 
                 // Total Amount Section
                 const SizedBox(height: 24),
@@ -437,7 +431,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             SizedBox(
               height: 40,
               child: ElevatedButton.icon(
-                onPressed: isPending && !_isUpdating ? _updateOrder : null,
+                onPressed:
+                    isPending && !_isUpdating ? _navigateToUpdateOrder : null,
                 icon: _isUpdating
                     ? const SizedBox(
                         width: 16,
@@ -448,9 +443,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                               AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Icon(Icons.save, size: 16),
+                    : const Icon(Icons.edit, size: 16),
                 label: Text(
-                  _isUpdating ? 'Updating...' : 'Update Order',
+                  _isUpdating ? 'Updating...' : 'Edit Order',
                   style: const TextStyle(fontSize: 12),
                 ),
                 style: ElevatedButton.styleFrom(

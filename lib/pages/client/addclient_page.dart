@@ -3,6 +3,7 @@ import 'package:woosh/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/client_model.dart';
+import 'package:get/get.dart';
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -128,6 +129,31 @@ class _AddClientPageState extends State<AddClientPage> {
         }
       }
 
+      // Show toast for empty fields
+      if (_nameController.text.isEmpty ||
+          _addressController.text.isEmpty ||
+          _locationController.text.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Please fill in all required fields',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.white,
+          colorText: Colors.red,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(10),
+          borderRadius: 8,
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final routeId = ApiService.getCurrentUserRouteId();
+      if (routeId == null) {
+        throw Exception('User route not found. Please try again.');
+      }
+
       await ApiService.createOutlet(
         name: _nameController.text,
         address: _addressController.text,
@@ -145,14 +171,20 @@ class _AddClientPageState extends State<AddClientPage> {
         regionId: _regionId,
         // Default client type
         clientType: 1,
+        // Assign to user's route
+        routeId: routeId,
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Client added successfully'),
-            backgroundColor: Colors.green,
-          ),
+        Get.snackbar(
+          'Success',
+          'Client added successfully',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.white,
+          colorText: Colors.green,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(10),
+          borderRadius: 8,
         );
         Navigator.pop(context, true);
       }
@@ -161,6 +193,16 @@ class _AddClientPageState extends State<AddClientPage> {
         _error = 'Failed to add client: $e';
         _isLoading = false;
       });
+      Get.snackbar(
+        'Error',
+        'Failed to add client: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.white,
+        colorText: Colors.red,
+        duration: const Duration(seconds: 2),
+        margin: const EdgeInsets.all(10),
+        borderRadius: 8,
+      );
     }
   }
 
@@ -243,9 +285,6 @@ class _AddClientPageState extends State<AddClientPage> {
                         labelText: 'location *',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (value) => value?.isEmpty == true
-                          ? 'Please enter address'
-                          : null,
                       maxLines: 3,
                     ),
                     const SizedBox(height: 24),

@@ -49,9 +49,9 @@ class PaginatedData<T> {
 
   PaginatedData({
     required this.items,
-    this.hasMore = true,
-    this.currentPage = 1,
-    this.totalPages = 1,
+    required this.hasMore,
+    required this.currentPage,
+    required this.totalPages,
     this.isLoading = false,
     this.error,
   });

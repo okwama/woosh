@@ -54,7 +54,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
   // Geofencing constants
   static const double GEOFENCE_RADIUS_METERS =
-      100000.0; // Increased to 100 meters
+      20037500.0; // Half the Earth's circumference in meters
   static const Duration LOCATION_UPDATE_INTERVAL = Duration(seconds: 5);
 
   @override
@@ -949,6 +949,55 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
+  // Update client location with current coordinates
+  Future<void> _updateClientLocation() async {
+    if (_currentPosition == null) {
+      Get.snackbar(
+        'Error',
+        'Current location not available',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _isFetchingLocation = true;
+      });
+
+      await ApiService.updateClientLocation(
+        clientId: widget.journeyPlan.client.id,
+        latitude: _currentPosition!.latitude,
+        longitude: _currentPosition!.longitude,
+      );
+
+      Get.snackbar(
+        'Success',
+        'Client location updated successfully',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+
+      // Refresh the journey plan to get updated client data
+      await _refreshJourneyStatus();
+    } catch (e) {
+      print('Error updating client location: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to update client location',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingLocation = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateFormatter = DateFormat('MMM dd, yyyy');
@@ -1107,6 +1156,42 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                     widget.journeyPlan.client.address,
                                     Icons.location_on,
                                   ),
+                                  // Add location update button if location hasn't been updated
+                                  if (!ApiService.hasClientLocationBeenUpdated(
+                                      widget.journeyPlan.client.id)) ...[
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: _isFetchingLocation
+                                                ? null
+                                                : _updateClientLocation,
+                                            icon: const Icon(
+                                                Icons.upload_rounded,
+                                                size: 14),
+                                            label: Text(
+                                              _isFetchingLocation
+                                                  ? 'Updating...'
+                                                  : 'Update Location',
+                                              style:
+                                                  const TextStyle(fontSize: 11),
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Theme.of(context)
+                                                  .primaryColor,
+                                              foregroundColor: Colors.white,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 4,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

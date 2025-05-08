@@ -20,6 +20,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   bool _isLoadingMore = false;
   List<Client> _clients = [];
   List<JourneyPlan> _journeyPlans = [];
+  Set<int> _hiddenJourneyPlans = {};
   String? _errorMessage;
   int _currentPage = 1;
   bool _hasMoreData = true;
@@ -30,6 +31,11 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       5; // Start loading when 5 items from bottom
   static const int _pageSize = 10; // Items per page
   JourneyPlan? _activeVisit; // Add this to track active visit
+
+  // Add date filtering state
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now();
+  bool _isCustomRange = false;
 
   @override
   void initState() {
@@ -94,8 +100,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
 
   Future<void> _loadCachedData() async {
     try {
-      final cachedPlans = ApiService.getCachedData<List<JourneyPlan>>(
-          _journeyPlansCacheKey);
+      final cachedPlans =
+          ApiService.getCachedData<List<JourneyPlan>>(_journeyPlansCacheKey);
       final cachedClients =
           ApiService.getCachedData<List<Client>>(_clientsCacheKey);
 
@@ -130,12 +136,13 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
 
     try {
-      final clients = await ApiService.fetchClients();
+      final routeId = ApiService.getCurrentUserRouteId();
+      final clientsResponse = await ApiService.fetchClients(routeId: routeId);
       final journeyPlans = await ApiService.fetchJourneyPlans(page: 1);
 
       if (mounted) {
         setState(() {
-          _clients = clients;
+          _clients = clientsResponse.data;
           _journeyPlans = journeyPlans;
           _isLoading = false;
         });
@@ -143,13 +150,74 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to load data: ${e.toString()}';
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $_errorMessage')),
-      );
+
+      // Check if it's a connection error
+      if (e.toString().toLowerCase().contains('connection') ||
+          e.toString().toLowerCase().contains('timeout') ||
+          e.toString().toLowerCase().contains('socket')) {
+        _showConnectionErrorDialog();
+      } else {
+        _showGenericErrorDialog();
+      }
     }
+  }
+
+  void _showConnectionErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off, color: Colors.red),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Disconnected. Check your internet connection.',
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                Navigator.pop(context);
+                _loadData();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showGenericErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.orange),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Something went wrong. Please try again.',
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                Navigator.pop(context);
+                _loadData();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _createJourneyPlan(int clientId, DateTime date,
@@ -318,21 +386,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   }
 
   void _navigateToJourneyView(JourneyPlan journeyPlan) {
-    if (_activeVisit != null &&
-        _activeVisit!.id != journeyPlan.id &&
-        !_activeVisit!.isCompleted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'You have an active visit at ${_activeVisit!.clientName}. Please complete it before starting a new one.',
-          ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -353,6 +406,75 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     );
   }
 
+  // Add date filtering methods
+  List<JourneyPlan> _getFilteredPlans() {
+    return _journeyPlans.where((plan) {
+      if (_hiddenJourneyPlans.contains(plan.id)) {
+        return false;
+      }
+      if (!_isCustomRange) {
+        // Show only today's plans
+        return plan.date.year == DateTime.now().year &&
+            plan.date.month == DateTime.now().month &&
+            plan.date.day == DateTime.now().day;
+      } else {
+        // Show plans within custom date range
+        return plan.date
+                .isAfter(_startDate.subtract(const Duration(days: 1))) &&
+            plan.date.isBefore(_endDate.add(const Duration(days: 1)));
+      }
+    }).toList();
+  }
+
+  Future<void> _showDateRangePicker(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(
+        start: _startDate,
+        end: _endDate,
+      ),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+        _isCustomRange = true;
+      });
+    }
+  }
+
+  void _resetToToday() {
+    setState(() {
+      _isCustomRange = false;
+      _startDate = DateTime.now();
+      _endDate = DateTime.now();
+    });
+  }
+
+  // Add this method to handle hiding journey plans
+  void _hideJourneyPlan(int journeyPlanId) {
+    setState(() {
+      _hiddenJourneyPlans.add(journeyPlanId);
+    });
+    // Show a snackbar with undo option
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Journey plan hidden'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            setState(() {
+              _hiddenJourneyPlans.remove(journeyPlanId);
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -360,6 +482,12 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       appBar: GradientAppBar(
         title: 'Journey Plans',
         actions: [
+          // Date range selector
+          IconButton(
+            icon: const Icon(Icons.date_range),
+            tooltip: 'Select Date Range',
+            onPressed: () => _showDateRangePicker(context),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -378,57 +506,111 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
           ? const JourneyPlansSkeleton()
           : _errorMessage != null
               ? Center(child: Text(_errorMessage!))
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {
-                      _currentPage = 1;
-                      _hasMoreData = true;
-                      _journeyPlans.clear();
-                    });
-                    await _loadData();
-                  },
-                  child: _journeyPlans.isEmpty
-                      ? const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+              : Column(
+                  children: [
+                    // Date range header
+                    Container(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                Icons.add_location_alt_rounded,
-                                size: 50,
-                                color: Colors.grey,
+                              Text(
+                                _isCustomRange
+                                    ? '${DateFormat('MMM d').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}'
+                                    : 'Today\'s Plans',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              Text('No journey plans found'),
+                              if (_isCustomRange)
+                                TextButton.icon(
+                                  icon: const Icon(Icons.today),
+                                  label: const Text('Show Today'),
+                                  onPressed: _resetToToday,
+                                ),
                             ],
                           ),
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          key: const PageStorageKey('journey_plans_list'),
-                          itemCount:
-                              _journeyPlans.length + (_hasMoreData ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == _journeyPlans.length) {
-                              return _isLoadingMore
-                                  ? const Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(16.0),
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink();
-                            }
-
-                            final journeyPlan = _journeyPlans[index];
-                            return RepaintBoundary(
-                              // Add repaint boundary for better performance
-                              child: JourneyPlanItem(
-                                journeyPlan: journeyPlan,
-                                onTap: () =>
-                                    _navigateToJourneyView(journeyPlan),
+                          if (_isCustomRange)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                '${_getFilteredPlans().length} plans found',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // List view
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () async {
+                          setState(() {
+                            _currentPage = 1;
+                            _hasMoreData = true;
+                            _journeyPlans.clear();
+                          });
+                          await _loadData();
+                        },
+                        child: _getFilteredPlans().isEmpty
+                            ? const Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.add_location_alt_rounded,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    ),
+                                    Text('No journey plans found'),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: _scrollController,
+                                key: const PageStorageKey('journey_plans_list'),
+                                itemCount: _getFilteredPlans().length +
+                                    (_hasMoreData ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (index == _getFilteredPlans().length) {
+                                    return _isLoadingMore
+                                        ? const Center(
+                                            child: Padding(
+                                              padding: EdgeInsets.all(16.0),
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            ),
+                                          )
+                                        : const SizedBox.shrink();
+                                  }
+
+                                  final journeyPlan =
+                                      _getFilteredPlans()[index];
+                                  return RepaintBoundary(
+                                    child: JourneyPlanItem(
+                                      journeyPlan: journeyPlan,
+                                      onTap: () =>
+                                          _navigateToJourneyView(journeyPlan),
+                                      onHide: journeyPlan.statusText ==
+                                                  'Completed' &&
+                                              journeyPlan.id != null
+                                          ? () =>
+                                              _hideJourneyPlan(journeyPlan.id!)
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showClientSelectionDialog,
@@ -442,17 +624,20 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
 class JourneyPlanItem extends StatelessWidget {
   final JourneyPlan journeyPlan;
   final VoidCallback onTap;
+  final VoidCallback? onHide;
 
   const JourneyPlanItem({
     super.key,
     required this.journeyPlan,
     required this.onTap,
+    this.onHide,
   });
 
   @override
   Widget build(BuildContext context) {
     final isCompleted = journeyPlan.statusText == 'Completed';
-    return Opacity(
+
+    Widget content = Opacity(
       opacity: isCompleted ? 0.5 : 1.0,
       child: Card(
         key: ValueKey('journey_plan_${journeyPlan.id}'),
@@ -534,5 +719,26 @@ class JourneyPlanItem extends StatelessWidget {
         ),
       ),
     );
+
+    // Wrap with Dismissible if the plan is completed
+    if (isCompleted && onHide != null) {
+      return Dismissible(
+        key: ValueKey('dismissible_${journeyPlan.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20.0),
+          color: Colors.red,
+          child: const Icon(
+            Icons.visibility_off,
+            color: Colors.white,
+          ),
+        ),
+        onDismissed: (_) => onHide!(),
+        child: content,
+      );
+    }
+
+    return content;
   }
 }

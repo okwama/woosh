@@ -2,23 +2,26 @@ import 'dart:async';
 import 'package:woosh/utils/pagination_utils.dart';
 
 class PaginatedService<T> {
-  final Future<List<T>> Function({int page, int limit}) fetchData;
+  final Future<List<T>> Function({int page, int limit, String? search})
+      fetchData;
   final int pageSize;
   final Duration debounceTime;
   Timer? _debounceTimer;
   bool _isLoading = false;
   Completer<PaginatedData<T>>? _currentCompleter;
+  String? _currentSearch;
 
   PaginatedService({
     required this.fetchData,
-    this.pageSize = 10,
+    this.pageSize = 20,
     this.debounceTime = const Duration(milliseconds: 300),
   });
 
   Future<PaginatedData<T>> loadInitialData() async {
     try {
       _isLoading = true;
-      final items = await fetchData(page: 1, limit: pageSize);
+      final items =
+          await fetchData(page: 1, limit: pageSize, search: _currentSearch);
       return PaginatedData<T>(
         items: items,
         hasMore: items.length >= pageSize,
@@ -53,6 +56,7 @@ class PaginatedService<T> {
         final newItems = await fetchData(
           page: currentData.currentPage + 1,
           limit: pageSize,
+          search: _currentSearch,
         );
 
         final updatedData = currentData.copyWith(
@@ -76,6 +80,10 @@ class PaginatedService<T> {
     });
 
     return _currentCompleter!.future;
+  }
+
+  void updateSearch(String? search) {
+    _currentSearch = search;
   }
 
   void dispose() {
