@@ -1156,10 +1156,9 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                     widget.journeyPlan.client.address,
                                     Icons.location_on,
                                   ),
-                                  // Add location update button if location hasn't been updated
-                                  if (!ApiService.hasClientLocationBeenUpdated(
-                                      widget.journeyPlan.client.id)) ...[
-                                    const SizedBox(height: 6),
+                                  const SizedBox(height: 6),
+                                  if (widget
+                                      .journeyPlan.showUpdateLocation) ...[
                                     Row(
                                       children: [
                                         Expanded(

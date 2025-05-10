@@ -23,6 +23,7 @@ class JourneyPlan {
   final DateTime? checkoutTime;
   final double? checkoutLatitude;
   final double? checkoutLongitude;
+  final bool showUpdateLocation; // New flag to control button visibility
 
   JourneyPlan({
     this.id,
@@ -39,6 +40,8 @@ class JourneyPlan {
     this.checkoutTime,
     this.checkoutLatitude,
     this.checkoutLongitude,
+    this.showUpdateLocation =
+        true, // Default to true for backward compatibility
   });
 
   // Helper getters for status
@@ -102,6 +105,7 @@ class JourneyPlan {
     DateTime? checkoutTime,
     double? checkoutLatitude,
     double? checkoutLongitude,
+    bool? showUpdateLocation, // Add the new flag
   }) {
     return JourneyPlan(
       id: id ?? this.id,
@@ -118,6 +122,8 @@ class JourneyPlan {
       checkoutTime: checkoutTime ?? this.checkoutTime,
       checkoutLatitude: checkoutLatitude ?? this.checkoutLatitude,
       checkoutLongitude: checkoutLongitude ?? this.checkoutLongitude,
+      showUpdateLocation:
+          showUpdateLocation ?? this.showUpdateLocation, // Include the new flag
     );
   }
 
@@ -185,6 +191,8 @@ class JourneyPlan {
               ? json['checkoutLongitude']
               : double.tryParse(json['checkoutLongitude'].toString()))
           : null,
+      showUpdateLocation:
+          json['showUpdateLocation'] ?? true, // Parse the new flag
     );
   }
 
@@ -204,6 +212,7 @@ class JourneyPlan {
       'checkoutTime': checkoutTime?.toIso8601String(),
       'checkoutLatitude': checkoutLatitude,
       'checkoutLongitude': checkoutLongitude,
+      'showUpdateLocation': showUpdateLocation, // Include the new flag
     };
   }
 
