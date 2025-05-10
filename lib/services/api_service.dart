@@ -760,8 +760,38 @@ class ApiService {
       final request = http.MultipartRequest('POST', url)
         ..headers.addAll(authHeaders);
 
-      // Use the platform-specific implementation to add file to request
-      await addFileToRequest(request, imageFile, 'attachment');
+      // Handle mobile platform
+      if (!kIsWeb) {
+        if (imageFile is XFile) {
+          final bytes = await imageFile.readAsBytes();
+          final fileName = imageFile.name;
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'attachment',
+              bytes,
+              filename: fileName,
+              contentType: MediaType('image', fileName.split('.').last),
+            ),
+          );
+        } else {
+          throw Exception('Invalid file type for mobile platform');
+        }
+      } else {
+        // Handle web platform
+        if (imageFile is XFile) {
+          final bytes = await imageFile.readAsBytes();
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'attachment',
+              bytes,
+              filename: 'image_${DateTime.now().millisecondsSinceEpoch}.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        } else {
+          throw Exception('Invalid file type for web platform');
+        }
+      }
 
       final response = await request.send();
 
@@ -1124,7 +1154,7 @@ class ApiService {
   static Future<Order?> createOrder({
     required int clientId,
     required List<Map<String, dynamic>> items,
-    dynamic imageFile, // Accepts File for mobile, Uint8List for web
+    dynamic imageFile, // Accepts XFile for both web and mobile
   }) async {
     try {
       await _initDioHeaders();
@@ -1146,6 +1176,7 @@ class ApiService {
       String? imageUrl;
       if (imageFile != null) {
         try {
+          print('Uploading image before creating order...');
           imageUrl = await uploadImage(imageFile);
           print('Image uploaded successfully. URL: $imageUrl');
         } catch (e) {

@@ -13,6 +13,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
@@ -62,6 +63,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   Future<void> _loadStores() async {
     try {
       final stores = await ApiService.getStores();
+      print('Total stores received: ${stores.length}');
 
       // Get user's region and country from GetStorage
       final box = GetStorage();
@@ -69,27 +71,46 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
       final userRegionId = salesRep?['region_id'];
       final userCountryId = salesRep?['countryId'];
 
-      // Filter stores based on outlet's or user's country
+      print(
+          'User context - Region ID: $userRegionId, Country ID: $userCountryId');
+      print('Outlet country ID: ${widget.outlet.countryId}');
+
+      // Filter stores based on user's country first, then outlet's country
       final filteredStores = stores.where((store) {
-        // First try to filter by outlet's country
-        if (widget.outlet.countryId != null) {
-          return store.countryId == widget.outlet.countryId;
-        }
+        print('Checking store: ${store.name} (Country ID: ${store.countryId})');
 
-        // Then try user's country
+        // First priority: User's country
         if (userCountryId != null) {
-          return store.countryId == userCountryId;
+          final matches = store.countryId == userCountryId;
+          print(
+              'Store ${store.name} ${matches ? 'matches' : 'does not match'} user country $userCountryId');
+          return matches;
         }
 
-        // If no country filter available, show all stores
-        return true;
+        // Second priority: Outlet's country
+        if (widget.outlet.countryId != null) {
+          final matches = store.countryId == widget.outlet.countryId;
+          print(
+              'Store ${store.name} ${matches ? 'matches' : 'does not match'} outlet country ${widget.outlet.countryId}');
+          return matches;
+        }
+
+        // If no country filters available, show all active stores
+        final isActive = store.status == 0;
+        print(
+            'No country filter - Store ${store.name} is ${isActive ? 'active' : 'inactive'}');
+        return isActive;
       }).toList();
 
       print('Filtered stores: ${filteredStores.length}');
+      print(
+          'Available stores: ${filteredStores.map((s) => s.name).join(', ')}');
+
       availableStores.value = filteredStores;
 
       if (filteredStores.isNotEmpty) {
         selectedStore.value = filteredStores.first;
+        print('Selected store: ${selectedStore.value?.name}');
       } else {
         // Show a message if no stores are available for the country
         Get.snackbar(
@@ -232,7 +253,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           ? await ApiService.createOrder(
               clientId: outletId,
               items: orderItems,
-              imageFile: selectedImage.value,
+              imageFile: selectedImage.value, // Pass the image file directly
             )
           : await ApiService.updateOrder(
               orderId: orderId,
@@ -827,11 +848,29 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: kIsWeb
-                                    ? Image.memory(
-                                        selectedImage.value.bytes,
-                                        width: 80,
-                                        height: 80,
-                                        fit: BoxFit.cover,
+                                    ? FutureBuilder<Uint8List>(
+                                        future:
+                                            selectedImage.value.readAsBytes(),
+                                        builder: (context, snapshot) {
+                                          if (snapshot.hasData) {
+                                            return Image.memory(
+                                              snapshot.data!,
+                                              width: 80,
+                                              height: 80,
+                                              fit: BoxFit.cover,
+                                            );
+                                          } else {
+                                            return Container(
+                                              width: 80,
+                                              height: 80,
+                                              color: Colors.grey[300],
+                                              child: const Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              ),
+                                            );
+                                          }
+                                        },
                                       )
                                     : Image.file(
                                         File(selectedImage.value.path),

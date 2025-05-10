@@ -4,6 +4,7 @@ class Store {
   final int? regionId;
   final int? countryId;
   final Region? region;
+  final int status;
 
   Store({
     required this.id,
@@ -11,6 +12,7 @@ class Store {
     this.regionId,
     this.countryId,
     this.region,
+    this.status = 0,
   });
 
   factory Store.fromJson(Map<String, dynamic> json) {
@@ -22,6 +24,7 @@ class Store {
         regionId: json['regionId'] ?? json['region_id'],
         countryId: json['countryId'] ?? json['country_id'],
         region: json['region'] != null ? Region.fromJson(json['region']) : null,
+        status: json['status'] ?? 0,
       );
     } catch (e, stackTrace) {
       print('[Store] Error parsing JSON: $e');
@@ -38,6 +41,7 @@ class Store {
       'regionId': regionId,
       'countryId': countryId,
       if (region != null) 'region': region!.toJson(),
+      'status': status,
     };
   }
 
@@ -50,7 +54,8 @@ class Store {
           name == other.name &&
           regionId == other.regionId &&
           countryId == other.countryId &&
-          region == other.region;
+          region == other.region &&
+          status == other.status;
 
   @override
   int get hashCode =>
@@ -58,7 +63,8 @@ class Store {
       name.hashCode ^
       (regionId?.hashCode ?? 0) ^
       (countryId?.hashCode ?? 0) ^
-      (region?.hashCode ?? 0);
+      (region?.hashCode ?? 0) ^
+      status.hashCode;
 }
 
 class Region {
