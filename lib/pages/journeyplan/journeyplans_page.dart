@@ -408,15 +408,21 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
 
   // Add date filtering methods
   List<JourneyPlan> _getFilteredPlans() {
+    // Convert UTC to local time for today's date
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     return _journeyPlans.where((plan) {
       if (_hiddenJourneyPlans.contains(plan.id)) {
         return false;
       }
       if (!_isCustomRange) {
-        // Show only today's plans
-        return plan.date.year == DateTime.now().year &&
-            plan.date.month == DateTime.now().month &&
-            plan.date.day == DateTime.now().day;
+        // Convert plan date from UTC to local time
+        final localDate = plan.date.toLocal();
+        // Compare only year, month, and day
+        return localDate.year == today.year &&
+            localDate.month == today.month &&
+            localDate.day == today.day;
       } else {
         // Show plans within custom date range
         return plan.date

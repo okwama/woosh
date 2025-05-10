@@ -35,7 +35,6 @@ class ProductReport {
     return ProductReport(
       reportId: map['reportId'],
       productName: map['productName'],
-      
       quantity: map['quantity'] != null
           ? int.parse(map['quantity'].toString())
           : null,

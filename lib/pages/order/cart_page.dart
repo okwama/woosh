@@ -4,9 +4,15 @@ import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
+import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/models/store_model.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
@@ -24,13 +30,20 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   final CartController cartController = Get.find<CartController>();
+  final AuthController authController = Get.find<AuthController>();
   final RxBool isLoading = false.obs;
   final RxString errorMessage = ''.obs;
+  final Rx<Store?> selectedStore = Rx<Store?>(null);
+  final RxList<Store> availableStores = <Store>[].obs;
+  final Rx<dynamic> selectedImage =
+      Rx<dynamic>(null); // For storing selected image
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadStores();
   }
 
   @override
@@ -44,6 +57,57 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     super.didHaveMemoryPressure();
     ImageCache().clear();
     ImageCache().clearLiveImages();
+  }
+
+  Future<void> _loadStores() async {
+    try {
+      final stores = await ApiService.getStores();
+
+      // Get user's region and country from GetStorage
+      final box = GetStorage();
+      final salesRep = box.read('salesRep');
+      final userRegionId = salesRep?['region_id'];
+      final userCountryId = salesRep?['countryId'];
+
+      // Filter stores based on outlet's or user's country
+      final filteredStores = stores.where((store) {
+        // First try to filter by outlet's country
+        if (widget.outlet.countryId != null) {
+          return store.countryId == widget.outlet.countryId;
+        }
+
+        // Then try user's country
+        if (userCountryId != null) {
+          return store.countryId == userCountryId;
+        }
+
+        // If no country filter available, show all stores
+        return true;
+      }).toList();
+
+      print('Filtered stores: ${filteredStores.length}');
+      availableStores.value = filteredStores;
+
+      if (filteredStores.isNotEmpty) {
+        selectedStore.value = filteredStores.first;
+      } else {
+        // Show a message if no stores are available for the country
+        Get.snackbar(
+          'No Stores Available',
+          'There are no stores available in your country. Please contact support.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('Error loading stores: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to load stores. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   void _showOrderSuccessDialog() {
@@ -82,100 +146,111 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70, // Compress image
+      );
+
+      if (image != null) {
+        selectedImage.value = image;
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to pick image. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
   Future<void> placeOrder() async {
     try {
       isLoading.value = true;
 
-      // Validate outlet ID
-      final outletId = widget.outlet.id;
-
-      // Validate cart has items
-      if (cartController.items.isEmpty) {
+      if (selectedStore.value == null) {
         Get.snackbar(
           'Error',
-          'Cart is empty',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+          'Please select a store',
+          snackPosition: SnackPosition.BOTTOM,
         );
         return;
       }
 
-      // Prepare order items
-      final List<Map<String, dynamic>> orderItems = [];
-      for (var item in cartController.items) {
-        debugPrint('--- [Cart Debug] Preparing item: productId: ${item.productId}, quantity: ${item.quantity}, priceOptionId: ${item.priceOptionId}');
+      final outletId = widget.outlet.id;
+      if (outletId == null) {
+        Get.snackbar(
+          'Error',
+          'Invalid outlet ID',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      if (cartController.items.isEmpty) {
+        Get.snackbar(
+          'Error',
+          'Cart is empty',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      // Prepare order items with store information
+      final orderItems = cartController.items.map((item) {
         if (item.product == null) {
-          debugPrint('[Cart Debug] Product is null for item: $item');
-          Get.snackbar(
-            'Error',
-            'Invalid product in cart',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-          return;
+          throw Exception('Invalid product in cart');
         }
-
         if (item.quantity <= 0) {
-          debugPrint('[Cart Debug] Invalid quantity (${item.quantity}) for product: ${item.product?.name ?? "Unknown Product"}');
-          Get.snackbar(
-            'Error',
-            'Invalid quantity for ${item.product?.name ?? "Unknown Product"}',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-          return;
+          throw Exception('Invalid quantity for ${item.product!.name}');
+        }
+        if (item.priceOptionId == null) {
+          throw Exception('No price option selected for ${item.product!.name}');
         }
 
-        orderItems.add({
-          'productId': item.productId,
+        // Check stock availability for the selected store
+        final storeQuantity =
+            item.product!.getQuantityForStore(selectedStore.value!.id);
+        if (storeQuantity < item.quantity) {
+          throw Exception(
+              'Insufficient stock for ${item.product!.name} in ${selectedStore.value!.name}');
+        }
+
+        return {
+          'productId': item.product!.id,
           'quantity': item.quantity,
           'priceOptionId': item.priceOptionId,
-        });
+          'storeId': selectedStore.value!.id,
+        };
+      }).toList();
+
+      // Create or update order
+      final orderId = widget.order?.id;
+      final response = orderId == null
+          ? await ApiService.createOrder(
+              clientId: outletId,
+              items: orderItems,
+              imageFile: selectedImage.value,
+            )
+          : await ApiService.updateOrder(
+              orderId: orderId,
+              orderItems: orderItems,
+            );
+
+      if (response != null) {
+        cartController.clear();
+        selectedImage.value = null; // Clear selected image
+        _showOrderSuccessDialog();
       }
-
-      debugPrint('--- [Cart Debug] Final orderItems to send:');
-    for (var oi in orderItems) {
-      debugPrint('[Cart Debug] orderItem: productId: ${oi['productId']}, quantity: ${oi['quantity']}, priceOptionId: ${oi['priceOptionId']}');
-    }
-    if (widget.order == null) {
-        // Create new order
-        try {
-          final order = await ApiService.createOrder(
-            clientId: outletId,
-            items: orderItems,
-          );
-
-          // Order was successful (either null or valid order object)
-          cartController.clear();
-          _showOrderSuccessDialog(); // Show success dialog with navigation options
-        } catch (e) {
-          handleOrderError(e);
-        }
-      } else {
-        // Update existing order
-        try {
-          await ApiService.updateOrder(
-            orderId: widget.order!.id,
-            orderItems: orderItems,
-          );
-
-          Get.snackbar(
-            'Success',
-            'Order updated successfully',
-            snackPosition: SnackPosition.TOP,
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-          );
-
-          cartController.clear();
-          Get.offNamed('/orders');
-        } catch (e) {
-          handleOrderError(e);
-        }
-      }
+    } catch (e) {
+      print('Error placing order: $e');
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+      );
     } finally {
       isLoading.value = false;
     }
@@ -198,26 +273,33 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Out of Stock'),
-            content: Text(
-                '$productName is currently out of stock or has insufficient quantity.'),
+            content: Text('Insufficient stock for $productName'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Get.back(),
                 child: const Text('OK'),
               ),
             ],
           );
         },
       );
-    } else {
-      // For any other error, show a generic error message
+    } else if (errorMessage.contains('Order cancelled by user')) {
+      // User cancelled the order due to balance warning
       Get.snackbar(
-        'Order Error',
-        'There was a problem placing your order. Please try again or check your orders list.',
+        'Order Cancelled',
+        'The order was cancelled due to balance warning',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+    } else {
+      // Handle other errors
+      Get.snackbar(
+        'Error',
+        errorMessage,
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
-        duration: const Duration(seconds: 5),
       );
     }
   }
@@ -312,9 +394,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       ),
                     ),
                   Text(
-                    'Quantity: ${item.quantity}${packSize != null
-                            ? ' pack(s) ($totalPieces pcs)'
-                            : ''}',
+                    'Quantity: ${item.quantity}${packSize != null ? ' pack(s) ($totalPieces pcs)' : ''}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -540,14 +620,21 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                 ),
                 child: loading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Processing...'),
+                        ],
                       )
                     : Text(
                         widget.order == null ? 'Place Order' : 'Update Order',
@@ -567,6 +654,44 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         title: Text(widget.order == null ? 'Cart' : 'Edit Order'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          // Add image attachment button to app bar
+          Obx(() {
+            if (selectedImage.value != null) {
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.image),
+                    onPressed: _pickImage,
+                    tooltip: 'Change Image',
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            } else {
+              return IconButton(
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                onPressed: _pickImage,
+                tooltip: 'Attach Image',
+              );
+            }
+          }),
+        ],
       ),
       body: Obx(() {
         if (isLoading.value) {
@@ -575,6 +700,84 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
 
         return Column(
           children: [
+            // Store Selection Dropdown
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Select Store',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<Store>(
+                    value: selectedStore.value,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    items: availableStores.map((store) {
+                      return DropdownMenuItem(
+                        value: store,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              store.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (store.region != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '${store.region!.name}${store.region!.country != null ? ', ${store.region!.country!.name}' : ''}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (Store? newValue) {
+                      if (newValue != null) {
+                        selectedStore.value = newValue;
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Please select a store';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
             if (errorMessage.value.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -587,17 +790,84 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ),
               ),
             Expanded(
-              child: cartController.items.isEmpty
-                  ? _buildEmptyCart()
-                  : ListView.builder(
-                      itemCount: cartController.items.length,
-                      itemBuilder: (context, index) {
-                        final item = cartController.items[index];
-                        return _buildCartItem(index, item);
-                      },
+              child: Stack(
+                children: [
+                  cartController.items.isEmpty
+                      ? _buildEmptyCart()
+                      : ListView.builder(
+                          itemCount: cartController.items.length,
+                          itemBuilder: (context, index) {
+                            return _buildCartItem(
+                                index, cartController.items[index]);
+                          },
+                        ),
+                  // Show image preview if an image is selected
+                  if (selectedImage.value != null)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                spreadRadius: 1,
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: kIsWeb
+                                    ? Image.memory(
+                                        selectedImage.value.bytes,
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Image.file(
+                                        File(selectedImage.value.path),
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: GestureDetector(
+                                  onTap: () => selectedImage.value = null,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
+                ],
+              ),
             ),
-            if (cartController.items.isNotEmpty) _buildTotalSection(),
+            _buildTotalSection(),
           ],
         );
       }),

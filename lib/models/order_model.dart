@@ -11,6 +11,7 @@ class Order {
   final int quantity;
   final SalesRep user;
   final Client client;
+  final String? imageUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<OrderItem> orderItems;
@@ -23,6 +24,7 @@ class Order {
     required this.client,
     required this.createdAt,
     required this.updatedAt,
+    this.imageUrl,
     required this.orderItems,
     double? totalAmount,
   }) : _totalAmount = totalAmount;
@@ -33,17 +35,17 @@ class Order {
     if (_totalAmount != null) {
       return _totalAmount;
     }
-    
+
     // Otherwise calculate from order items
     return orderItems.fold(0.0, (total, item) {
       if (item.product == null || item.priceOptionId == null) return total;
-      
+
       // Find the matching price option
       final priceOption = item.product!.priceOptions.firstWhere(
         (opt) => opt.id == item.priceOptionId,
         orElse: () => PriceOption(id: 0, option: '', value: 0, categoryId: 0),
       );
-      
+
       // Calculate the item price
       return total + (priceOption.value * item.quantity);
     });
@@ -122,11 +124,12 @@ class Order {
           print('Original value: ${json['totalAmount']}');
         }
       }
-      
+
       return Order(
         id: json['id'] as int,
         quantity: json['quantity'] ?? 0,
         totalAmount: totalAmount,
+        imageUrl: json['imageUrl'] as String?,
         // Create user and client objects with safe fallbacks
         user: userData != null
             ? SalesRep.fromJson(userData)
@@ -181,6 +184,7 @@ class Order {
       'createdAt': createdAt.toUtc().toIso8601String(),
       'updatedAt': updatedAt.toUtc().toIso8601String(),
       'orderItems': orderItems.map((item) => item.toJson()).toList(),
+      'imageUrl': imageUrl,
     };
   }
 }

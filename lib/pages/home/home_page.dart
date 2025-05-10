@@ -36,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   late String salesRepPhone;
   int _pendingJourneyPlans = 0;
   int _pendingTasks = 0;
+  int _unreadNotices = 0;
   bool _isLoading = true;
   final TaskService _taskService = TaskService();
 
@@ -45,6 +46,7 @@ class _HomePageState extends State<HomePage> {
     _loadUserData();
     _loadPendingJourneyPlans();
     _loadPendingTasks();
+    _loadUnreadNotices();
   }
 
   void _loadUserData() {
@@ -65,9 +67,21 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadPendingJourneyPlans() async {
     try {
       final journeyPlans = await ApiService.fetchJourneyPlans();
+
+      // Get today's date in local time
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
       setState(() {
-        _pendingJourneyPlans =
-            journeyPlans.where((plan) => plan.isPending).length;
+        _pendingJourneyPlans = journeyPlans.where((plan) {
+          // Convert plan date from UTC to local time
+          final localDate = plan.date.toLocal();
+          // Check if plan is pending AND is for today
+          return plan.isPending &&
+              localDate.year == today.year &&
+              localDate.month == today.month &&
+              localDate.day == today.day;
+        }).length;
         _isLoading = false;
       });
     } catch (e) {
@@ -89,6 +103,21 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadUnreadNotices() async {
+    try {
+      final notices = await ApiService.getNotice();
+      // Count notices from the last 7 days
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      setState(() {
+        _unreadNotices = notices
+            .where((notice) => notice.createdAt.isAfter(sevenDaysAgo))
+            .length;
+      });
+    } catch (e) {
+      print('Error loading unread notices: $e');
+    }
+  }
+
   Future<void> _refreshData() async {
     setState(() {
       _isLoading = true;
@@ -96,6 +125,7 @@ class _HomePageState extends State<HomePage> {
     await Future.wait([
       _loadPendingJourneyPlans(),
       _loadPendingTasks(),
+      _loadUnreadNotices(),
     ]);
     _loadUserData();
   }
@@ -293,12 +323,13 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Notice Board',
                       icon: Icons.notifications,
+                      badgeCount: _unreadNotices,
                       onTap: () {
                         Get.to(
                           () => const NoticeBoardPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
-                        );
+                        )?.then((_) => _loadUnreadNotices());
                       },
                     ),
                     MenuTile(

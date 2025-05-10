@@ -28,6 +28,7 @@ import 'package:woosh/services/target_service.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/clientPayment_model.dart';
 import 'package:woosh/models/uplift_sale_model.dart';
+import 'package:woosh/models/store_model.dart';
 
 // Handle platform-specific imports
 import 'image_upload.dart';
@@ -103,26 +104,44 @@ class ApiService {
   static const String _updatedClientsKey = 'updated_client_locations';
 
   static String? _getAuthToken() {
-    final box = GetStorage();
-    return box.read<String>('token');
+    try {
+      final box = GetStorage();
+      final token = box.read<String>('token');
+      print(
+          'Retrieved token from storage: ${token != null ? 'Present' : 'Missing'}');
+      return token;
+    } catch (e) {
+      print('Error reading token from storage: $e');
+      return null;
+    }
   }
 
   static Future<bool> _shouldRefreshToken() async {
     try {
       final token = _getAuthToken();
-      if (token == null) return false;
+      if (token == null) {
+        print('No token available for refresh check');
+        return false;
+      }
 
       final parts = token.split('.');
-      if (parts.length != 3) return false;
+      if (parts.length != 3) {
+        print('Invalid token format');
+        return false;
+      }
 
       final payload = parts[1];
       final normalized = base64Url.normalize(payload);
       final decoded = utf8.decode(base64Url.decode(normalized));
       final Map<String, dynamic> decodedMap = json.decode(decoded);
 
-      // Check if token expires in less than 30 minutes
       final exp = DateTime.fromMillisecondsSinceEpoch(decodedMap['exp'] * 1000);
-      return exp.difference(DateTime.now()) < const Duration(minutes: 30);
+      final shouldRefresh =
+          exp.difference(DateTime.now()) < const Duration(minutes: 30);
+      print(
+          'Token expires in: ${exp.difference(DateTime.now()).inMinutes} minutes');
+      print('Should refresh: $shouldRefresh');
+      return shouldRefresh;
     } catch (e) {
       print('Error checking token expiration: $e');
       return false;
@@ -131,6 +150,7 @@ class ApiService {
 
   static Future<bool> _refreshToken() async {
     if (_isRefreshing) {
+      print('Token refresh already in progress');
       final result = await _refreshFuture;
       return result ?? false;
     }
@@ -139,8 +159,12 @@ class ApiService {
     _refreshFuture = Future<bool>(() async {
       try {
         final oldToken = _getAuthToken();
-        if (oldToken == null) return false;
+        if (oldToken == null) {
+          print('No token available for refresh');
+          return false;
+        }
 
+        print('Attempting to refresh token');
         final response = await http.post(
           Uri.parse('$baseUrl/auth/refresh'),
           headers: {
@@ -149,12 +173,15 @@ class ApiService {
           },
         );
 
+        print('Refresh response status: ${response.statusCode}');
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           final box = GetStorage();
           box.write('token', data['token']);
+          print('Token refreshed successfully');
           return true;
         }
+        print('Token refresh failed: ${response.body}');
         return false;
       } catch (e) {
         print('Error refreshing token: $e');
@@ -169,19 +196,35 @@ class ApiService {
 
   static Future<Map<String, String>> _headers(
       [String? additionalContentType]) async {
-    final token = _getAuthToken();
-    if (token != null && await _shouldRefreshToken()) {
-      final refreshed = await _refreshToken();
-      if (!refreshed) {
-        // Token refresh failed, user needs to login again
-        await logout();
-        throw Exception("Session expired. Please log in again.");
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        print('No token available for request headers');
+        return {
+          'Content-Type': additionalContentType ?? 'application/json',
+        };
       }
+
+      if (await _shouldRefreshToken()) {
+        print('Token needs refresh, attempting refresh');
+        final refreshed = await _refreshToken();
+        if (!refreshed) {
+          print('Token refresh failed, logging out');
+          await logout();
+          throw Exception("Session expired. Please log in again.");
+        }
+      }
+
+      final headers = {
+        'Content-Type': additionalContentType ?? 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+      print('Request headers prepared: ${headers.keys.join(', ')}');
+      return headers;
+    } catch (e) {
+      print('Error preparing request headers: $e');
+      rethrow;
     }
-    return {
-      'Content-Type': additionalContentType ?? 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
   }
 
   /// Get headers for API requests with optional content type
@@ -1081,6 +1124,7 @@ class ApiService {
   static Future<Order?> createOrder({
     required int clientId,
     required List<Map<String, dynamic>> items,
+    dynamic imageFile, // Accepts File for mobile, Uint8List for web
   }) async {
     try {
       await _initDioHeaders();
@@ -1098,11 +1142,27 @@ class ApiService {
               ? salesRep['countryId']
               : null;
 
+      // Upload image if provided
+      String? imageUrl;
+      if (imageFile != null) {
+        try {
+          imageUrl = await uploadImage(imageFile);
+          print('Image uploaded successfully. URL: $imageUrl');
+        } catch (e) {
+          print('Error uploading image: $e');
+          // Continue with order creation even if image upload fails
+        }
+      }
+
       final requestBody = {
         'clientId': clientId,
         'orderItems': items,
         'regionId': regionId,
         'countryId': countryId,
+        'storeId': items.isNotEmpty
+            ? items[0]['storeId']
+            : null, // Add storeId from first item
+        if (imageUrl != null) 'imageUrl': imageUrl,
       };
 
       print(
@@ -1131,11 +1191,33 @@ class ApiService {
       print('Response Status Code: ${response.statusCode}');
       print('Response Body: ${response.body}');
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         // Handle the response safely
         try {
           final responseData = jsonDecode(response.body);
           if (responseData['success'] == true) {
+            // Check if this is a balance warning response
+            if (responseData['requiresConfirmation'] == true) {
+              // Show balance warning dialog
+              final confirmed = await _showBalanceWarningDialog(
+                responseData['warningTitle'] ?? 'Balance Warning',
+                responseData['warningMessage'] ??
+                    'This client has an aged balance. Do you want to proceed?',
+                responseData['warningType'] ?? 'warning',
+              );
+
+              if (confirmed) {
+                // Proceed with confirmed order
+                return await createConfirmedOrder(
+                  clientId: clientId,
+                  items: items,
+                  orderData: responseData['orderData'],
+                );
+              } else {
+                throw Exception('Order cancelled by user');
+              }
+            }
+
             // Validate the data structure before parsing
             if (responseData['data'] == null) {
               throw Exception('Server returned null data');
@@ -1184,6 +1266,101 @@ class ApiService {
         rethrow;
       } else {
         throw Exception('Failed to process order: ${e.toString()}');
+      }
+    }
+  }
+
+  static Future<bool> _showBalanceWarningDialog(
+    String title,
+    String message,
+    String type,
+  ) async {
+    final result = await Get.dialog<bool>(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              type == 'warning' ? Icons.warning_amber : Icons.error,
+              color: type == 'warning' ? Colors.orange : Colors.red,
+            ),
+            const SizedBox(width: 8),
+            Text(title),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: type == 'warning' ? Colors.orange : Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+
+    return result ?? false;
+  }
+
+  static Future<Order?> createConfirmedOrder({
+    required int clientId,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> orderData,
+  }) async {
+    try {
+      await _initDioHeaders();
+
+      final requestBody = {
+        'orderData': orderData,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/confirm'),
+        headers: await _headers(),
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          if (responseData['data'] == null) {
+            _showOrderSuccessDialog();
+            return null;
+          }
+
+          final orderData = responseData['data'];
+          if (orderData is! Map<String, dynamic>) {
+            throw Exception('Invalid order data format');
+          }
+
+          if (orderData['id'] == null) {
+            _showOrderSuccessDialog();
+            return null;
+          }
+
+          return Order.fromJson(orderData);
+        } else {
+          throw Exception(
+              responseData['error'] ?? 'Failed to create confirmed order');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to create confirmed order: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error creating confirmed order: $e');
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Failed to process confirmed order: ${e.toString()}');
       }
     }
   }
@@ -1337,6 +1514,8 @@ class ApiService {
         print('Response status code: ${streamedResponse.statusCode}');
 
         final response = await http.Response.fromStream(streamedResponse);
+        print('Response status code: ${streamedResponse.statusCode}');
+        print('Raw response body: ${response.body}'); // Added detailed logging
 
         if (response.statusCode == 201) {
           return Leave.fromJson(jsonDecode(response.body));
@@ -1697,7 +1876,8 @@ class ApiService {
       print('Response status code: ${streamedResponse.statusCode}');
 
       final response = await http.Response.fromStream(streamedResponse);
-      print('Response body: ${response.body}'); // Debug response
+      print('Response status code: ${streamedResponse.statusCode}');
+      print('Raw response body: ${response.body}'); // Added detailed logging
 
       if (response.statusCode == 401) {
         print(
@@ -1714,11 +1894,29 @@ class ApiService {
       }
 
       final responseData = json.decode(response.body);
+      print('Profile photo update response: $responseData'); // Debug log
+
+      // Handle different response formats
       if (responseData['salesRep'] != null &&
           responseData['salesRep']['photoUrl'] != null) {
+        // Format: { salesRep: { photoUrl: "..." } }
         return responseData['salesRep']['photoUrl'];
+      } else if (responseData['photoUrl'] != null) {
+        // Format: { photoUrl: "..." }
+        return responseData['photoUrl'];
+      } else if (responseData['data'] != null &&
+          responseData['data']['photoUrl'] != null) {
+        // Format: { data: { photoUrl: "..." } }
+        return responseData['data']['photoUrl'];
+      } else if (responseData['user'] != null &&
+          responseData['user']['photoUrl'] != null) {
+        // Format: { user: { photoUrl: "..." } }
+        return responseData['user']['photoUrl'];
+      } else {
+        print('Unexpected response format: $responseData');
+        throw Exception(
+            'Invalid response format from server. Please try again.');
       }
-      throw Exception('Invalid response format from server');
     } catch (e) {
       print('Error updating profile photo: $e');
       rethrow;
@@ -2255,6 +2453,25 @@ class ApiService {
     } catch (e) {
       print('Error getting client: $e');
       throw Exception('An error occurred while getting client: $e');
+    }
+  }
+
+  static Future<List<Store>> getStores() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/stores'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => Store.fromJson(json)).toList();
+      } else {
+        throw Exception('Failed to load stores: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching stores: $e');
+      rethrow;
     }
   }
 }

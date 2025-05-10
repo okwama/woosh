@@ -75,7 +75,17 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     try {
       if (!isSessionActive) {
         // Start session
-        await SessionService.recordLogin(userId);
+        final response = await SessionService.recordLogin(userId);
+        if (response['error'] != null) {
+          Get.snackbar(
+            'Cannot Start Session',
+            response['error'],
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 5),
+          );
+          return;
+        }
         setState(() => isSessionActive = true);
         Get.snackbar(
           'Success',
@@ -95,9 +105,14 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         );
       }
     } catch (e) {
+      String errorMessage =
+          'Failed to ${isSessionActive ? 'end' : 'start'} session';
+      if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
+        errorMessage = 'Sessions can only be started after 9:00 AM';
+      }
       Get.snackbar(
         'Error',
-        'Failed to ${isSessionActive ? 'end' : 'start'} session: ${e.toString()}',
+        errorMessage,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -185,95 +200,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             ),
                             const SizedBox(height: 16),
                             _buildActionButtons(),
-                            const SizedBox(
-                                height:
-                                    100), // Increased padding for bottom button
                           ],
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // Session Button at bottom
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                top: 16,
-              ),
-              decoration: BoxDecoration(
-                color: appBackground,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Container(
-                  width: 200,
-                  child: Card(
-                    elevation: 2,
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: InkWell(
-                      onTap: isProcessing ? null : _toggleSession,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isSessionActive
-                                    ? Colors.red.withOpacity(0.1)
-                                    : Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                isSessionActive
-                                    ? Icons.stop_circle
-                                    : Icons.play_circle,
-                                color:
-                                    isSessionActive ? Colors.red : Colors.green,
-                                size: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              isSessionActive ? 'End Session' : 'Start Session',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color:
-                                    isSessionActive ? Colors.red : Colors.green,
-                              ),
-                            ),
-                            if (isProcessing)
-                              const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -604,8 +534,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 ],
               ),
             ),
-
-
           ),
         ),
         const SizedBox(height: 8),
@@ -654,12 +582,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                 ],
               ),
             ),
-
-            
           ),
         ),
-const SizedBox(height: 8),
-       Card(
+        const SizedBox(height: 8),
+        Card(
           elevation: 1,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
@@ -704,10 +630,62 @@ const SizedBox(height: 8),
                 ],
               ),
             ),
-
-
           ),
         ),
+        const SizedBox(height: 8),
+        // Session Control Button
+        Card(
+          elevation: 1,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: InkWell(
+            onTap: isProcessing ? null : _toggleSession,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isSessionActive
+                          ? Colors.red.withOpacity(0.1)
+                          : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      isSessionActive ? Icons.stop_circle : Icons.play_circle,
+                      color: isSessionActive ? Colors.red : Colors.green,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isSessionActive ? 'End Session' : 'Start Session',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isSessionActive ? Colors.red : Colors.green,
+                      ),
+                    ),
+                  ),
+                  if (isProcessing)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16), // Add extra padding at the bottom
       ],
     );
   }
