@@ -765,16 +765,46 @@ class ApiService {
         if (imageFile is XFile) {
           final bytes = await imageFile.readAsBytes();
           final fileName = imageFile.name;
+          final fileExtension = fileName.split('.').last.toLowerCase();
+
+          // Validate file type
+          final allowedTypes = ['jpg', 'jpeg', 'png', 'pdf'];
+          if (!allowedTypes.contains(fileExtension)) {
+            throw Exception(
+                'Invalid file type. Only JPG, JPEG, PNG, and PDF files are allowed.');
+          }
+
           request.files.add(
             http.MultipartFile.fromBytes(
               'attachment',
               bytes,
               filename: fileName,
-              contentType: MediaType('image', fileName.split('.').last),
+              contentType: MediaType('image', fileExtension),
+            ),
+          );
+        } else if (imageFile is File) {
+          final bytes = await imageFile.readAsBytes();
+          final fileName = imageFile.path.split('/').last;
+          final fileExtension = fileName.split('.').last.toLowerCase();
+
+          // Validate file type
+          final allowedTypes = ['jpg', 'jpeg', 'png', 'pdf'];
+          if (!allowedTypes.contains(fileExtension)) {
+            throw Exception(
+                'Invalid file type. Only JPG, JPEG, PNG, and PDF files are allowed.');
+          }
+
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'attachment',
+              bytes,
+              filename: fileName,
+              contentType: MediaType('image', fileExtension),
             ),
           );
         } else {
-          throw Exception('Invalid file type for mobile platform');
+          throw Exception(
+              'Invalid file type for mobile platform. Expected XFile or File.');
         }
       } else {
         // Handle web platform
