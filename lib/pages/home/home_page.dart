@@ -23,6 +23,7 @@ import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
 import 'package:woosh/services/session_service.dart';
+import 'package:woosh/services/session_state.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,6 +40,7 @@ class _HomePageState extends State<HomePage> {
   int _unreadNotices = 0;
   bool _isLoading = true;
   final TaskService _taskService = TaskService();
+  final SessionState _sessionState = Get.put(SessionState());
 
   @override
   void initState() {
@@ -47,6 +49,7 @@ class _HomePageState extends State<HomePage> {
     _loadPendingJourneyPlans();
     _loadPendingTasks();
     _loadUnreadNotices();
+    _validateSession();
   }
 
   void _loadUserData() {
@@ -207,10 +210,28 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<bool> _requireActiveSession() async {
+  Future<bool> _validateSession() async {
     final box = GetStorage();
-    final isSessionActive = box.read('isSessionActive') ?? false;
-    if (!isSessionActive) {
+    final userId = box.read<String>('userId');
+    if (userId == null) return false;
+    
+    try {
+      final response = await SessionService.getSessionHistory(userId);
+      final sessions = response['sessions'] as List;
+      if (sessions.isNotEmpty) {
+        final lastSession = sessions.first;
+        final isActive = lastSession['logoutAt'] == null;
+        _sessionState.updateSessionState(isActive, DateTime.parse(lastSession['loginAt']));
+        return isActive;
+      }
+    } catch (e) {
+      print('Error validating session: $e');
+    }
+    return false;
+  }
+
+  Future<bool> _canAccessFeature() async {
+    if (!await _validateSession()) {
       Get.snackbar(
         'Session Required',
         'Please start your session before accessing this feature.',
@@ -221,6 +242,19 @@ class _HomePageState extends State<HomePage> {
       return false;
     }
     return true;
+  }
+
+  bool _isFeatureRestricted(String title) {
+    // List of features that require active session
+    final restrictedFeatures = [
+      'Journey Plans',
+      'View Client',
+      'Add/Edit Order',
+      'View Orders',
+      'Uplift Sale',
+      'Product Return'
+    ];
+    return restrictedFeatures.contains(title);
   }
 
   @override
@@ -300,7 +334,7 @@ class _HomePageState extends State<HomePage> {
                   crossAxisSpacing: 1.0,
                   mainAxisSpacing: 1.0,
                   children: [
-                    // User Profile Tile
+                    // User Profile Tile (always active)
                     MenuTile(
                       title: 'Merchandiser',
                       subtitle: '$salesRepName\n$salesRepPhone',
@@ -313,31 +347,35 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
+                    // Restricted tiles with opacity
                     MenuTile(
                       title: 'Journey Plans',
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const JourneyPlansPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         )?.then((_) => _loadPendingJourneyPlans());
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const ViewClientPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
+                    // Notice Board (always active)
                     MenuTile(
                       title: 'Notice Board',
                       icon: Icons.notifications,
@@ -354,26 +392,29 @@ class _HomePageState extends State<HomePage> {
                       title: 'Add/Edit Order',
                       icon: Icons.edit,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const ViewClientPage(forOrderCreation: true),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
                     MenuTile(
                       title: 'View Orders',
                       icon: Icons.shopping_cart,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const ViewOrdersPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
+                    // Tasks (always active)
                     MenuTile(
                       title: 'Tasks',
                       icon: Icons.task,
@@ -386,6 +427,7 @@ class _HomePageState extends State<HomePage> {
                         )?.then((_) => _loadPendingTasks());
                       },
                     ),
+                    // Leave (always active)
                     MenuTile(
                       title: 'Leave',
                       icon: Icons.event_busy,
@@ -401,14 +443,13 @@ class _HomePageState extends State<HomePage> {
                       title: 'Uplift Sale',
                       icon: Icons.shopping_cart,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const ViewClientPage(forUpliftSale: true),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         )?.then((selectedOutlet) {
-                          if (selectedOutlet != null &&
-                              selectedOutlet is Outlet) {
+                          if (selectedOutlet != null && selectedOutlet is Outlet) {
                             Get.off(
                               () => UpliftSaleCartPage(
                                 outlet: selectedOutlet,
@@ -418,18 +459,20 @@ class _HomePageState extends State<HomePage> {
                           }
                         });
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
                     MenuTile(
                       title: 'Product Return',
                       icon: Icons.assignment_return,
                       onTap: () async {
-                        if (!await _requireActiveSession()) return;
+                        if (!await _canAccessFeature()) return;
                         Get.to(
                           () => const ViewClientPage(forProductReturn: true),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );
                       },
+                      opacity: _sessionState.isSessionActive.value ? 1.0 : 0.5,
                     ),
                   ],
                 ),
@@ -439,5 +482,18 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+}
+
+class SessionMiddleware extends GetMiddleware {
+  @override
+  RouteSettings? redirect(String? route) {
+    final box = GetStorage();
+    final isSessionActive = box.read<bool>('isSessionActive') ?? false;
+    
+    if (!isSessionActive && route != '/profile') {
+      return const RouteSettings(name: '/profile');
+    }
+    return null;
   }
 }

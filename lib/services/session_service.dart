@@ -108,4 +108,35 @@ class SessionService {
       throw Exception('Error fetching session history: $e');
     }
   }
+
+  static Future<bool> isSessionValid(String userId) async {
+    try {
+      final response = await getSessionHistory(userId);
+      final sessions = response['sessions'] as List;
+      if (sessions.isNotEmpty) {
+        final lastSession = sessions.first;
+        if (lastSession['logoutAt'] == null) {
+          // Check if session is within shift hours
+          final loginAt = DateTime.parse(lastSession['loginAt']);
+          final now = DateTime.now();
+          return now.difference(loginAt).inHours < 9; // 9-hour shift
+        }
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<void> checkSessionTimeout() async {
+    final box = GetStorage();
+    final userId = box.read<String>('userId');
+    if (userId != null) {
+      final isValid = await isSessionValid(userId);
+      if (!isValid) {
+        await recordLogout(userId);
+        box.write('isSessionActive', false);
+      }
+    }
+  }
 }

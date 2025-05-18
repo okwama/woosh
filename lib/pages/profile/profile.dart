@@ -9,12 +9,14 @@ import 'package:woosh/pages/profile/user_stats_page.dart';
 import 'package:woosh/pages/profile/session_history_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/session_service.dart';
+import 'package:woosh/services/session_state.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
+import 'dart:async';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -25,6 +27,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
+  final SessionState _sessionState = Get.put(SessionState());
   bool isSessionActive = false;
   bool isProcessing = false;
   bool isCheckingSessionState = false;
@@ -34,6 +37,10 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkSessionStatus();
+    // Add periodic session check
+    Timer.periodic(const Duration(minutes: 5), (timer) {
+      _checkSessionTimeout();
+    });
   }
 
   Future<void> _checkSessionStatus() async {
@@ -55,6 +62,26 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       }
     }
     setState(() => isCheckingSessionState = false);
+  }
+
+  Future<void> _checkSessionTimeout() async {
+    final box = GetStorage();
+    final userId = box.read<String>('userId');
+    if (userId != null) {
+      final isValid = await SessionService.isSessionValid(userId);
+      if (!isValid && isSessionActive) {
+        setState(() {
+          isSessionActive = false;
+        });
+        box.write('isSessionActive', false);
+        Get.snackbar(
+          'Session Expired',
+          'Your session has expired. Please start a new session.',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      }
+    }
   }
 
   Future<void> _toggleSession() async {
@@ -91,6 +118,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         }
         setState(() => isSessionActive = true);
         box.write('isSessionActive', true);
+        _sessionState.updateSessionState(true, DateTime.now());
         Get.snackbar(
           'Success',
           'Session started successfully',
@@ -102,6 +130,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         await SessionService.recordLogout(userId);
         setState(() => isSessionActive = false);
         box.write('isSessionActive', false);
+        _sessionState.updateSessionState(false, null);
         Get.snackbar(
           'Success',
           'Session ended successfully',
@@ -110,8 +139,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         );
       }
     } catch (e) {
-      String errorMessage =
-          'Failed to ${isSessionActive ? 'end' : 'start'} session';
+      String errorMessage = 'Failed to ${isSessionActive ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
       if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
         errorMessage = 'Sessions can only be started after 9:00 AM';
