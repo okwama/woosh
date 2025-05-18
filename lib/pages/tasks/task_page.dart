@@ -4,7 +4,7 @@ import 'package:woosh/models/task_model.dart';
 import 'package:woosh/services/task_service.dart';
 
 class TaskPage extends StatefulWidget {
-  const TaskPage({Key? key}) : super(key: key);
+  const TaskPage({super.key});
 
   @override
   _TaskPageState createState() => _TaskPageState();

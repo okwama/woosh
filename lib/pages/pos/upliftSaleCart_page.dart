@@ -349,14 +349,13 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (item.unitPrice != null)
-                    Text(
-                      'Unit Price: ${item.unitPrice}',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                  Text(
+                    'Unit Price: ${item.unitPrice}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
                     ),
+                  ),
                   Text(
                     'Quantity: ${item.quantity}${packSize != null ? ' pack(s) ($totalPieces pcs)' : ''}',
                     style: TextStyle(

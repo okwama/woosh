@@ -121,6 +121,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   Future<void> _showAddPaymentDialog() async {
     final amountController = TextEditingController();
+    String? selectedMethod;
     XFile? pickedFile;
     bool uploading = false;
     String? errorMessage;
@@ -148,6 +149,37 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Amount'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Method',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Cash',
+                        child: Text('Cash'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Cheque',
+                        child: Text('Cheque'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Mpesa',
+                        child: Text('Mpesa'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Bank',
+                        child: Text('Bank'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        selectedMethod = value;
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -205,6 +237,13 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             return;
                           }
 
+                          if (selectedMethod == null) {
+                            setState(() {
+                              errorMessage = 'Please select a payment method.';
+                            });
+                            return;
+                          }
+
                           setState(() {
                             uploading = true;
                             errorMessage = null;
@@ -214,10 +253,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             File? imageFile;
 
                             if (kIsWeb) {
-                              // For web, we'll pass the XFile directly
                               imageFile = null;
                             } else {
-                              // For mobile, convert XFile to File
                               imageFile = File(pickedFile!.path);
                             }
 
@@ -228,6 +265,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                               imageBytes: kIsWeb
                                   ? await pickedFile!.readAsBytes()
                                   : null,
+                              method: selectedMethod,
                             );
 
                             if (mounted) {
@@ -296,36 +334,103 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: GradientText(
-                                'Client Details',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  child: Icon(Icons.person, size: 24),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        outlet.name,
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Balance: Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}',
+                                        style: const TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _detailSection(
+                                    icon: Icons.home,
+                                    label: 'Address',
+                                    value: outlet.address,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _detailSection(
+                                    icon: Icons.email,
+                                    label: 'Email',
+                                    value: outlet.email ?? '-',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _detailSection(
+                                    icon: Icons.phone,
+                                    label: 'Phone',
+                                    value: outlet.contact ?? '-',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _detailSection(
+                                    icon: Icons.badge,
+                                    label: 'KRA PIN',
+                                    value: outlet.taxPin ?? '-',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_locationDescription != null) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _detailSection(
+                                      icon: Icons.place,
+                                      label: 'Location',
+                                      value: _locationDescription!,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(child: SizedBox()), // Empty to keep layout
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.upload_file),
+                                label: const Text('Add Payment'),
+                                onPressed: _showAddPaymentDialog,
+                                style: ElevatedButton.styleFrom(
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor: Theme.of(context).primaryColor,
+                                  foregroundColor: Colors.white,
+                                  textStyle: const TextStyle(fontSize: 13),
                                 ),
                               ),
                             ),
-                            _ticketRow("Client", outlet.name),
-                            _ticketRow("Address", outlet.address),
-                            _ticketRow("Balance",
-                                "Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}",
-                                highlight: true),
-                            if (outlet.email != null &&
-                                outlet.email!.isNotEmpty)
-                              _ticketRow("Email", outlet.email!),
-                            if (outlet.contact != null &&
-                                outlet.contact!.isNotEmpty)
-                              _ticketRow("Phone", outlet.contact!),
-                            if (outlet.taxPin != null &&
-                                outlet.taxPin!.isNotEmpty)
-                              _ticketRow("KRA PIN", outlet.taxPin!),
-                            const SizedBox(height: 14),
-                            _dashedDivider(),
-                            const SizedBox(height: 14),
-                            if (_locationDescription != null)
-                              _ticketRow("Location", _locationDescription!,
-                                  icon: Icons.place),
                           ],
                         ),
                       ),
@@ -372,17 +477,17 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           ],
         ),
       ),
-      floatingActionButton: Container(
-        decoration: GradientDecoration.goldCircular(),
-        child: FloatingActionButton(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Icon(Icons.arrow_back, color: Colors.white),
-        ),
-      ),
+      // floatingActionButton: Container(
+      //   decoration: GradientDecoration.goldCircular(),
+      //   child: FloatingActionButton(
+      //     backgroundColor: Colors.transparent,
+      //     elevation: 0,
+      //     onPressed: () {
+      //       Navigator.pop(context);
+      //     },
+      //     child: const Icon(Icons.arrow_back, color: Colors.white),
+      //   ),
+      // ),
     );
   }
 
@@ -437,6 +542,26 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           color: goldMiddle2.withOpacity(0.6),
         ),
       ),
+    );
+  }
+
+  // Helper widget for a compact detail section
+  Widget _detailSection({required IconData icon, required String label, required String value}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[700]),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -568,30 +693,10 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _filteredPayments.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, idx) {
                           final p = _filteredPayments[idx];
-                          return ListTile(
-                            dense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 6),
-                            leading: p.imageUrl != null
-                                ? Image.network(
-                                    p.imageUrl!,
-                                    width: 36,
-                                    height: 36,
-                                    fit: BoxFit.cover,
-                                  )
-                                : const Icon(Icons.receipt_long, size: 18),
-                            title: Text(
-                              'Ksh ${p.amount.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            subtitle: Text(
-                              '${p.date.toLocal().toString().split(".")[0]}\nStatus: ${p.status ?? "-"}',
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                            isThreeLine: true,
+                          return InkWell(
                             onTap: p.imageUrl != null
                                 ? () => showDialog(
                                       context: context,
@@ -600,6 +705,91 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                       ),
                                     )
                                 : null,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Left side: Image or Icon
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(4),
+                                      color: Colors.grey[100],
+                                    ),
+                                    child: p.imageUrl != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: Image.network(
+                                              p.imageUrl!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        : const Icon(Icons.receipt_long, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Middle: Payment details
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.method ?? 'No Method',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: _getStatusColor(p.status).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            p.status,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: _getStatusColor(p.status),
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Right side: Date and Amount
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        p.date.toLocal().toString().split(".")[0],
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Ksh ${p.amount.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -607,5 +797,18 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
         ),
       ],
     );
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status?.toUpperCase()) {
+      case 'PENDING':
+        return Colors.orange;
+      case 'VERIFIED':
+        return Colors.green;
+      case 'REJECTED':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }

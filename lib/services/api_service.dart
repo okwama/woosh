@@ -15,6 +15,7 @@ import 'package:woosh/models/noticeboard_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/user_model.dart';
 import 'package:woosh/utils/config.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/models/order_model.dart';
@@ -29,7 +30,6 @@ import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/clientPayment_model.dart';
 import 'package:woosh/models/uplift_sale_model.dart';
 import 'package:woosh/models/store_model.dart';
-
 // Handle platform-specific imports
 import 'image_upload.dart';
 
@@ -1087,7 +1087,10 @@ class ApiService {
   Future<List<Report>> getReports({
     int? journeyPlanId,
     int? clientId,
-    int? salesRepId,
+    int? salesRepId, 
+    String? endDate, 
+    String? startDate, 
+    String? type,
   }) async {
     try {
       final token = _getAuthToken();
@@ -1102,9 +1105,11 @@ class ApiService {
       }
       if (clientId != null) queryParams['clientId'] = clientId.toString();
       if (salesRepId != null) queryParams['salesRepId'] = salesRepId.toString();
+      if (startDate != null) queryParams['startDate'] = startDate;
+      if (endDate != null) queryParams['endDate'] = endDate;
+      if (type != null) queryParams['type'] = type;
 
-      final uri =
-          Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
+      final uri = Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -1113,7 +1118,21 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Report.fromJson(json)).toList();
+        
+        // Process each report and safely handle any parsing errors
+        final reports = <Report>[];
+        for (final json in data) {
+          try {
+            final report = Report.fromJson(json);
+            reports.add(report);
+          } catch (e) {
+            print('WARNING: Failed to parse report: $e');
+            print('JSON that caused error: $json');
+            // Skip this report but continue parsing others
+          }
+        }
+        
+        return reports;
       } else {
         throw Exception('Failed to load reports: ${response.statusCode}');
       }
@@ -1181,10 +1200,10 @@ class ApiService {
   }
 
   // Create a new order
-  static Future<Order?> createOrder({
+  static Future<dynamic> createOrder({
     required int clientId,
     required List<Map<String, dynamic>> items,
-    dynamic imageFile, // Accepts XFile for both web and mobile
+    dynamic imageFile,
   }) async {
     try {
       await _initDioHeaders();
@@ -1256,37 +1275,30 @@ class ApiService {
         // Handle the response safely
         try {
           final responseData = jsonDecode(response.body);
+          
+          // Check if this is a balance warning response
+          if (responseData['hasOutstandingBalance'] == true) {
+            return {
+              'hasOutstandingBalance': true,
+              'dialog': {
+                'title': responseData['dialog']?['title'] ?? 'Outstanding Balance',
+                'message': responseData['dialog']?['message'] ?? 'This client has an outstanding balance.',
+              },
+            };
+          }
+
+          // Handle successful order creation
           if (responseData['success'] == true) {
-            // Check if this is a balance warning response
-            if (responseData['requiresConfirmation'] == true) {
-              // Show balance warning dialog
-              final confirmed = await _showBalanceWarningDialog(
-                responseData['warningTitle'] ?? 'Balance Warning',
-                responseData['warningMessage'] ??
-                    'This client has an aged balance. Do you want to proceed?',
-                responseData['warningType'] ?? 'warning',
-              );
-
-              if (confirmed) {
-                // Proceed with confirmed order
-                return await createConfirmedOrder(
-                  clientId: clientId,
-                  items: items,
-                  orderData: responseData['orderData'],
-                );
-              } else {
-                throw Exception('Order cancelled by user');
-              }
-            }
-
             // Validate the data structure before parsing
             if (responseData['data'] == null) {
-              throw Exception('Server returned null data');
+              _showOrderSuccessDialog();
+              return null;
             }
 
             final orderData = responseData['data'];
             if (orderData is! Map<String, dynamic>) {
-              throw Exception('Invalid order data format');
+              _showOrderSuccessDialog();
+              return null;
             }
 
             // Ensure required fields exist
@@ -1298,9 +1310,8 @@ class ApiService {
             // Parse order as usual
             return Order.fromJson(orderData);
           } else {
-            // Handle error response
-            final errorMessage =
-                responseData['error'] ?? 'Failed to create order';
+            // Handle actual error response
+            final errorMessage = responseData['error'] ?? 'Failed to create order';
             print('Error from server: $errorMessage');
             throw Exception(errorMessage);
           }
@@ -1312,8 +1323,7 @@ class ApiService {
       } else {
         try {
           final errorData = jsonDecode(response.body);
-          final errorMessage = errorData['error'] ??
-              'Failed to create order: ${response.statusCode}';
+          final errorMessage = errorData['error'] ?? 'Failed to create order: ${response.statusCode}';
           throw Exception(errorMessage);
         } catch (jsonError) {
           print('Error parsing error response: $jsonError');
@@ -2115,98 +2125,103 @@ class ApiService {
     required double amount,
     required File imageFile,
     Uint8List? imageBytes,
+    String? method,
   }) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
+    final token = _getAuthToken();
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+    final userId = salesRep != null && salesRep is Map<String, dynamic>
+        ? salesRep['id']
+        : null;
 
-      print('\n=== DEBUG: Payment Upload Request ===');
-      print('Token exists: ${token.isNotEmpty}');
-      print('Token length: ${token.length}');
-      print('Token sample: ${token.substring(0, 10)}...');
-
-      final uri = Uri.parse('$baseUrl/outlets/$clientId/payments');
-      print('URL: $uri');
-      print('ClientId: $clientId');
-      print('Amount: $amount');
-
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll({
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        });
-
-      print('\nDEBUG: Request Headers');
-      print('Headers: ${request.headers}');
-
-      request.fields['amount'] = amount.toString();
-      print('\nDEBUG: Request Fields');
-      print('Fields: ${request.fields}');
-
-      if (kIsWeb && imageBytes != null) {
-        print('\nDEBUG: Web Platform File Upload');
-        print('Image bytes length: ${imageBytes.length}');
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'image',
-            imageBytes,
-            filename: 'payment_${DateTime.now().millisecondsSinceEpoch}.jpg',
-            contentType: MediaType('image', 'jpeg'),
-          ),
-        );
-      } else {
-        print('\nDEBUG: Mobile Platform File Upload');
-        print('Image exists: ${await imageFile.exists()}');
-        print('Image path: ${imageFile.path}');
-        print('Image size: ${await imageFile.length()} bytes');
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            'image',
-            imageFile.path,
-            filename: imageFile.path.split('/').last,
-            contentType: MediaType('image', imageFile.path.split('.').last),
-          ),
-        );
-      }
-
-      print('\nDEBUG: Request Files');
-      print('Files count: ${request.files.length}');
-      for (var file in request.files) {
-        print('File field: ${file.field}');
-        print('File filename: ${file.filename}');
-        print('File length: ${file.length}');
-        print('File contentType: ${file.contentType}');
-      }
-
-      print('\nDEBUG: Sending Request');
-      final streamedResponse = await request.send();
-      print('Response status code: ${streamedResponse.statusCode}');
-
-      final response = await http.Response.fromStream(streamedResponse);
-      print('\nDEBUG: Response Body');
-      print('Response body: ${response.body}');
-
-      if (response.statusCode != 201) {
-        final errorBody = json.decode(response.body);
-        print('\nDEBUG: Error Details');
-        print('Error: ${errorBody['error']}');
-        print('Status code: ${response.statusCode}');
-        throw Exception(
-            errorBody['error'] ?? 'Failed to upload payment: ${response.body}');
-      }
-
-      print('\nDEBUG: Upload Successful');
-      print('Status code: ${response.statusCode}');
-      print('Response: ${response.body}');
-    } catch (e) {
-      print('\nDEBUG: Exception Details');
-      print('Type: ${e.runtimeType}');
-      print('Message: $e');
-      print('Stack trace: ${StackTrace.current}');
-      rethrow;
+    if (userId == null) {
+      throw Exception("User ID not found. Please login again.");
     }
+
+    print('\n=== DEBUG: Payment Upload Request ===');
+    print('Token exists: ${token?.isNotEmpty ?? false}');
+    print('Token length: ${token?.length ?? 0}');
+    print('Token sample: ${token?.substring(0, 10) ?? ''}...');
+
+    final uri = Uri.parse('$baseUrl/outlets/$clientId/payments');
+    print('URL: $uri');
+    print('ClientId: $clientId');
+    print('Amount: $amount');
+    print('Method: $method');
+    print('UserId: $userId');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      });
+
+    print('\nDEBUG: Request Headers');
+    print('Headers: ${request.headers}');
+
+    request.fields['amount'] = amount.toString();
+    request.fields['userId'] = userId.toString(); // Add userId to request
+    if (method != null) {
+      request.fields['method'] = method;
+    }
+    print('\nDEBUG: Request Fields');
+    print('Fields: ${request.fields}');
+
+    if (kIsWeb && imageBytes != null) {
+      print('\nDEBUG: Web Platform File Upload');
+      print('Image bytes length: ${imageBytes.length}');
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'image',
+          imageBytes,
+          filename: 'payment_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+    } else {
+      print('\nDEBUG: Mobile Platform File Upload');
+      print('Image exists: ${await imageFile.exists()}');
+      print('Image path: ${imageFile.path}');
+      print('Image size: ${await imageFile.length()} bytes');
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          filename: imageFile.path.split('/').last,
+          contentType: MediaType('image', imageFile.path.split('.').last),
+        ),
+      );
+    }
+
+    print('\nDEBUG: Request Files');
+    print('Files count: ${request.files.length}');
+    for (var file in request.files) {
+      print('File field: ${file.field}');
+      print('File filename: ${file.filename}');
+      print('File length: ${file.length}');
+      print('File contentType: ${file.contentType}');
+    }
+
+    print('\nDEBUG: Sending Request');
+    final streamedResponse = await request.send();
+    print('Response status code: ${streamedResponse.statusCode}');
+
+    final response = await http.Response.fromStream(streamedResponse);
+    print('\nDEBUG: Response Body');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode != 201) {
+      final errorBody = json.decode(response.body);
+      print('\nDEBUG: Error Details');
+      print('Error: ${errorBody['error']}');
+      print('Status code: ${response.statusCode}');
+      throw Exception(
+          errorBody['error'] ?? 'Failed to upload payment: ${response.body}');
+    }
+
+    print('\nDEBUG: Upload Successful');
+    print('Status code: ${response.statusCode}');
+    print('Response: ${response.body}');
   }
 
   static T? getCachedData<T>(String key) {
@@ -2533,6 +2548,39 @@ class ApiService {
     } catch (e) {
       print('Error fetching stores: $e');
       rethrow;
+    }
+  }
+
+  // Get sales reps by route ID
+  static Future<List<SalesRep>> getSalesReps({int? routeId}) async {
+    try {
+      // Build the URI with route_id if provided
+      final uri = Uri.parse('$baseUrl/profile/users').replace(
+        queryParameters: routeId != null ? {'route_id': routeId.toString()} : null
+        );
+        
+      print('Fetching sales reps from: $uri'); // Debug log
+      
+      final response = await http.get(
+        uri,
+          headers: await _headers(),
+        );
+
+      print('Sales reps response status: ${response.statusCode}'); // Debug log
+      print('Sales reps response body: ${response.body}'); // Debug log
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+          return data.map((json) => SalesRep.fromJson(json)).toList();
+        }
+      
+      throw Exception('Failed to load sales reps: ${response.statusCode}');
+    } catch (e) {
+      print('Error fetching sales reps: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Failed to load sales reps: $e');
     }
   }
 }

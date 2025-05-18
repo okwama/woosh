@@ -242,10 +242,10 @@ class _TaskPageState extends State<TaskPage> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Text(
-                                'Sales Rep ID: ${task.salesRepId}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
+                              // Text(
+                              //   'Sales Rep ID: ${task.salesRepId}',
+                              //   style: const TextStyle(fontSize: 12),
+                              // ),
                             ],
                           ),
                           if (!task.isCompleted)

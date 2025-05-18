@@ -70,6 +70,7 @@ class ClientController extends GetxController {
     }
   }
 
+  @override
   Future<void> refresh() async {
     await loadInitialData();
   }

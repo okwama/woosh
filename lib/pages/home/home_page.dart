@@ -170,14 +170,14 @@ class _HomePageState extends State<HomePage> {
       if (salesRep != null && salesRep is Map<String, dynamic>) {
         userId = salesRep['id']?.toString();
       }
-      if (userId != null) {
-        try {
-          await SessionService.recordLogout(userId);
-        } catch (e) {
-          // Optionally show a message, but proceed with local logout
-          print('Failed to record logout on server: $e');
-        }
-      }
+      // if (userId != null) {
+      //   try {
+      //     await SessionService.recordLogout(userId);
+      //   } catch (e) {
+      //     // Optionally show a message, but proceed with local logout
+      //     print('Failed to record logout on server: $e');
+      //   }
+      // }
 
       // Clear all stored data
       await box.erase();
@@ -205,6 +205,22 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  Future<bool> _requireActiveSession() async {
+    final box = GetStorage();
+    final isSessionActive = box.read('isSessionActive') ?? false;
+    if (!isSessionActive) {
+      Get.snackbar(
+        'Session Required',
+        'Please start your session before accessing this feature.',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+      return false;
+    }
+    return true;
   }
 
   @override
@@ -301,7 +317,8 @@ class _HomePageState extends State<HomePage> {
                       title: 'Journey Plans',
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const JourneyPlansPage(),
                           preventDuplicates: true,
@@ -312,7 +329,8 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const ViewClientPage(),
                           preventDuplicates: true,
@@ -335,7 +353,8 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Add/Edit Order',
                       icon: Icons.edit,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const ViewClientPage(forOrderCreation: true),
                           preventDuplicates: true,
@@ -346,7 +365,8 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'View Orders',
                       icon: Icons.shopping_cart,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const ViewOrdersPage(),
                           preventDuplicates: true,
@@ -380,7 +400,8 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Uplift Sale',
                       icon: Icons.shopping_cart,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const ViewClientPage(forUpliftSale: true),
                           preventDuplicates: true,
@@ -401,7 +422,8 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Product Return',
                       icon: Icons.assignment_return,
-                      onTap: () {
+                      onTap: () async {
+                        if (!await _requireActiveSession()) return;
                         Get.to(
                           () => const ViewClientPage(forProductReturn: true),
                           preventDuplicates: true,

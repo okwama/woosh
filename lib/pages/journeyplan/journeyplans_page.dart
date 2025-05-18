@@ -20,7 +20,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   bool _isLoadingMore = false;
   List<Client> _clients = [];
   List<JourneyPlan> _journeyPlans = [];
-  Set<int> _hiddenJourneyPlans = {};
+  final Set<int> _hiddenJourneyPlans = {};
   String? _errorMessage;
   int _currentPage = 1;
   bool _hasMoreData = true;

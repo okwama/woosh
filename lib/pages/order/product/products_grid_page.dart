@@ -105,8 +105,9 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   }
 
   Future<void> _loadMoreData() async {
-    if (_paginatedData == null || !_paginatedData!.hasMore || _isLoading)
+    if (_paginatedData == null || !_paginatedData!.hasMore || _isLoading) {
       return;
+    }
 
     try {
       setState(() {

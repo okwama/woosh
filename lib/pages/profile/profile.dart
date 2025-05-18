@@ -27,6 +27,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
   bool isSessionActive = false;
   bool isProcessing = false;
+  bool isCheckingSessionState = false;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   }
 
   Future<void> _checkSessionStatus() async {
+    setState(() => isCheckingSessionState = true);
     final box = GetStorage();
     final userId = box.read<String>('userId');
     if (userId != null) {
@@ -52,6 +54,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         print('Error checking session status: $e');
       }
     }
+    setState(() => isCheckingSessionState = false);
   }
 
   Future<void> _toggleSession() async {
@@ -80,41 +83,45 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           Get.snackbar(
             'Cannot Start Session',
             response['error'],
-            backgroundColor: Colors.orange,
-            colorText: Colors.white,
+            backgroundColor: Colors.white,
+            colorText: Colors.orange,
             duration: const Duration(seconds: 5),
           );
           return;
         }
         setState(() => isSessionActive = true);
+        box.write('isSessionActive', true);
         Get.snackbar(
           'Success',
           'Session started successfully',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
+          backgroundColor: Colors.white,
+          colorText: Colors.green,
         );
       } else {
         // End session
         await SessionService.recordLogout(userId);
         setState(() => isSessionActive = false);
+        box.write('isSessionActive', false);
         Get.snackbar(
           'Success',
           'Session ended successfully',
-          backgroundColor: Colors.blue,
-          colorText: Colors.white,
+          backgroundColor: Colors.white,
+          colorText: Colors.blue,
         );
       }
     } catch (e) {
       String errorMessage =
           'Failed to ${isSessionActive ? 'end' : 'start'} session';
+      Color errorColor = Colors.red;
       if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
         errorMessage = 'Sessions can only be started after 9:00 AM';
+        errorColor = Colors.orange;
       }
       Get.snackbar(
         'Error',
         errorMessage,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: Colors.white,
+        colorText: errorColor,
       );
     } finally {
       setState(() => isProcessing = false);
@@ -641,7 +648,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             borderRadius: BorderRadius.circular(8),
           ),
           child: InkWell(
-            onTap: isProcessing ? null : _toggleSession,
+            onTap: isProcessing || isCheckingSessionState ? null : _toggleSession,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -672,7 +679,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  if (isProcessing)
+                  if (isCheckingSessionState)
                     const SizedBox(
                       width: 16,
                       height: 16,

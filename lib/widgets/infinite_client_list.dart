@@ -10,11 +10,11 @@ class InfiniteClientList extends StatelessWidget {
   final Widget Function(BuildContext, Client)? itemBuilder;
 
   const InfiniteClientList({
-    Key? key,
+    super.key,
     required this.controller,
     this.onClientTap,
     this.itemBuilder,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

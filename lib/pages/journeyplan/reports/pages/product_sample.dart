@@ -33,7 +33,7 @@ class _ProductSamplePageState extends State<ProductSamplePage> {
   List<Product> _products = [];
 
   // Cart: List of maps with product, quantity, reason
-  List<Map<String, dynamic>> _cart = [];
+  final List<Map<String, dynamic>> _cart = [];
 
   @override
   void initState() {

@@ -35,7 +35,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
   bool _isLoading = true;
   Product? _selectedProduct;
   List<Product> _products = [];
-  List<Map<String, dynamic>> _cart = [];
+  final List<Map<String, dynamic>> _cart = [];
 
   @override
   void initState() {

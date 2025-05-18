@@ -18,6 +18,7 @@ import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
 import 'checkin_page.dart';
+import 'package:woosh/pages/managers/teamRepor/salesrep_reports_page.dart';
 
 class ManagerHomePage extends StatefulWidget {
   const ManagerHomePage({super.key});
@@ -253,7 +254,18 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
                           transition: Transition.rightToLeft,
                         );
                       },
-                     ),
+                    ),
+                    MenuTile(
+                      title: 'Team Reports',
+                      icon: Icons.assignment_ind,
+                      onTap: () {
+                        Get.to(
+                          () => const SalesRepReportsPage(),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
+                      },
+                    ),
                     // MenuTile(
                     //   title: 'Notice Board',
                     //   icon: Icons.notifications,

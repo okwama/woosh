@@ -18,7 +18,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _targetValueController = TextEditingController();
-  final TextEditingController _currentValueController = TextEditingController();
 
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 30));
@@ -37,7 +36,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
       _titleController.text = widget.target!.title;
       _descriptionController.text = widget.target!.description;
       _targetValueController.text = widget.target!.targetValue.toString();
-      _currentValueController.text = widget.target!.currentValue.toString();
       _startDate = widget.target!.startDate;
       _endDate = widget.target!.endDate;
       _selectedType = widget.target!.type;
@@ -50,7 +48,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
     _titleController.dispose();
     _descriptionController.dispose();
     _targetValueController.dispose();
-    _currentValueController.dispose();
     super.dispose();
   }
 
@@ -67,21 +64,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
     }
     if (int.tryParse(value) == null || int.parse(value) <= 0) {
       return 'Please enter a valid number greater than 0';
-    }
-    return null;
-  }
-
-  String? _validateCurrentValue(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter current progress';
-    }
-    if (int.tryParse(value) == null || int.parse(value) < 0) {
-      return 'Please enter a valid number';
-    }
-    final currentValue = int.parse(value);
-    final targetValue = int.tryParse(_targetValueController.text) ?? 0;
-    if (currentValue > targetValue) {
-      return 'Current value cannot exceed target value';
     }
     return null;
   }
@@ -128,7 +110,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
           type: _selectedType,
           userId: userId,
           targetValue: int.parse(_targetValueController.text),
-          currentValue: int.parse(_currentValueController.text),
           startDate: _startDate,
           endDate: _endDate,
         );
@@ -147,7 +128,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
           description: _descriptionController.text,
           type: _selectedType,
           targetValue: int.parse(_targetValueController.text),
-          currentValue: int.parse(_currentValueController.text),
           startDate: _startDate,
           endDate: _endDate,
         );
@@ -197,7 +177,7 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      await TargetService.deleteTarget(widget.target!.id!);
+      await TargetService.deleteTarget(widget.target!.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Target deleted successfully')),
@@ -271,18 +251,6 @@ class _AddEditTargetPageState extends State<AddEditTargetPage> {
                             ),
                             keyboardType: TextInputType.number,
                             validator: _validateTargetValue,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _currentValueController,
-                            decoration: const InputDecoration(
-                              labelText: 'Current Progress',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                            validator: _validateCurrentValue,
                           ),
                         ),
                       ],

@@ -1,18 +1,22 @@
 class ClientPayment {
   final int id;
   final int clientId;
+  final int userId;
   final double amount;
+  final String? method;
   final String? imageUrl;
+  final String status;
   final DateTime date;
-  final String? status;
 
   ClientPayment({
     required this.id,
     required this.clientId,
+    required this.userId,
     required this.amount,
     this.imageUrl,
+    this.method,
+    required this.status,
     required this.date,
-    this.status,
   });
 
   // Factory method for creating a payment request
@@ -29,22 +33,26 @@ class ClientPayment {
   factory ClientPayment.fromJson(Map<String, dynamic> json) {
     return ClientPayment(
       id: json['id'],
-      clientId: json['client_id'] ?? json['clientId'], // Handle both formats
-      amount: (json['amount'] as num).toDouble(),
-      imageUrl: json['image_url'] ?? json['imageUrl'], // Handle both formats
-      date: DateTime.parse(json['date']),
+      clientId: json['clientId'],
+      userId: json['userId'],
+      amount: json['amount'].toDouble(),
+      imageUrl: json['imageUrl'],
+      method: json['method'],
       status: json['status'],
+      date: DateTime.parse(json['date']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'client_id': clientId, // Use snake_case for server compatibility
+      'clientId': clientId,
+      'userId': userId,
       'amount': amount,
-      'image_url': imageUrl, // Use snake_case for server compatibility
-      'date': date.toIso8601String(),
+      'imageUrl': imageUrl,
+      'method': method,
       'status': status,
+      'date': date.toIso8601String(),
     };
   }
 }

@@ -34,10 +34,8 @@ class ProductReportController extends GetxController {
         userId: userId,
       );
 
-      if (response != null) {
-        productReports.value = response;
-      }
-    } catch (e) {
+      productReports.value = response;
+        } catch (e) {
       errorMessage.value = e.toString();
     } finally {
       isLoading.value = false;

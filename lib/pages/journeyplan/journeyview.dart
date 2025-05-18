@@ -154,115 +154,141 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   }
 
   void _checkIn() async {
-    // First check if there's an active visit
-    final activeVisit = await ApiService.getActiveVisit();
-    print('Current journey plan status: ${widget.journeyPlan.status}');
-    print('Active visit found: ${activeVisit != null}');
-
-    // Check if current journey plan is already in progress
-    if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
-      Get.snackbar(
-        'Already Checked In',
-        'You are already checked in to this visit.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    // If there's an active visit and it's not this one, and it's not completed
-    if (activeVisit != null &&
-        activeVisit.id != widget.journeyPlan.id &&
-        !activeVisit.isCompleted) {
-      Get.dialog(
-        AlertDialog(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Active Visit Found',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'You have an active visit with:',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                activeVisit.clientName,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(activeVisit.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  _getStatusText(activeVisit.status),
-                  style: TextStyle(
-                    color: _getStatusColor(activeVisit.status),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Please complete your current visit before starting a new one.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Get.back();
-                Get.toNamed('/journey-view', arguments: activeVisit);
-              },
-              child: const Text('Go to Active Visit'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
     try {
       setState(() {
         _isCheckingIn = true;
       });
+
+      // First check if there's an active visit
+      final activeVisit = await ApiService.getActiveVisit();
+      print('Current journey plan status: ${widget.journeyPlan.status}');
+      print('Active visit found: ${activeVisit != null}');
+
+      // Check if current journey plan is already in progress
+      if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
+        Get.snackbar(
+          'Already Checked In',
+          'You are already checked in to this visit.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        setState(() {
+          _isCheckingIn = false;
+        });
+        return;
+      }
+
+      // If there's an active visit and it's not this one, and it's either checked in or in progress
+      if (activeVisit != null &&
+          activeVisit.id != widget.journeyPlan.id &&
+          (activeVisit.status == JourneyPlan.statusInProgress || 
+           activeVisit.status == JourneyPlan.statusCheckedIn)) {
+        Get.dialog(
+          AlertDialog(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Active Visit Found',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'You have an active visit with:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  activeVisit.clientName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(activeVisit.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _getStatusText(activeVisit.status),
+                    style: TextStyle(
+                      color: _getStatusColor(activeVisit.status),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Please complete your current visit before starting a new one.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Get.back();
+                  Get.toNamed('/journey-view', arguments: activeVisit);
+                },
+                child: const Text('Go to Active Visit'),
+              ),
+            ],
+          ),
+        );
+        print('Active visit found: ${activeVisit.id}');
+        setState(() {
+          _isCheckingIn = false;
+        });
+        return;
+      }
+
+      // Final validation - Double check active visit status right before proceeding
+      final finalActiveVisit = await ApiService.getActiveVisit();
+      if (finalActiveVisit != null && 
+          finalActiveVisit.id != widget.journeyPlan.id && 
+          (finalActiveVisit.status == JourneyPlan.statusInProgress || 
+           finalActiveVisit.status == JourneyPlan.statusCheckedIn)) {
+        Get.snackbar(
+          'Cannot Check In',
+          'Another visit became active. Please try again.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        setState(() {
+          _isCheckingIn = false;
+        });
+        return;
+      }
 
       // Check geofence before proceeding
       if (!await _checkGeofence()) {

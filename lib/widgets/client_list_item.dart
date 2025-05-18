@@ -6,10 +6,10 @@ class ClientListItem extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ClientListItem({
-    Key? key,
+    super.key,
     required this.client,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class ClientListItem extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (client.address?.isNotEmpty ?? false)
+            if (client.address.isNotEmpty ?? false)
               Text(
                 client.address ?? '',
                 maxLines: 2,

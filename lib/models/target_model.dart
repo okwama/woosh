@@ -5,46 +5,46 @@ enum TargetType {
 }
 
 class Target {
-  final int? id;
-  final String title;
-  final String description;
-  final TargetType type;
-  final int userId;
+  final int id;
+  final int salesRepId;
+  final bool isCurrent;
   final int targetValue;
-  final int currentValue;
-  final DateTime startDate;
-  final DateTime endDate;
-  final bool isCompleted;
+  final int achievedValue;
+  final bool achieved;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final double progress;
 
   Target({
-    this.id,
-    required this.title,
-    required this.description,
-    required this.type,
-    required this.userId,
+    required this.id,
+    required this.salesRepId,
+    required this.isCurrent,
     required this.targetValue,
-    this.currentValue = 0,
-    required this.startDate,
-    required this.endDate,
-    this.isCompleted = false,
+    required this.achievedValue,
+    required this.achieved,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.progress,
   });
 
-  // Calculate completion percentage
-  double get completionPercentage =>
-      targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+  // Add these getters to maintain compatibility with the UI
+  DateTime get startDate => createdAt;
+  DateTime get endDate => updatedAt;
+  bool get isCompleted => achieved;
+  String get title => 'Sales Target #$id';
+  String get description => 'Target: $targetValue products';
 
-  // Get color based on completion percentage
+  // Get color based on progress
   Color get statusColor {
-    if (isCompleted) return Colors.green;
-    final percentage = completionPercentage;
-    if (percentage >= 80) return Colors.green;
-    if (percentage >= 50) return Colors.orange;
+    if (achieved) return Colors.green;
+    if (progress >= 80) return Colors.green;
+    if (progress >= 50) return Colors.orange;
     return Colors.red;
   }
 
   // Get text representation of target type
   String get typeText {
-    switch (type) {
+    switch (TargetType.SALES) {
       case TargetType.SALES:
         return 'Products Sold';
       default:
@@ -55,50 +55,27 @@ class Target {
   // Check if target is active based on current date
   bool isActive() {
     final now = DateTime.now();
-    return now.isAfter(startDate) && now.isBefore(endDate) && !isCompleted;
+    return now.isAfter(createdAt) && now.isBefore(updatedAt) && !achieved;
   }
 
   // Check if target is overdue
   bool isOverdue() {
     final now = DateTime.now();
-    return now.isAfter(endDate) && !isCompleted;
-  }
-
-  // Factory method to create a Target from sales data
-  factory Target.fromSalesData({
-    required int totalItemsSold,
-    required int targetValue,
-    required DateTime startDate,
-    required DateTime endDate,
-    required int userId,
-  }) {
-    return Target(
-      id: DateTime.now().millisecondsSinceEpoch,
-      title: 'Sales Target',
-      description: 'Achieve sales target',
-      type: TargetType.SALES,
-      userId: userId,
-      targetValue: targetValue,
-      currentValue: totalItemsSold,
-      startDate: startDate,
-      endDate: endDate,
-      isCompleted: totalItemsSold >= targetValue,
-    );
+    return now.isAfter(updatedAt) && !achieved;
   }
 
   // Factory method to create a Target from JSON
   factory Target.fromJson(Map<String, dynamic> json) {
     return Target(
       id: json['id'],
-      title: json['title'],
-      description: json['description'] ?? '',
-      type: _parseTargetType(json['type']),
-      userId: json['userId'],
+      salesRepId: json['salesRepId'],
+      isCurrent: json['isCurrent'] ?? false,
       targetValue: json['targetValue'],
-      currentValue: json['currentValue'] ?? 0,
-      startDate: DateTime.parse(json['startDate']),
-      endDate: DateTime.parse(json['endDate']),
-      isCompleted: json['isCompleted'] ?? false,
+      achievedValue: json['achievedValue'] ?? 0,
+      achieved: json['achieved'] ?? false,
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      progress: (json['progress'] ?? 0).toDouble(),
     );
   }
 
@@ -106,53 +83,40 @@ class Target {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'title': title,
-      'description': description,
-      'type': type.toString().split('.').last,
-      'userId': userId,
+      'salesRepId': salesRepId,
+      'isCurrent': isCurrent,
       'targetValue': targetValue,
-      'currentValue': currentValue,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-      'isCompleted': isCompleted,
+      'achievedValue': achievedValue,
+      'achieved': achieved,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'progress': progress,
     };
   }
 
   // Create a copy of this Target with specified changes
   Target copyWith({
     int? id,
-    String? title,
-    String? description,
-    TargetType? type,
-    int? userId,
+    int? salesRepId,
+    bool? isCurrent,
     int? targetValue,
-    int? currentValue,
-    DateTime? startDate,
-    DateTime? endDate,
-    bool? isCompleted,
+    int? achievedValue,
+    bool? achieved,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    double? progress,
   }) {
     return Target(
       id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      type: type ?? this.type,
-      userId: userId ?? this.userId,
+      salesRepId: salesRepId ?? this.salesRepId,
+      isCurrent: isCurrent ?? this.isCurrent,
       targetValue: targetValue ?? this.targetValue,
-      currentValue: currentValue ?? this.currentValue,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      isCompleted: isCompleted ?? this.isCompleted,
+      achievedValue: achievedValue ?? this.achievedValue,
+      achieved: achieved ?? this.achieved,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      progress: progress ?? this.progress,
     );
-  }
-
-  // Helper method to parse target type from string
-  static TargetType _parseTargetType(String typeStr) {
-    switch (typeStr) {
-      case 'SALES':
-        return TargetType.SALES;
-      default:
-        return TargetType.SALES;
-    }
   }
 }
 

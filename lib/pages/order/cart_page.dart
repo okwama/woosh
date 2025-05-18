@@ -201,14 +201,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
       }
 
       final outletId = widget.outlet.id;
-      if (outletId == null) {
-        Get.snackbar(
-          'Error',
-          'Invalid outlet ID',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        return;
-      }
 
       if (cartController.items.isEmpty) {
         Get.snackbar(
@@ -253,28 +245,65 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           ? await ApiService.createOrder(
               clientId: outletId,
               items: orderItems,
-              imageFile: selectedImage.value, // Pass the image file directly
+              imageFile: selectedImage.value,
             )
           : await ApiService.updateOrder(
               orderId: orderId,
               orderItems: orderItems,
             );
 
+      // Check for outstanding balance
       if (response != null) {
-        cartController.clear();
-        selectedImage.value = null; // Clear selected image
-        _showOrderSuccessDialog();
+        if (response is Map<String, dynamic> && response['hasOutstandingBalance'] == true) {
+          final dialog = response['dialog'];
+          await Get.dialog(
+            AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Text(dialog?['title'] ?? 'Outstanding Balance'),
+                ],
+              ),
+              content: Text(dialog?['message'] ?? 'This client has an outstanding balance.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Get.back();
+                    // Proceed with order despite balance warning
+                    _processOrderSuccess();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Proceed Anyway'),
+                ),
+              ],
+            ),
+            barrierDismissible: false,
+          );
+          return;
+        } else if (response is Order) {
+          _processOrderSuccess();
+        }
       }
     } catch (e) {
       print('Error placing order: $e');
-      Get.snackbar(
-        'Error',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      handleOrderError(e);
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _processOrderSuccess() {
+    cartController.clear();
+    selectedImage.value = null;
+    _showOrderSuccessDialog();
   }
 
   void handleOrderError(dynamic error) async {

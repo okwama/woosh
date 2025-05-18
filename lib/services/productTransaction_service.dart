@@ -40,8 +40,9 @@ class ProductTransactionService {
       final queryParams = <String, String>{};
       if (type != null) queryParams['type'] = type;
       if (status != null) queryParams['status'] = status;
-      if (startDate != null)
+      if (startDate != null) {
         queryParams['startDate'] = startDate.toIso8601String();
+      }
       if (endDate != null) queryParams['endDate'] = endDate.toIso8601String();
       if (clientId != null) queryParams['clientId'] = clientId.toString();
       if (userId != null) queryParams['userId'] = userId.toString();

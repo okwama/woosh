@@ -5,7 +5,6 @@ import 'package:woosh/models/target_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/target_service.dart';
-import 'package:woosh/pages/profile/targets/add_edit_target_page.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import 'package:get_storage/get_storage.dart';
@@ -286,8 +285,7 @@ class _TargetsPageState extends State<TargetsPage>
         targets.sort((a, b) => a.startDate.compareTo(b.startDate));
         break;
       case 'progress':
-        targets.sort(
-            (a, b) => b.completionPercentage.compareTo(a.completionPercentage));
+        targets.sort((a, b) => b.progress.compareTo(a.progress));
         break;
       case 'title':
         targets.sort((a, b) => a.title.compareTo(b.title));
@@ -308,15 +306,15 @@ class _TargetsPageState extends State<TargetsPage>
   double get _overallProgress {
     if (_targets.isEmpty) return 0;
     int totalTargetValue = 0;
-    int totalCurrentValue = 0;
+    int totalAchievedValue = 0;
 
     for (var target in _targets) {
       totalTargetValue += target.targetValue;
-      totalCurrentValue += target.currentValue;
+      totalAchievedValue += target.achievedValue;
     }
 
     return totalTargetValue > 0
-        ? (totalCurrentValue / totalTargetValue) * 100
+        ? (totalAchievedValue / totalTargetValue) * 100
         : 0;
   }
 
@@ -390,21 +388,6 @@ class _TargetsPageState extends State<TargetsPage>
                     ),
                   ],
                 ),
-      // floatingActionButton: GradientFAB(
-      //   onPressed: () async {
-      //     final result = await Navigator.push(
-      //       context,
-      //       MaterialPageRoute(
-      //         builder: (context) => const AddEditTargetPage(),
-      //       ),
-      //     );
-
-      //     if (result == true) {
-      //       _refreshData();
-      //     }
-      //   },
-      //   icon: const Icon(Icons.add),
-      // ),
     );
   }
 
@@ -752,168 +735,152 @@ class _TargetsPageState extends State<TargetsPage>
 
   Widget _buildTargetCard(Target target) {
     final dateFormatter = DateFormat('MMM d, yyyy');
-    final progress = target.completionPercentage;
+    final progress = target.progress;
     final daysLeft = target.endDate.difference(DateTime.now()).inDays;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 3.0),
       elevation: 2,
-      child: InkWell(
-        onTap: () => _openTargetDetails(target),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      target.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    target.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      gradient: goldGradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      target.typeText,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              if (target.description.isNotEmpty) ...[
-                Text(
-                  target.description,
-                  style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
-              ],
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${dateFormatter.format(target.startDate)} - ${dateFormatter.format(target.endDate)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                  ),
-                  const Spacer(),
-                  if (!target.isCompleted &&
-                      !target.isOverdue() &&
-                      daysLeft >= 0) ...[
-                    Icon(Icons.timer, size: 12, color: Colors.blue[400]),
-                    const SizedBox(width: 3),
-                    Text(
-                      '$daysLeft days left',
-                      style: TextStyle(
-                          color: Colors.blue[400],
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  CircularPercentIndicator(
-                    radius: 20.0,
-                    lineWidth: 4.0,
-                    percent: progress / 100,
-                    center: GradientText(
-                      "${progress.toStringAsFixed(0)}%",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 9.0,
-                      ),
-                    ),
-                    progressColor: goldMiddle2,
-                    backgroundColor: Colors.grey[300]!,
-                    circularStrokeCap: CircularStrokeCap.round,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Progress: ${target.currentValue} / ${target.targetValue}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 12),
-                        ),
-                        const SizedBox(height: 3),
-                        GradientLinearProgressIndicator(
-                          value: progress / 100,
-                          height: 6.0,
-                          borderRadius: 3.0,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (target.isOverdue() && !target.isCompleted) ...[
-                const SizedBox(height: 6),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(3),
+                    gradient: goldGradient,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Text(
+                    target.typeText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (target.description.isNotEmpty) ...[
+              Text(
+                target.description,
+                style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+            ],
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  '${dateFormatter.format(target.startDate)} - ${dateFormatter.format(target.endDate)}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                ),
+                const Spacer(),
+                if (!target.isCompleted &&
+                    !target.isOverdue() &&
+                    daysLeft >= 0) ...[
+                  Icon(Icons.timer, size: 12, color: Colors.blue[400]),
+                  const SizedBox(width: 3),
+                  Text(
+                    '$daysLeft days left',
+                    style: TextStyle(
+                        color: Colors.blue[400],
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                CircularPercentIndicator(
+                  radius: 20.0,
+                  lineWidth: 4.0,
+                  percent: progress / 100,
+                  center: GradientText(
+                    "${progress.toStringAsFixed(0)}%",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9.0,
+                    ),
+                  ),
+                  progressColor: goldMiddle2,
+                  backgroundColor: Colors.grey[300]!,
+                  circularStrokeCap: CircularStrokeCap.round,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.warning_amber_rounded,
-                          color: Colors.red, size: 12),
-                      const SizedBox(width: 3),
                       Text(
-                        'Overdue by ${DateTime.now().difference(target.endDate).inDays} days',
+                        'Progress: ${target.achievedValue} / ${target.targetValue}',
                         style: const TextStyle(
-                            color: Colors.red,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold),
+                            fontWeight: FontWeight.w500, fontSize: 12),
+                      ),
+                      const SizedBox(height: 3),
+                      GradientLinearProgressIndicator(
+                        value: progress / 100,
+                        height: 6.0,
+                        borderRadius: 3.0,
                       ),
                     ],
                   ),
                 ),
               ],
+            ),
+            if (target.isOverdue() && !target.isCompleted) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.red, size: 12),
+                    const SizedBox(width: 3),
+                    Text(
+                      'Overdue by ${DateTime.now().difference(target.endDate).inDays} days',
+                      style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
-  }
-
-  void _openTargetDetails(Target target) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddEditTargetPage(target: target),
-      ),
-    );
-
-    if (result == true) {
-      _refreshData();
-    }
   }
 
   Widget _buildSkeletonCard() {

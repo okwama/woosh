@@ -11,6 +11,9 @@ class SalesRep {
   final String? region;
   final int? regionId;
   final int? routeId;
+  final String? route;
+  final String? country;
+  final int? countryId;
   final int? status;
   final String? photoUrl;
   //final String? department;
@@ -24,41 +27,29 @@ class SalesRep {
     this.region,
     this.regionId,
     this.routeId,
+    this.route,
+    this.country,
+    this.countryId,
     this.status,
     this.photoUrl,
     //this.department,
   });
 
   factory SalesRep.fromJson(Map<String, dynamic> json) {
-    // Support minimal user data from order responses
-    if (json['name'] != null && json['id'] != null) {
-      return SalesRep(
-        id: json['id'],
-        name: json['name'],
-        email: json['email'] ?? '',
-        phoneNumber: json['phoneNumber'] ?? '',
-        role: json['role'],
-        region: json['region'],
-        regionId: json['regionId'],
-        routeId: json['route_id'],
-        status: json['status'],
-        photoUrl: json['photoUrl'],
-      );
-    }
-
-    // Full user data parsing
     return SalesRep(
-      id: json['id'],
-      name: json['name'],
-      email: json['email'],
-      phoneNumber: json['phoneNumber'],
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
       role: json['role'],
       region: json['region'],
-      regionId: json['regionId'],
+      regionId: json['region_id'],
       routeId: json['route_id'],
+      route: json['route'],
+      country: json['country'],
+      countryId: json['countryId'],
       status: json['status'],
       photoUrl: json['photoUrl'],
-      //department: json['department'],
     );
   }
 
@@ -67,11 +58,14 @@ class SalesRep {
       'id': id,
       'name': name,
       'email': email,
-      'phone_number': phoneNumber,
+      'phoneNumber': phoneNumber,
       'role': role,
       'region': region,
-      'regionId': regionId,
+      'region_id': regionId,
       'route_id': routeId,
+      'route': route,
+      'country': country,
+      'countryId': countryId,
       'status': status,
       'photoUrl': photoUrl,
       //'department': department,

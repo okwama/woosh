@@ -78,14 +78,12 @@ class TargetService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          final targets = (data['data'] as List)
-              .map((item) => Target.fromJson(item))
-              .toList();
-
-          _cacheData(cacheKey, targets);
-          return targets;
-        }
+        // Expect a list of targets with achievedValue and progress from backend
+        final targets = (data as List)
+            .map((item) => Target.fromJson(item))
+            .toList();
+        _cacheData(cacheKey, targets);
+        return targets;
       }
       return [];
     } catch (e) {
@@ -125,11 +123,6 @@ class TargetService {
   // Update an existing target
   static Future<Target?> updateTarget(Target target) async {
     try {
-      if (target.id == null) {
-        print('Error: Target ID is required for update');
-        return null;
-      }
-
       final token = _getAuthToken();
       if (token == null) {
         print('Error: No authentication token found');
