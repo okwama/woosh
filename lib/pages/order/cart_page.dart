@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/controllers/auth_controller.dart';
@@ -17,7 +17,7 @@ import 'dart:typed_data';
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
-  final Order? order;
+  final OrderModel? order;
 
   const CartPage({
     super.key,
@@ -38,6 +38,9 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   final RxList<Store> availableStores = <Store>[].obs;
   final Rx<dynamic> selectedImage =
       Rx<dynamic>(null); // For storing selected image
+  final RxString comment = ''.obs; // Add comment field
+  final TextEditingController commentController =
+      TextEditingController(); // Add controller
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -50,6 +53,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    commentController.dispose(); // Dispose the controller
     super.dispose();
   }
 
@@ -211,6 +215,13 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         return;
       }
 
+      // Show comment dialog before proceeding
+      final shouldProceed = await _showCommentDialog();
+      if (!shouldProceed) {
+        isLoading.value = false;
+        return;
+      }
+
       // Prepare order items with store information
       final orderItems = cartController.items.map((item) {
         if (item.product == null) {
@@ -246,15 +257,18 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
               clientId: outletId,
               items: orderItems,
               imageFile: selectedImage.value,
+              comment: comment.value, // Add comment
             )
           : await ApiService.updateOrder(
               orderId: orderId,
               orderItems: orderItems,
+              comment: comment.value, // Add comment
             );
 
       // Check for outstanding balance
       if (response != null) {
-        if (response is Map<String, dynamic> && response['hasOutstandingBalance'] == true) {
+        if (response is Map<String, dynamic> &&
+            response['hasOutstandingBalance'] == true) {
           final dialog = response['dialog'];
           await Get.dialog(
             AlertDialog(
@@ -265,7 +279,8 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   Text(dialog?['title'] ?? 'Outstanding Balance'),
                 ],
               ),
-              content: Text(dialog?['message'] ?? 'This client has an outstanding balance.'),
+              content: Text(dialog?['message'] ??
+                  'This client has an outstanding balance.'),
               actions: [
                 TextButton(
                   onPressed: () => Get.back(),
@@ -288,7 +303,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
             barrierDismissible: false,
           );
           return;
-        } else if (response is Order) {
+        } else if (response is OrderModel) {
           _processOrderSuccess();
         }
       }
@@ -303,7 +318,76 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   void _processOrderSuccess() {
     cartController.clear();
     selectedImage.value = null;
+    comment.value = ''; // Clear comment
+    commentController.clear(); // Clear comment controller
     _showOrderSuccessDialog();
+  }
+
+  Future<bool> _showCommentDialog() async {
+    commentController.clear(); // Clear any existing comment
+    comment.value = ''; // Reset comment value
+
+    final result = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Delivery Information'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Add any delivery information (e.g., KRA PIN, delivery instructions)',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: commentController,
+              decoration: InputDecoration(
+                hintText: 'Enter delivery information...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                isDense: true,
+              ),
+              maxLines: 2,
+              onChanged: (value) => comment.value = value,
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Get.back(result: false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Get.back(result: true);
+                },
+                child: const Text('Skip'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Get.back(result: true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                child: const Text('Add & Proceed'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
   }
 
   void handleOrderError(dynamic error) async {

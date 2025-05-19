@@ -249,7 +249,7 @@ class ApiService {
 
       // Force logout and redirect to login
       final authController = Get.find<AuthController>();
-      authController.isLoggedIn.value = false;
+      await authController.logout();
       Get.offAllNamed('/login');
 
       throw Exception("Session expired. Please log in again.");
@@ -1214,6 +1214,7 @@ class ApiService {
     required int clientId,
     required List<Map<String, dynamic>> items,
     dynamic imageFile,
+    String? comment, // Add comment parameter
   }) async {
     try {
       await _initDioHeaders();
@@ -1253,6 +1254,7 @@ class ApiService {
             ? items[0]['storeId']
             : null, // Add storeId from first item
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (comment != null) 'comment': comment, // Add comment to request body
       };
 
       print(
@@ -1477,6 +1479,7 @@ class ApiService {
   static Future<Order> updateOrder({
     required int orderId,
     required List<Map<String, dynamic>> orderItems,
+    String? comment, // Add comment parameter
   }) async {
     try {
       final token = _getAuthToken();
@@ -1489,6 +1492,8 @@ class ApiService {
         headers: await _headers(),
         body: jsonEncode({
           'orderItems': orderItems,
+          if (comment != null)
+            'comment': comment, // Add comment to request body
         }),
       );
 
@@ -2014,7 +2019,7 @@ class ApiService {
       await box.remove('token');
       await box.remove('salesRep');
       final authController = Get.find<AuthController>();
-      authController.isLoggedIn.value = false;
+      await authController.logout();
     } catch (e) {
       print('Error during logout: $e');
     }

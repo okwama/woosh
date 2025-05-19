@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/price_option_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/services/api_service.dart';
@@ -16,7 +16,7 @@ import 'package:get_storage/get_storage.dart';
 class ProductDetailPage extends StatefulWidget {
   final Outlet outlet;
   final Product product;
-  final Order? order;
+  final OrderModel? order;
 
   const ProductDetailPage({
     super.key,
@@ -597,7 +597,7 @@ class _QuantitySelector extends StatelessWidget {
 class _CartIconButton extends StatelessWidget {
   final CartController cartController;
   final Outlet outlet;
-  final Order? order;
+  final OrderModel? order;
 
   const _CartIconButton({
     required this.cartController,

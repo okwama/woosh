@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
@@ -16,6 +17,7 @@ import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/controllers/cart_controller.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -24,6 +26,8 @@ import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
 import 'package:woosh/services/session_service.dart';
 import 'package:woosh/services/session_state.dart';
+import 'package:woosh/services/hive/session_hive_service.dart';
+import 'package:woosh/models/session_model.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -41,6 +45,8 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
   final TaskService _taskService = TaskService();
   final SessionState _sessionState = Get.put(SessionState());
+  final SessionHiveService _sessionHiveService = SessionHiveService();
+  final CartController _cartController = Get.put(CartController());
 
   @override
   void initState() {
@@ -214,32 +220,61 @@ class _HomePageState extends State<HomePage> {
     final box = GetStorage();
     final userId = box.read<String>('userId');
     if (userId == null) return false;
-    
+
+    // Check Hive cache first
+    final cachedSession = await _sessionHiveService.getSession();
+    if (cachedSession != null &&
+        cachedSession.lastCheck != null &&
+        DateTime.now().difference(cachedSession.lastCheck!) <
+            const Duration(minutes: 1)) {
+      _sessionState.updateSessionState(
+          cachedSession.isActive, cachedSession.loginTime);
+      return cachedSession.isActive;
+    }
+
     try {
       final response = await SessionService.getSessionHistory(userId);
       final sessions = response['sessions'] as List;
       if (sessions.isNotEmpty) {
         final lastSession = sessions.first;
         final isActive = lastSession['logoutAt'] == null;
-        _sessionState.updateSessionState(isActive, DateTime.parse(lastSession['loginAt']));
+        final loginTime = DateTime.parse(lastSession['loginAt']);
+
+        // Save to Hive
+        await _sessionHiveService.saveSession(SessionModel(
+          isActive: isActive,
+          lastCheck: DateTime.now(),
+          loginTime: loginTime,
+          userId: userId,
+        ));
+
+        _sessionState.updateSessionState(isActive, loginTime);
         return isActive;
       }
     } catch (e) {
       print('Error validating session: $e');
+      // If API call fails, use cached value if available
+      if (cachedSession != null) {
+        return cachedSession.isActive;
+      }
     }
     return false;
   }
 
   Future<bool> _canAccessFeature() async {
-    if (!await _validateSession()) {
-      Get.snackbar(
-        'Session Required',
-        'Please start your session before accessing this feature.',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-      return false;
+    // Use the cached session state from GetX
+    if (!_sessionState.isSessionActive.value) {
+      // Only validate if we don't have a cached state
+      if (!await _validateSession()) {
+        Get.snackbar(
+          'Session Required',
+          'Please start your session before accessing this feature.',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+        return false;
+      }
     }
     return true;
   }
@@ -264,6 +299,48 @@ class _HomePageState extends State<HomePage> {
       appBar: GradientAppBar(
         title: 'Woosh',
         actions: [
+          Obx(() {
+            final cartItems = _cartController.totalItems;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart),
+                  tooltip: 'Cart',
+                  onPressed: () {
+                    Get.to(
+                      () => const ViewOrdersPage(),
+                      preventDuplicates: true,
+                      transition: Transition.rightToLeft,
+                    );
+                  },
+                ),
+                if (cartItems > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$cartItems',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -449,7 +526,8 @@ class _HomePageState extends State<HomePage> {
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         )?.then((selectedOutlet) {
-                          if (selectedOutlet != null && selectedOutlet is Outlet) {
+                          if (selectedOutlet != null &&
+                              selectedOutlet is Outlet) {
                             Get.off(
                               () => UpliftSaleCartPage(
                                 outlet: selectedOutlet,
@@ -490,7 +568,7 @@ class SessionMiddleware extends GetMiddleware {
   RouteSettings? redirect(String? route) {
     final box = GetStorage();
     final isSessionActive = box.read<bool>('isSessionActive') ?? false;
-    
+
     if (!isSessionActive && route != '/profile') {
       return const RouteSettings(name: '/profile');
     }

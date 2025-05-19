@@ -78,7 +78,8 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (result['success']) {
-        _authController.isLoggedIn.value = true;
+        await _authController.login(
+            _phoneNumberController.text.trim(), _passwordController.text);
 
         // Get user role from the result
         final salesRep = result['salesRep'];

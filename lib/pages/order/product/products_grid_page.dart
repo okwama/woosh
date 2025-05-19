@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/services/api_service.dart';
@@ -16,7 +16,7 @@ import 'dart:async';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;
-  final Order? order;
+  final OrderModel? order;
 
   const ProductsGridPage({
     super.key,

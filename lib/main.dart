@@ -12,13 +12,26 @@ import 'package:woosh/controllers/uplift_cart_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/inactivity_timer.dart';
 import 'package:woosh/pages/managers/managerHome.dart';
+import 'package:woosh/utils/hive/hive_initializer.dart';
+import 'package:hive/hive.dart';
+import 'package:woosh/models/hive/session_model.dart';
+import 'package:woosh/services/hive/session_hive_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await GetStorage.init(); // Initialize GetStorage
-  Get.put(AuthController()); // Initialize AuthController
-  Get.put(UpliftCartController()); // Initialize UpliftCartController
-  runApp(MyApp());
+
+  try {
+    await GetStorage.init();
+    // Initialize Hive with all adapters
+    await HiveInitializer.initialize();
+
+    Get.put(AuthController());
+    Get.put(UpliftCartController());
+    runApp(MyApp());
+  } catch (e) {
+    print('Error initializing app: $e');
+    // You might want to show an error screen or handle the error appropriately
+  }
 }
 
 class MyApp extends StatelessWidget {

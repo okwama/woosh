@@ -12,6 +12,8 @@ import 'package:get/get.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
+import '../../services/hive/client_hive_service.dart';
+import '../../models/hive/client_model.dart';
 
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
@@ -432,5 +434,55 @@ class _ViewClientPageState extends State<ViewClientPage> {
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
+  }
+}
+
+class ClientController extends GetxController {
+  final ClientHiveService _hiveService = ClientHiveService();
+  final _clients = <ClientModel>[].obs;
+  final _isLoading = false.obs;
+  final _searchQuery = ''.obs;
+
+  List<ClientModel> get clients => _searchQuery.isEmpty
+      ? _clients
+      : _hiveService.searchClients(_searchQuery.value);
+  bool get isLoading => _isLoading.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadClients();
+  }
+
+  Future<void> loadClients() async {
+    _isLoading.value = true;
+    try {
+      // First load from Hive
+      final localClients = _hiveService.getAllClients();
+      if (localClients.isNotEmpty) {
+        _clients.value = localClients;
+      }
+
+      // Then fetch from API and update Hive
+      final apiClients = await ApiService.getClients();
+      final clientModels =
+          apiClients.map((client) => ClientModel.fromJson(client as Map<String, dynamic>)).toList();
+
+      await _hiveService.saveClients(clientModels);
+      _clients.value = clientModels;
+    } catch (e) {
+      print('Error loading clients: $e');
+      // If API call fails, we still have the local data
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  void searchClients(String query) {
+    _searchQuery.value = query;
+  }
+
+  Future<void> refreshClients() async {
+    await loadClients();
   }
 }

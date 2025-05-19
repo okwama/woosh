@@ -7,6 +7,62 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/skeleton_loader.dart';
+import 'package:get/get.dart';
+import '../../services/hive/journey_plan_hive_service.dart';
+import '../../models/hive/journey_plan_model.dart';
+
+class JourneyPlansController extends GetxController {
+  final JourneyPlanHiveService _hiveService = JourneyPlanHiveService();
+  final _journeyPlans = <JourneyPlanModel>[].obs;
+  final _isLoading = false.obs;
+
+  List<JourneyPlanModel> get journeyPlans => _journeyPlans;
+  bool get isLoading => _isLoading.value;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadJourneyPlans();
+  }
+
+  Future<void> loadJourneyPlans() async {
+    _isLoading.value = true;
+    try {
+      // First load from Hive
+      final localPlans = _hiveService.getAllJourneyPlans();
+      if (localPlans.isNotEmpty) {
+        _journeyPlans.value = localPlans;
+      }
+
+      // Then fetch from API and update Hive
+      final apiPlans = await ApiService.fetchJourneyPlans();
+      final journeyPlanModels = apiPlans.map((plan) {
+        return JourneyPlanModel(
+          id: plan.id ?? 0,
+          date: plan.date,
+          time: plan.time,
+          userId: plan.salesRepId ?? 0,
+          clientId: plan.clientId ?? 0,
+          status: plan.status,
+          showUpdateLocation: false,
+          routeId: plan.routeId,
+        );
+      }).toList();
+
+      await _hiveService.saveJourneyPlans(journeyPlanModels);
+      _journeyPlans.value = journeyPlanModels;
+    } catch (e) {
+      print('Error loading journey plans: $e');
+      // If API call fails, we still have the local data
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+
+  Future<void> refreshJourneyPlans() async {
+    await loadJourneyPlans();
+  }
+}
 
 class JourneyPlansPage extends StatefulWidget {
   const JourneyPlansPage({super.key});

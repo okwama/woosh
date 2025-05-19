@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/price_option_model.dart';
 import 'package:woosh/services/api_service.dart';
@@ -10,7 +10,7 @@ import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/utils/date_utils.dart' as custom_date;
 
 class OrderDetailPage extends StatefulWidget {
-  final Order? order;
+  final OrderModel? order;
 
   const OrderDetailPage({
     super.key,
@@ -24,12 +24,12 @@ class OrderDetailPage extends StatefulWidget {
 class _OrderDetailPageState extends State<OrderDetailPage> {
   bool _isUpdating = false;
   final _quantityController = TextEditingController();
-  List<OrderItem> _orderItems = [];
+  List<OrderItemModel> _orderItems = [];
 
   @override
   void initState() {
     super.initState();
-    _orderItems = widget.order?.orderItems ?? [];
+    _orderItems = widget.order?.items ?? [];
   }
 
   @override
@@ -82,38 +82,52 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     }
   }
 
-  void _updateOrderItemQuantity(OrderItem item, int newQuantity) {
+  void _updateOrderItemQuantity(OrderItemModel item, int newQuantity) {
     setState(() {
       final index = _orderItems.indexOf(item);
       if (index != -1) {
-        _orderItems[index] = OrderItem(
+        _orderItems[index] = OrderItemModel(
           id: item.id,
           productId: item.productId,
+          productName: item.productName,
           quantity: newQuantity,
-          product: item.product,
-          priceOptionId: item.priceOptionId,
+          unitPrice: item.unitPrice,
         );
       }
     });
   }
 
-  void _removeOrderItem(OrderItem item) {
+  void _removeOrderItem(OrderItemModel item) {
     setState(() {
       _orderItems.remove(item);
     });
   }
 
-  void _navigateToUpdateOrder() {
+  void _navigateToUpdateOrder() async {
     if (widget.order == null) return;
 
-    Get.to(
-      () => AddOrderPage(
-        outlet: widget.order!.client,
-        order: widget.order,
-      ),
-      preventDuplicates: true,
-      transition: Transition.rightToLeft,
-    );
+    try {
+      // Fetch outlet details
+      final outlets = await ApiService.fetchOutlets();
+      final outlet = outlets.firstWhere((o) => o.id == widget.order!.clientId);
+
+      Get.to(
+        () => AddOrderPage(
+          outlet: outlet,
+          order: widget.order,
+        ),
+        preventDuplicates: true,
+        transition: Transition.rightToLeft,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to fetch outlet details: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   @override
@@ -200,12 +214,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       child: Column(
         children: [
           _buildInfoRow('Order Date',
-              custom_date.DateUtils.formatDateTime(widget.order!.createdAt)),
+              custom_date.DateUtils.formatDateTime(widget.order!.orderDate)),
           const Divider(height: 16),
-          _buildInfoRow('Outlet', widget.order!.client.name),
+          _buildInfoRow('Outlet', widget.order!.clientId.toString()),
           const Divider(height: 16),
-          _buildInfoRow('Status',
-              widget.order!.status.toString().split('.').last.toUpperCase()),
+          _buildInfoRow('Status', widget.order!.status),
         ],
       ),
     );
@@ -236,7 +249,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     );
   }
 
-  Widget _buildOrderItemTile(OrderItem item) {
+  Widget _buildOrderItemTile(OrderItemModel item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
@@ -256,22 +269,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: item.product?.imageUrl != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.network(
-                    ImageUtils.getGridUrl(item.product!.imageUrl!),
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: Colors.grey,
-                  size: 20,
-                ),
+          child: const Icon(
+            Icons.shopping_bag_outlined,
+            color: Colors.grey,
+            size: 20,
+          ),
         ),
         title: Text(
-          item.product?.name ?? 'Unknown Product',
+          item.productName,
           style: const TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: 13,
@@ -396,7 +401,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   Widget _buildBottomBar(BuildContext context) {
-    final isPending = widget.order?.status == OrderStatus.PENDING;
+    final isPending = widget.order?.status == 'PENDING';
 
     return SafeArea(
       child: Padding(

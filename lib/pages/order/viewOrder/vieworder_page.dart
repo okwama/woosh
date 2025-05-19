@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
+import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/pages/order/viewOrder/orderDetail.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
@@ -137,8 +139,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
 
     try {
       // Try to get cached data first
-      final cachedData = ApiService.getCachedData<List<Order>>(
-          'orders_page_${_page + 1}');
+      final cachedData =
+          ApiService.getCachedData<List<Order>>('orders_page_${_page + 1}');
 
       if (cachedData != null) {
         if (mounted) {
@@ -214,7 +216,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
       setState(() {
         _isLoading = true;
       });
-      
+
       // Clear existing cache before refresh
       for (int i = 1; i <= _precachePages; i++) {
         ApiService.removeFromCache('orders_page_$i');
@@ -223,14 +225,14 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
       // Reset pagination state but keep existing orders
       _page = 1;
       _hasMore = true;
-      
+
       // Load fresh data
       final response = await _retryApiCall(
         () => ApiService.getOrders(page: 1, limit: _limit),
         maxRetries: 3,
         timeout: const Duration(seconds: 15),
       );
-      
+
       // Update with new data only after successfully loading
       if (mounted) {
         setState(() {
@@ -238,7 +240,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
           _isLoading = false;
           _hasMore = response.page < response.totalPages;
         });
-        
+
         // Precache next pages if available
         if (_hasMore) {
           _precacheNextPages();
@@ -276,10 +278,10 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
       // Find the current index of the order to update
       final currentIndex = _orders.indexWhere((o) => o.id == orderId);
       if (currentIndex == -1) return; // Order not found in list
-      
+
       // Store a reference to the current order for comparison later
       final currentOrder = _orders[currentIndex];
-      
+
       // Use the existing getOrders API with a small limit
       // This is more efficient than reloading all orders
       final response = await _retryApiCall(
@@ -287,13 +289,13 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
         maxRetries: 2,
         timeout: const Duration(seconds: 10),
       );
-      
+
       // Find the updated order in the response
       final updatedOrder = response.data.firstWhere(
         (o) => o.id == orderId,
         orElse: () => currentOrder, // Keep current if not found
       );
-      
+
       // Update only this order in the list if it's different
       if (mounted && updatedOrder != currentOrder) {
         setState(() {
@@ -439,10 +441,43 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                       onTap: () {
                                         // Navigate to order detail and refresh on return if needed
                                         final future = Get.to(
-                                          () => OrderDetailPage(order: order),
+                                          () => OrderDetailPage(
+                                            order: OrderModel(
+                                              id: order.id,
+                                              clientId: order.client.id,
+                                              orderNumber: order.id.toString(),
+                                              orderDate: order.createdAt,
+                                              totalAmount: order.totalAmount,
+                                              status: order.status
+                                                  .toString()
+                                                  .split('.')
+                                                  .last,
+                                              items: order.orderItems
+                                                  .map((item) => OrderItemModel(
+                                                        id: item.id ?? 0,
+                                                        productId:
+                                                            item.product?.id ??
+                                                                0,
+                                                        productName: item
+                                                                .product
+                                                                ?.name ??
+                                                            'Unknown Product',
+                                                        quantity: item.quantity,
+                                                        unitPrice: (item.product
+                                                                    ?.priceOptions
+                                                                    .firstWhereOrNull((po) =>
+                                                                        po.id ==
+                                                                        item.priceOptionId)
+                                                                    ?.value ??
+                                                                0)
+                                                            .toDouble(),
+                                                      ))
+                                                  .toList(),
+                                            ),
+                                          ),
                                           transition: Transition.rightToLeft,
                                         );
-                                        
+
                                         // Use null-safe then() to handle the result
                                         future?.then((result) {
                                           // Refresh only the specific order if an update was made

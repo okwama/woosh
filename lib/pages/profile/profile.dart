@@ -17,6 +17,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
 import 'dart:async';
+import 'package:woosh/services/hive/session_hive_service.dart';
+import 'package:woosh/models/hive/session_model.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -28,6 +30,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
   final SessionState _sessionState = Get.put(SessionState());
+  final SessionHiveService _sessionHiveService = SessionHiveService();
   bool isSessionActive = false;
   bool isProcessing = false;
   bool isCheckingSessionState = false;
@@ -36,6 +39,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initHive();
     _checkSessionStatus();
     // Add periodic session check
     Timer.periodic(const Duration(minutes: 5), (timer) {
@@ -43,22 +47,60 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _initHive() async {
+    await _sessionHiveService.init();
+  }
+
   Future<void> _checkSessionStatus() async {
+    if (isCheckingSessionState) return;
+
     setState(() => isCheckingSessionState = true);
     final box = GetStorage();
     final userId = box.read<String>('userId');
+
+    // First check Hive cache
+    final cachedSession = await _sessionHiveService.getSession();
+    if (cachedSession != null &&
+        cachedSession.lastCheck != null &&
+        DateTime.now().difference(cachedSession.lastCheck!) <
+            const Duration(minutes: 1)) {
+      setState(() {
+        isSessionActive = cachedSession.isActive;
+        isCheckingSessionState = false;
+      });
+      return;
+    }
+
     if (userId != null) {
       try {
         final response = await SessionService.getSessionHistory(userId);
         final sessions = response['sessions'] as List;
         if (sessions.isNotEmpty) {
           final lastSession = sessions.first;
+          final isActive = lastSession['logoutAt'] == null;
+          final loginTime = DateTime.parse(lastSession['loginAt']);
+
+          // Save to Hive
+          await _sessionHiveService.saveSession(SessionModel(
+            isActive: isActive,
+            lastCheck: DateTime.now(),
+            loginTime: loginTime,
+            userId: userId,
+          ));
+
           setState(() {
-            isSessionActive = lastSession['logoutAt'] == null;
+            isSessionActive = isActive;
           });
+          _sessionState.updateSessionState(isActive, loginTime);
         }
       } catch (e) {
         print('Error checking session status: $e');
+        // If API call fails, use cached value if available
+        if (cachedSession != null) {
+          setState(() {
+            isSessionActive = cachedSession.isActive;
+          });
+        }
       }
     }
     setState(() => isCheckingSessionState = false);
@@ -67,13 +109,18 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   Future<void> _checkSessionTimeout() async {
     final box = GetStorage();
     final userId = box.read<String>('userId');
-    if (userId != null) {
-      final isValid = await SessionService.isSessionValid(userId);
-      if (!isValid && isSessionActive) {
+    if (userId == null) return;
+
+    // Check Hive cache first
+    final cachedSession = await _sessionHiveService.getSession();
+    if (cachedSession != null &&
+        cachedSession.lastCheck != null &&
+        DateTime.now().difference(cachedSession.lastCheck!) <
+            const Duration(minutes: 1)) {
+      if (!cachedSession.isActive && isSessionActive) {
         setState(() {
           isSessionActive = false;
         });
-        box.write('isSessionActive', false);
         Get.snackbar(
           'Session Expired',
           'Your session has expired. Please start a new session.',
@@ -81,6 +128,29 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           colorText: Colors.white,
         );
       }
+      return;
+    }
+
+    final isValid = await SessionService.isSessionValid(userId);
+    if (!isValid && isSessionActive) {
+      setState(() {
+        isSessionActive = false;
+      });
+
+      // Update Hive cache
+      await _sessionHiveService.saveSession(SessionModel(
+        isActive: false,
+        lastCheck: DateTime.now(),
+        loginTime: cachedSession?.loginTime,
+        userId: userId,
+      ));
+
+      Get.snackbar(
+        'Session Expired',
+        'Your session has expired. Please start a new session.',
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -116,8 +186,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           );
           return;
         }
+
+        // Save to Hive
+        await _sessionHiveService.saveSession(SessionModel(
+          isActive: true,
+          lastCheck: DateTime.now(),
+          loginTime: DateTime.now(),
+          userId: userId,
+        ));
+
         setState(() => isSessionActive = true);
-        box.write('isSessionActive', true);
         _sessionState.updateSessionState(true, DateTime.now());
         Get.snackbar(
           'Success',
@@ -128,8 +206,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       } else {
         // End session
         await SessionService.recordLogout(userId);
+
+        // Update Hive
+        await _sessionHiveService.saveSession(SessionModel(
+          isActive: false,
+          lastCheck: DateTime.now(),
+          loginTime: null,
+          userId: userId,
+        ));
+
         setState(() => isSessionActive = false);
-        box.write('isSessionActive', false);
         _sessionState.updateSessionState(false, null);
         Get.snackbar(
           'Success',
@@ -139,7 +225,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         );
       }
     } catch (e) {
-      String errorMessage = 'Failed to ${isSessionActive ? 'end' : 'start'} session';
+      String errorMessage =
+          'Failed to ${isSessionActive ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
       if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
         errorMessage = 'Sessions can only be started after 9:00 AM';
@@ -676,7 +763,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             borderRadius: BorderRadius.circular(8),
           ),
           child: InkWell(
-            onTap: isProcessing || isCheckingSessionState ? null : _toggleSession,
+            onTap:
+                isProcessing || isCheckingSessionState ? null : _toggleSession,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

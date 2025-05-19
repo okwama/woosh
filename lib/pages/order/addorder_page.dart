@@ -1,14 +1,15 @@
 // Add/Edit Order Page
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/controllers/cart_controller.dart';
+import 'package:woosh/services/hive/order_hive_service.dart';
 
 class AddOrderPage extends StatefulWidget {
   final Outlet outlet;
-  final Order? order;
+  final OrderModel? order;
 
   const AddOrderPage({
     super.key,
@@ -21,13 +22,20 @@ class AddOrderPage extends StatefulWidget {
 }
 
 class _AddOrderPageState extends State<AddOrderPage> {
+  final OrderHiveService _orderHiveService = OrderHiveService();
+
   @override
   void initState() {
     super.initState();
+    _initializeHive();
     // Initialize cart controller if it doesn't exist
     if (!Get.isRegistered<CartController>()) {
       Get.put(CartController());
     }
+  }
+
+  Future<void> _initializeHive() async {
+    await _orderHiveService.init();
   }
 
   @override

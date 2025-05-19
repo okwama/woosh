@@ -147,3 +147,20 @@ The app implements:
 - The app follows the GetX pattern for state management and dependency injection
 - UI components are designed to be reusable
 - The app appears to implement responsive design principles 
+#Aded HIve
+lib/
+  ├── models/
+  │   └── hive/
+  │       ├── journey_plan_model.dart
+  │       ├── order_model.dart
+  │       ├── client_model.dart
+  │       └── user_model.dart
+  ├── services/
+  │   └── hive/
+  │       ├── journey_plan_hive_service.dart
+  │       ├── order_hive_service.dart
+  │       ├── client_hive_service.dart
+  │       └── user_hive_service.dart
+  └── utils/
+      └── hive/
+          └── hive_initializer.dart
