@@ -174,11 +174,9 @@ class _SalesRepReportsPageState extends State<SalesRepReportsPage> {
 
   String _getSafeReportType(Report report) {
     try {
-      if (report.type != null) {
-        final typeStr = report.type.toString().split('.').last;
-        return typeStr.replaceAll('_', ' ');
-      }
-    } catch (e) {
+      final typeStr = report.type.toString().split('.').last;
+      return typeStr.replaceAll('_', ' ');
+        } catch (e) {
       print('Error getting report type: $e');
     }
     return 'Unknown Type';

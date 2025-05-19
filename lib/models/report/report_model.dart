@@ -21,402 +21,151 @@ class Report {
   final int? id;
   final ReportType type;
   final int? journeyPlanId;
-  final int? salesRepId;
-  final int? orderId;
-  final int? clientId;
+  final int salesRepId;
+  final int clientId;
   final DateTime? createdAt;
-  final SalesRep? user;
+  final DateTime? updatedAt;
+  final ProductReport? productReport; // For backward compatibility
+  final List<ProductReport>? productReports; // New field for multiple products
+  final VisibilityReport? visibilityReport;
+  final FeedbackReport? feedbackReport;
   final List<ProductReturnItem>? productReturnItems;
   final List<ProductSampleItem>? productSampleItems;
 
   // Related reports
-  final ProductReport? productReport;
-  final VisibilityReport? visibilityReport;
-  final FeedbackReport? feedbackReport;
   final ProductReturn? productReturn;
   final ProductSample? productSample; // Added ProductSample
 
   final Client? client;
+  final SalesRep? user; // Changed from User to SalesRep
 
   Report({
     this.id,
     required this.type,
     this.journeyPlanId,
-    this.salesRepId,
-    this.orderId,
-    this.clientId,
+    required this.salesRepId,
+    required this.clientId,
     this.createdAt,
-    this.user,
+    this.updatedAt,
     this.productReport,
+    this.productReports,
     this.visibilityReport,
     this.feedbackReport,
-    this.productReturn,
-    this.productSample, // Added ProductSample
     this.productReturnItems,
     this.productSampleItems,
+    this.productReturn,
+    this.productSample, // Added ProductSample
     this.client,
+    this.user, // Add user to constructor
   });
 
   factory Report.fromJson(Map<String, dynamic> json) {
-    try {
-      print('DEBUG: Parsing Report JSON: $json');
+    final type = ReportType.values.firstWhere(
+      (e) => e.toString().split('.').last == json['type'],
+      orElse: () => ReportType.FEEDBACK,
+    );
 
-      // Parse ID with validation
-      final idValue = json['id'] != null 
-          ? int.tryParse(json['id'].toString()) ?? 0 
-          : 0;
+    // Handle product reports
+    ProductReport? productReport;
+    List<ProductReport>? productReports;
 
-      // Parse journeyPlanId with validation
-      final journeyPlanIdValue = json['journeyPlanId'] != null 
-          ? int.tryParse(json['journeyPlanId'].toString()) ?? null 
-          : null;
-
-      // Parse orderId with validation
-      final orderIdValue = json['orderId'] != null 
-          ? int.tryParse(json['orderId'].toString()) ?? null 
-          : null;
-
-      // Parse salesRepId with null-safety
-      int? salesRepId;
-      if (json['salesRepId'] != null) {
-        salesRepId = int.tryParse(json['salesRepId'].toString());
-      } else if (json['userId'] != null) {
-        salesRepId = int.tryParse(json['userId'].toString());
-      }
-
-      // Parse clientId with null-safety
-      int? clientId;
-      if (json['clientId'] != null) {
-        try {
-          clientId = int.tryParse(json['clientId'].toString());
-        } catch (e) {
-          print('WARNING: Failed to parse clientId: $e');
-        }
-      }
-
-      // Parse report type with validation and fallback
-      ReportType reportType;
-      try {
-        final typeStr = json['type']?.toString().toUpperCase() ?? '';
-        reportType = ReportType.values.firstWhere(
-          (e) => e.toString().split('.').last == typeStr,
-          orElse: () => ReportType.PRODUCT_AVAILABILITY,
-        );
-        print('DEBUG: Parsed report type: $reportType');
-      } catch (e) {
-        print('ERROR: Failed to parse report type: $e, defaulting to PRODUCT_AVAILABILITY');
-        reportType = ReportType.PRODUCT_AVAILABILITY;
-      }
-
-      // Parse specific report data with null safety
-      ProductReport? productReport;
-      VisibilityReport? visibilityReport;
-      FeedbackReport? feedbackReport;
-      ProductReturn? productReturn;
-      ProductSample? productSample;
-      List<ProductReturnItem>? productReturnItems;
-      List<ProductSampleItem>? productSampleItems;
-
-      // Try to parse the specific report based on the type
-      try {
-        final specificReportFieldName = _getSpecificReportFieldName(reportType);
-        if (json[specificReportFieldName] != null) {
-          final specificReportJson = json[specificReportFieldName];
-          
-          switch (reportType) {
-            case ReportType.PRODUCT_AVAILABILITY:
-              productReport = ProductReport.fromJson(specificReportJson);
-              break;
-            case ReportType.VISIBILITY_ACTIVITY:
-              visibilityReport = VisibilityReport.fromJson(specificReportJson);
-              break;
-            case ReportType.FEEDBACK:
-              feedbackReport = FeedbackReport.fromJson(specificReportJson);
-              break;
-            case ReportType.PRODUCT_RETURN:
-              productReturn = ProductReturn.fromJson(specificReportJson);
-              
-              // Try to parse product return items
-              if (json['productReturnItems'] != null && json['productReturnItems'] is List) {
-                productReturnItems = (json['productReturnItems'] as List)
-                    .map((itemJson) => ProductReturnItem.fromJson(itemJson))
-                    .toList();
-              }
-              break;
-            case ReportType.PRODUCT_SAMPLE:
-              productSample = ProductSample.fromJson(specificReportJson);
-              
-              // Try to parse product sample items
-              if (json['productSampleItems'] != null && json['productSampleItems'] is List) {
-                productSampleItems = (json['productSampleItems'] as List)
-                    .map((itemJson) => ProductSampleItem.fromJson(itemJson))
-                    .toList();
-              }
-              break;
-          }
+    if (json['specificReport'] != null) {
+      if (type == ReportType.PRODUCT_AVAILABILITY) {
+        if (json['specificReport'] is List) {
+          final reports = (json['specificReport'] as List)
+              .map((report) => ProductReport.fromJson(report))
+              .toList();
+          productReports = reports;
+          productReport = reports.isNotEmpty ? reports.first : null;
         } else {
-          print('DEBUG: Specific report field is null for type $reportType');
-          print('DEBUG: JSON for specific report: ${json[_getSpecificReportFieldName(reportType)]}');
-          // Create empty report based on type
-          switch (reportType) {
-            case ReportType.PRODUCT_AVAILABILITY:
-              productReport = ProductReport(
-                reportId: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-                productName: 'Unknown Product',
-                quantity: 0,
-                comment: 'Error parsing product report data',
-              );
-              break;
-            case ReportType.VISIBILITY_ACTIVITY:
-              visibilityReport = VisibilityReport(
-                reportId: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-                comment: 'Error parsing visibility report data',
-                imageUrl: null,
-              );
-              break;
-            case ReportType.FEEDBACK:
-              feedbackReport = FeedbackReport(
-                reportId: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-                comment: 'Error parsing feedback report data',
-              );
-              break;
-            case ReportType.PRODUCT_RETURN:
-              productReturn = ProductReturn(
-                reportId: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-                reason: 'Error parsing product return data',
-                productName: 'Unknown Product',
-                quantity: 0,
-              );
-              break;
-            case ReportType.PRODUCT_SAMPLE:
-              productSample = ProductSample(
-                reportId: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-                reason: 'Error parsing product sample data',
-                productName: 'Unknown Product',
-                quantity: 0,
-              );
-              break;
-          }
-        }
-      } catch (e) {
-        print('WARNING: Failed to parse specific report data: $e');
-        // Create a fallback specific report based on type
-        switch (reportType) {
-          case ReportType.PRODUCT_AVAILABILITY:
-            productReport = ProductReport(
-              reportId: idValue,
-              productName: 'Error: Failed to parse',
-              quantity: 0,
-              comment: 'Error parsing report: $e',
-            );
-            break;
-          case ReportType.VISIBILITY_ACTIVITY:
-            visibilityReport = VisibilityReport(
-              reportId: idValue,
-              comment: 'Error parsing report: $e',
-              imageUrl: null,
-            );
-            break;
-          case ReportType.FEEDBACK:
-            feedbackReport = FeedbackReport(
-              reportId: idValue,
-              comment: 'Error parsing report: $e',
-            );
-            break;
-          case ReportType.PRODUCT_RETURN:
-            productReturn = ProductReturn(
-              reportId: idValue,
-              reason: 'Error parsing report: $e',
-              productName: 'Unknown Product',
-              quantity: 0,
-            );
-            break;
-          case ReportType.PRODUCT_SAMPLE:
-            productSample = ProductSample(
-              reportId: idValue,
-              reason: 'Error parsing report: $e',
-              productName: 'Unknown Product',
-              quantity: 0,
-            );
-            break;
+          productReport = ProductReport.fromJson(json['specificReport']);
+          productReports = [productReport];
         }
       }
-
-      // Parse user and client with field name normalization
-      SalesRep? user;
-      if (json['user'] != null) {
-        try {
-          user = SalesRep.fromJson(json['user']);
-          print('DEBUG: Parsed user data');
-        } catch (e) {
-          print('WARNING: Failed to parse user data: $e');
-        }
-      } else if (json['User'] != null) {
-        try {
-          user = SalesRep.fromJson(json['User']);
-          print('DEBUG: Parsed User data (PascalCase)');
-        } catch (e) {
-          print('WARNING: Failed to parse User data (PascalCase): $e');
-        }
-      }
-
-      Client? client;
-      if (json['client'] != null) {
-        try {
-          client = Client.fromJson(json['client']);
-          print('DEBUG: Parsed client data');
-        } catch (e) {
-          print('WARNING: Failed to parse client data: $e');
-        }
-      } else if (json['Client'] != null) {
-        try {
-          client = Client.fromJson(json['Client']);
-          print('DEBUG: Parsed Client data (PascalCase)');
-        } catch (e) {
-          print('WARNING: Failed to parse Client data (PascalCase): $e');
-        }
-      }
-
-      // Parse DateTime with validation and retry
-      DateTime? createdAt;
-      if (json['createdAt'] != null) {
-        try {
-          final dateStr = json['createdAt'].toString();
-          // Validate ISO 8601 format
-          if (!RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}').hasMatch(dateStr)) {
-            print('WARNING: Invalid date format: $dateStr');
-            createdAt = DateTime.now();
-          } else {
-            createdAt = DateTime.tryParse(dateStr);
-            if (createdAt == null) {
-              print('WARNING: Failed to parse date: $dateStr');
-              createdAt = DateTime.now();
-            }
-          }
-        } catch (e) {
-          print('ERROR: Failed to parse createdAt: $e');
-          createdAt = DateTime.now();
-        }
-      } else {
-        createdAt = DateTime.now();
-      }
-
-      // Sanitize string fields
-      String sanitizeString(dynamic value) {
-        if (value == null) return '';
-        final str = value.toString().trim();
-        return str.isEmpty ? '' : str;
-      }
-
-      print('DEBUG: Creating Report object with type: $reportType');
-      
-      return Report(
-        id: idValue,
-        type: reportType,
-        journeyPlanId: journeyPlanIdValue,
-        salesRepId: salesRepId,
-        orderId: orderIdValue,
-        clientId: clientId,
-        createdAt: createdAt,
-        user: user,
-        productReport: productReport,
-        visibilityReport: visibilityReport,
-        feedbackReport: feedbackReport,
-        productReturn: productReturn,
-        productSample: productSample,
-        productReturnItems: productReturnItems,
-        productSampleItems: productSampleItems,
-        client: client,
-      );
-    } catch (e) {
-      print('ERROR: Failed to parse Report JSON: $e');
-      print('DEBUG: JSON that caused the error: $json');
-      
-      // Instead of rethrowing, return a placeholder report
-      final fallbackId = json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0;
-      
-      // Try to parse the report type, or default to PRODUCT_AVAILABILITY
-      ReportType fallbackType;
-      try {
-        final typeStr = json['type']?.toString().toUpperCase() ?? '';
-        fallbackType = ReportType.values.firstWhere(
-          (e) => e.toString().split('.').last == typeStr,
-          orElse: () => ReportType.PRODUCT_AVAILABILITY,
-        );
-      } catch (_) {
-        fallbackType = ReportType.PRODUCT_AVAILABILITY;
-      }
-      
-      // Try to extract user information, even if minimal
-      SalesRep? fallbackUser;
-      try {
-        if (json['user'] is Map) {
-          final userData = json['user'] as Map;
-          final userId = userData['id'] ?? 0;
-          final userName = userData['name'] ?? 'Unknown User';
-          fallbackUser = SalesRep(
-            id: userId is int ? userId : int.tryParse(userId.toString()) ?? 0,
-            name: userName is String ? userName : userName.toString(),
-            email: '',
-            phoneNumber: '',
-          );
-        }
-      } catch (_) {}
-      
-      // Create fallback client info if possible
-      Client? fallbackClient;
-      try {
-        if (json['client'] is Map) {
-          final clientData = json['client'] as Map;
-          final clientId = clientData['id'] ?? 0;
-          final clientName = clientData['name'] ?? 'Unknown Client';
-          fallbackClient = Client(
-            id: clientId is int ? clientId : int.tryParse(clientId.toString()) ?? 0,
-            name: clientName is String ? clientName : clientName.toString(),
-            address: clientData['address'] as String? ?? '',
-            regionId: clientData['region_id'] as int? ?? 0,
-            region: clientData['region'] as String? ?? '',
-            countryId: clientData['countryId'] as int? ?? 0,
-          );
-        }
-      } catch (_) {}
-      
-      // Create a fallback DateTime
-      final fallbackDateTime = DateTime.now();
-      
-      return Report(
-        id: fallbackId,
-        type: fallbackType,
-        salesRepId: json['userId'] != null ? int.tryParse(json['userId'].toString()) : null,
-        clientId: json['clientId'] != null ? int.tryParse(json['clientId'].toString()) : null,
-        createdAt: fallbackDateTime,
-        user: fallbackUser,
-        client: fallbackClient,
-      );
     }
+
+    // Parse user data if available
+    SalesRep? user;
+    if (json['user'] != null) {
+      user = SalesRep.fromJson(json['user']);
+    }
+
+    return Report(
+      id: json['id'],
+      type: type,
+      journeyPlanId: json['journeyPlanId'],
+      salesRepId: json['userId'] ?? json['salesRepId'] ?? 0,
+      clientId: json['clientId'] ?? 0,
+      createdAt:
+          json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      updatedAt:
+          json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      productReport: productReport,
+      productReports: productReports,
+      visibilityReport: json['specificReport'] != null &&
+              type == ReportType.VISIBILITY_ACTIVITY
+          ? VisibilityReport.fromJson(json['specificReport'])
+          : null,
+      feedbackReport:
+          json['specificReport'] != null && type == ReportType.FEEDBACK
+              ? FeedbackReport.fromJson(json['specificReport'])
+              : null,
+      productReturnItems:
+          json['specificReport'] != null && type == ReportType.PRODUCT_RETURN
+              ? (json['specificReport']['items'] as List)
+                  .map((item) => ProductReturnItem.fromJson(item))
+                  .toList()
+              : null,
+      productSampleItems:
+          json['specificReport'] != null && type == ReportType.PRODUCT_SAMPLE
+              ? (json['specificReport']['items'] as List)
+                  .map((item) => ProductSampleItem.fromJson(item))
+                  .toList()
+              : null,
+      user: user, // Add user to the Report object
+    );
   }
 
   Map<String, dynamic> toJson() {
-    final typeString = type.toString().split('.').last;
-    return {
-      if (id != null) 'id': id,
-      'type': typeString,
-      if (journeyPlanId != null) 'journeyPlanId': journeyPlanId,
-      if (salesRepId != null) 'salesRepId': salesRepId,
-      if (orderId != null) 'orderId': orderId,
-      if (clientId != null) 'clientId': clientId,
-      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
-      if (_getSpecificReportJson() != null)
-        'specificReport': _getSpecificReportJson(),
-      'productReturn': productReturn?.toJson(),
-      'productSample': productSample?.toJson(),
-      if (productReturnItems != null)
-        'productReturnItems':
-            productReturnItems!.map((e) => e.toJson()).toList(),
-      if (productSampleItems != null)
-        'productSampleItems':
-            productSampleItems!.map((e) => e.toJson()).toList(),
+    final Map<String, dynamic> data = {
+      'type': type.toString().split('.').last,
+      'journeyPlanId': journeyPlanId,
+      'userId': salesRepId,
+      'clientId': clientId,
     };
+
+    if (id != null) data['id'] = id;
+    if (createdAt != null) data['createdAt'] = createdAt!.toIso8601String();
+    if (updatedAt != null) data['updatedAt'] = updatedAt!.toIso8601String();
+
+    // Handle product reports
+    if (type == ReportType.PRODUCT_AVAILABILITY) {
+      if (productReports != null && productReports!.isNotEmpty) {
+        data['details'] =
+            productReports!.map((report) => report.toJson()).toList();
+      } else if (productReport != null) {
+        data['details'] = [productReport!.toJson()];
+      }
+    }
+
+    // Handle other report types
+    if (type == ReportType.VISIBILITY_ACTIVITY && visibilityReport != null) {
+      data['details'] = visibilityReport!.toJson();
+    } else if (type == ReportType.FEEDBACK && feedbackReport != null) {
+      data['details'] = feedbackReport!.toJson();
+    } else if (type == ReportType.PRODUCT_RETURN &&
+        productReturnItems != null) {
+      data['details'] = {
+        'items': productReturnItems!.map((item) => item.toJson()).toList(),
+      };
+    } else if (type == ReportType.PRODUCT_SAMPLE &&
+        productSampleItems != null) {
+      data['details'] = {
+        'items': productSampleItems!.map((item) => item.toJson()).toList(),
+      };
+    }
+
+    return data;
   }
 
   Map<String, dynamic>? _getSpecificReportJson() {
@@ -530,13 +279,15 @@ class Report {
 
   // Null-safe display getters
   String get displayId => id?.toString() ?? 'N/A';
-  String get displayType => type.toString().split('.').last.replaceAll('_', ' ');
+  String get displayType =>
+      type.toString().split('.').last.replaceAll('_', ' ');
   String get displayJourneyPlanId => journeyPlanId?.toString() ?? 'N/A';
-  String get displaySalesRepId => salesRepId?.toString() ?? 'N/A';
-  String get displayOrderId => orderId?.toString() ?? 'N/A';
-  String get displayClientId => clientId?.toString() ?? 'N/A';
+  String get displaySalesRepId => salesRepId.toString();
+  String get displayOrderId => null.toString() ?? 'N/A';
+  String get displayClientId => clientId.toString();
   String get displayCreatedAt => createdAt?.toLocal().toString() ?? 'N/A';
-  
+  String get displayUpdatedAt => updatedAt?.toLocal().toString() ?? 'N/A';
+
   // User and client display info
   String get displayUserName => user?.name ?? 'Unknown User';
   String get displayUserEmail => user?.email ?? 'No Email';
@@ -565,25 +316,33 @@ class Report {
   // Product return items display
   List<Map<String, String>> get displayProductReturnItems {
     if (productReturnItems == null || productReturnItems!.isEmpty) {
-      return [{'message': 'No return items'}];
+      return [
+        {'message': 'No return items'}
+      ];
     }
-    return productReturnItems!.map((item) => {
-      'product': item.productName ?? 'Unknown Product',
-      'quantity': item.quantity?.toString() ?? '0',
-      'reason': item.reason ?? 'No reason provided',
-    }).toList();
+    return productReturnItems!
+        .map((item) => {
+              'product': item.productName ?? 'Unknown Product',
+              'quantity': item.quantity?.toString() ?? '0',
+              'reason': item.reason ?? 'No reason provided',
+            })
+        .toList();
   }
 
   // Product sample items display
   List<Map<String, String>> get displayProductSampleItems {
     if (productSampleItems == null || productSampleItems!.isEmpty) {
-      return [{'message': 'No sample items'}];
+      return [
+        {'message': 'No sample items'}
+      ];
     }
-    return productSampleItems!.map((item) => {
-      'product': item.productName ?? 'Unknown Product',
-      'quantity': item.quantity?.toString() ?? '0',
-      'reason': item.reason ?? 'No reason provided',
-    }).toList();
+    return productSampleItems!
+        .map((item) => {
+              'product': item.productName ?? 'Unknown Product',
+              'quantity': item.quantity?.toString() ?? '0',
+              'reason': item.reason ?? 'No reason provided',
+            })
+        .toList();
   }
 
   // Product availability display
@@ -605,10 +364,7 @@ class Report {
   // Visibility activity display
   Map<String, String> get displayVisibilityActivity {
     if (visibilityReport == null) {
-      return {
-        'comment': 'No visibility data',
-        'image': 'No image'
-      };
+      return {'comment': 'No visibility data', 'image': 'No image'};
     }
     return {
       'comment': visibilityReport!.comment ?? 'No comment',
@@ -619,13 +375,9 @@ class Report {
   // Feedback display
   Map<String, String> get displayFeedback {
     if (feedbackReport == null) {
-      return {
-        'comment': 'No feedback data'
-      };
+      return {'comment': 'No feedback data'};
     }
-    return {
-      'comment': feedbackReport!.comment ?? 'No comment'
-    };
+    return {'comment': feedbackReport!.comment ?? 'No comment'};
   }
 
   // Product return display
@@ -633,7 +385,9 @@ class Report {
     if (productReturn == null) {
       return {
         'reason': 'No return data',
-        'items': [{'message': 'No return items'}]
+        'items': [
+          {'message': 'No return items'}
+        ]
       };
     }
     return {
@@ -647,7 +401,9 @@ class Report {
     if (productSample == null) {
       return {
         'reason': 'No sample data',
-        'items': [{'message': 'No sample items'}]
+        'items': [
+          {'message': 'No sample items'}
+        ]
       };
     }
     return {
@@ -666,6 +422,7 @@ class Report {
       'orderId': displayOrderId,
       'clientId': displayClientId,
       'createdAt': displayCreatedAt,
+      'updatedAt': displayUpdatedAt,
       'user': {
         'name': displayUserName,
         'email': displayUserEmail,
@@ -708,6 +465,7 @@ class Report {
         'orderId: $displayOrderId, '
         'clientId: $displayClientId, '
         'createdAt: $displayCreatedAt, '
+        'updatedAt: $displayUpdatedAt, '
         'user: $displayUserName, '
         'client: $displayClientName'
         '}';
@@ -715,7 +473,7 @@ class Report {
 
   static ReportType _parseReportType(dynamic type) {
     print('DEBUG: Parsing report type from: $type (${type.runtimeType})');
-    
+
     if (type == null) {
       print('ERROR: Report type is null');
       throw Exception('Report type cannot be null');
@@ -730,7 +488,7 @@ class Report {
     } else {
       typeStr = type.toString().toUpperCase().replaceAll(' ', '_');
     }
-    
+
     print('DEBUG: Normalized type string: $typeStr');
 
     // Try exact match first
@@ -749,7 +507,8 @@ class Report {
         // Try partial match for legacy data
         if (typeStr.contains('PRODUCT') && typeStr.contains('AVAILABILITY')) {
           return ReportType.PRODUCT_AVAILABILITY;
-        } else if (typeStr.contains('VISIBILITY') && typeStr.contains('ACTIVITY')) {
+        } else if (typeStr.contains('VISIBILITY') &&
+            typeStr.contains('ACTIVITY')) {
           return ReportType.VISIBILITY_ACTIVITY;
         } else if (typeStr.contains('FEEDBACK')) {
           return ReportType.FEEDBACK;
@@ -758,7 +517,7 @@ class Report {
         } else if (typeStr.contains('PRODUCT') && typeStr.contains('SAMPLE')) {
           return ReportType.PRODUCT_SAMPLE;
         }
-        
+
         print('ERROR: Unknown report type: $typeStr');
         throw Exception('Unknown report type: $typeStr');
     }

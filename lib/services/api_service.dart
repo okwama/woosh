@@ -963,7 +963,6 @@ class ApiService {
       print('REPORT DEBUG: ClientId: ${report.clientId}');
 
       // Prepare request body according to server's expected format
-      // The server expects userId instead of salesRepId and a details field
       final Map<String, dynamic> requestBody = {
         'type': report.type.toString().split('.').last,
         'journeyPlanId': report.journeyPlanId,
@@ -974,14 +973,17 @@ class ApiService {
       // Add details field based on report type
       switch (report.type) {
         case ReportType.PRODUCT_AVAILABILITY:
-          if (report.productReport == null) {
+          if (report.productReports == null || report.productReports!.isEmpty) {
             throw Exception('Product report details are missing');
           }
-          requestBody['details'] = {
-            'productName': report.productReport!.productName,
-            'quantity': report.productReport!.quantity,
-            'comment': report.productReport!.comment,
-          };
+          requestBody['details'] = report.productReports!
+              .map((product) => {
+                    'productName': product.productName,
+                    'productId': product.productId,
+                    'quantity': product.quantity,
+                    'comment': product.comment,
+                  })
+              .toList();
           break;
         case ReportType.VISIBILITY_ACTIVITY:
           if (report.visibilityReport == null) {
@@ -1051,20 +1053,23 @@ class ApiService {
 
         // The server returns { report: {...}, specificReport: {...} }
         // We need to merge these to create a single Report object
-        if (data['report'] != null && data['specificReport'] != null) {
+        if (data['report'] != null) {
           // Copy the main report data
           final Map<String, dynamic> mergedData = {...data['report']};
 
           // Add the specific report type from the original request
-          // since it's not returned directly in the format we need
           mergedData['type'] = report.type.toString().split('.').last;
 
-          // Add the specific report data
-          final String reportType = report.type.toString().split('.').last;
-          mergedData['specificReport'] = {
-            ...data['specificReport'],
-            'type': reportType // Make sure type is included
-          };
+          // Add the specific report data if it exists
+          if (data['specificReport'] != null) {
+            if (data['specificReport'] is List) {
+              // Handle array of product reports
+              mergedData['productReports'] = data['specificReport'];
+            } else {
+              // Handle single specific report
+              mergedData['specificReport'] = data['specificReport'];
+            }
+          }
 
           print('REPORT DEBUG: Merged data for parsing: $mergedData');
           return Report.fromJson(mergedData);
@@ -1087,9 +1092,9 @@ class ApiService {
   Future<List<Report>> getReports({
     int? journeyPlanId,
     int? clientId,
-    int? salesRepId, 
-    String? endDate, 
-    String? startDate, 
+    int? salesRepId,
+    String? endDate,
+    String? startDate,
     String? type,
   }) async {
     try {
@@ -1109,7 +1114,8 @@ class ApiService {
       if (endDate != null) queryParams['endDate'] = endDate;
       if (type != null) queryParams['type'] = type;
 
-      final uri = Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
+      final uri =
+          Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
 
       final response = await http.get(
         uri,
@@ -1118,7 +1124,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        
+
         // Process each report and safely handle any parsing errors
         final reports = <Report>[];
         for (final json in data) {
@@ -1131,7 +1137,7 @@ class ApiService {
             // Skip this report but continue parsing others
           }
         }
-        
+
         return reports;
       } else {
         throw Exception('Failed to load reports: ${response.statusCode}');
@@ -1275,14 +1281,16 @@ class ApiService {
         // Handle the response safely
         try {
           final responseData = jsonDecode(response.body);
-          
+
           // Check if this is a balance warning response
           if (responseData['hasOutstandingBalance'] == true) {
             return {
               'hasOutstandingBalance': true,
               'dialog': {
-                'title': responseData['dialog']?['title'] ?? 'Outstanding Balance',
-                'message': responseData['dialog']?['message'] ?? 'This client has an outstanding balance.',
+                'title':
+                    responseData['dialog']?['title'] ?? 'Outstanding Balance',
+                'message': responseData['dialog']?['message'] ??
+                    'This client has an outstanding balance.',
               },
             };
           }
@@ -1311,7 +1319,8 @@ class ApiService {
             return Order.fromJson(orderData);
           } else {
             // Handle actual error response
-            final errorMessage = responseData['error'] ?? 'Failed to create order';
+            final errorMessage =
+                responseData['error'] ?? 'Failed to create order';
             print('Error from server: $errorMessage');
             throw Exception(errorMessage);
           }
@@ -1323,7 +1332,8 @@ class ApiService {
       } else {
         try {
           final errorData = jsonDecode(response.body);
-          final errorMessage = errorData['error'] ?? 'Failed to create order: ${response.statusCode}';
+          final errorMessage = errorData['error'] ??
+              'Failed to create order: ${response.statusCode}';
           throw Exception(errorMessage);
         } catch (jsonError) {
           print('Error parsing error response: $jsonError');
@@ -2556,24 +2566,24 @@ class ApiService {
     try {
       // Build the URI with route_id if provided
       final uri = Uri.parse('$baseUrl/profile/users').replace(
-        queryParameters: routeId != null ? {'route_id': routeId.toString()} : null
-        );
-        
+          queryParameters:
+              routeId != null ? {'route_id': routeId.toString()} : null);
+
       print('Fetching sales reps from: $uri'); // Debug log
-      
+
       final response = await http.get(
         uri,
-          headers: await _headers(),
-        );
+        headers: await _headers(),
+      );
 
       print('Sales reps response status: ${response.statusCode}'); // Debug log
       print('Sales reps response body: ${response.body}'); // Debug log
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-          return data.map((json) => SalesRep.fromJson(json)).toList();
-        }
-      
+        return data.map((json) => SalesRep.fromJson(json)).toList();
+      }
+
       throw Exception('Failed to load sales reps: ${response.statusCode}');
     } catch (e) {
       print('Error fetching sales reps: $e');
