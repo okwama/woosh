@@ -462,14 +462,14 @@ class ApiService {
 
   // Create a Journey Plan
   static Future<JourneyPlan> createJourneyPlan(int clientId, DateTime dateTime,
-      {String? notes}) async {
+      {String? notes, int? routeId}) async {
     try {
       print(
-          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes');
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
       // Debug: print the entire request body and user
       print('--- Incoming createJourneyPlan request ---');
       print(
-          'req.body: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes');
+          'req.body: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
       print('req.user: $clientId');
 
       final token = _getAuthToken();
@@ -482,7 +482,7 @@ class ApiService {
           '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
 
       print(
-          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes');
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes, routeId: $routeId');
 
       final Map<String, dynamic> requestBody = {
         'clientId': clientId,
@@ -492,6 +492,10 @@ class ApiService {
 
       if (notes != null && notes.isNotEmpty) {
         requestBody['notes'] = notes;
+      }
+
+      if (routeId != null) {
+        requestBody['routeId'] = routeId;
       }
 
       // Add debug logging
@@ -2591,6 +2595,36 @@ class ApiService {
         rethrow;
       }
       throw Exception('Failed to load sales reps: $e');
+    }
+  }
+
+  // Get available routes
+  static Future<List<Map<String, dynamic>>> getRoutes() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/routes'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((route) => {
+                  'id': route['id'],
+                  'name': route['name'],
+                })
+            .toList();
+      } else {
+        throw Exception('Failed to load routes: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching routes: $e');
+      throw Exception('Failed to load routes: $e');
     }
   }
 }

@@ -24,6 +24,8 @@ class JourneyPlan {
   final double? checkoutLatitude;
   final double? checkoutLongitude;
   final bool showUpdateLocation; // New flag to control button visibility
+  final int? routeId; // Add routeId
+  final String? routeName; // Add routeName
 
   JourneyPlan({
     this.id,
@@ -42,6 +44,8 @@ class JourneyPlan {
     this.checkoutLongitude,
     this.showUpdateLocation =
         true, // Default to true for backward compatibility
+    this.routeId, // Add routeId
+    this.routeName, // Add routeName
   });
 
   // Helper getters for status
@@ -106,6 +110,8 @@ class JourneyPlan {
     double? checkoutLatitude,
     double? checkoutLongitude,
     bool? showUpdateLocation, // Add the new flag
+    int? routeId, // Add routeId
+    String? routeName, // Add routeName
   }) {
     return JourneyPlan(
       id: id ?? this.id,
@@ -124,6 +130,8 @@ class JourneyPlan {
       checkoutLongitude: checkoutLongitude ?? this.checkoutLongitude,
       showUpdateLocation:
           showUpdateLocation ?? this.showUpdateLocation, // Include the new flag
+      routeId: routeId ?? this.routeId, // Include the new routeId
+      routeName: routeName ?? this.routeName, // Include the new routeName
     );
   }
 
@@ -193,6 +201,8 @@ class JourneyPlan {
           : null,
       showUpdateLocation:
           json['showUpdateLocation'] ?? true, // Parse the new flag
+      routeId: json['routeId'], // Add routeId
+      routeName: json['routeName'], // Add routeName
     );
   }
 
@@ -213,6 +223,8 @@ class JourneyPlan {
       'checkoutLatitude': checkoutLatitude,
       'checkoutLongitude': checkoutLongitude,
       'showUpdateLocation': showUpdateLocation, // Include the new flag
+      'routeId': routeId, // Add routeId
+      'routeName': routeName, // Add routeName
     };
   }
 

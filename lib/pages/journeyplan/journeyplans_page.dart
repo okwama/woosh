@@ -221,7 +221,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   }
 
   Future<void> _createJourneyPlan(int clientId, DateTime date,
-      {String? notes}) async {
+      {String? notes, int? routeId}) async {
     try {
       setState(() {
         _isLoading = true;
@@ -231,6 +231,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
         clientId,
         date,
         notes: notes,
+        routeId: routeId,
       );
 
       // Refresh journey plans after creating a new one
@@ -272,6 +273,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     String searchQuery = '';
     List<Client> filteredClients = _clients;
     final TextEditingController notesController = TextEditingController();
+    int? selectedRouteId;
 
     showDialog(
       context: context,
@@ -311,6 +313,55 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                         Text(DateFormat('MMM dd, yyyy').format(selectedDate)),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Add route selection dropdown
+                  const Text(
+                    'Select Route (Optional)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: ApiService.getRoutes(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const CircularProgressIndicator();
+                      }
+
+                      if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      }
+
+                      final routes = snapshot.data ?? [];
+                      return DropdownButtonFormField<int>(
+                        value: selectedRouteId,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8.0,
+                            horizontal: 12.0,
+                          ),
+                        ),
+                        hint: const Text('Select a route'),
+                        items: [
+                          const DropdownMenuItem<int>(
+                            value: null,
+                            child: Text('No route selected'),
+                          ),
+                          ...routes.map((route) => DropdownMenuItem<int>(
+                                value: route['id'],
+                                child: Text(route['name']),
+                              )),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedRouteId = value;
+                          });
+                        },
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -364,6 +415,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                                         client.id,
                                         selectedDate,
                                         notes: notesController.text.trim(),
+                                        routeId: selectedRouteId,
                                       );
                                     },
                                   );
