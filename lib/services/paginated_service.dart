@@ -13,7 +13,7 @@ class PaginatedService<T> {
 
   PaginatedService({
     required this.fetchData,
-    this.pageSize = 20,
+    this.pageSize = 2000,
     this.debounceTime = const Duration(milliseconds: 300),
   });
 

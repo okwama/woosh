@@ -40,7 +40,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
   final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   bool _hasMore = true;
-  static const int _pageSize = 10;
+  static const int _pageSize = 2000;
   static const int _prefetchThreshold =
       200; // Start loading 200px before bottom
 

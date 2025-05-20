@@ -279,7 +279,7 @@ class ApiService {
   static Future<PaginatedResponse<Client>> fetchClients({
     int? routeId,
     int page = 1,
-    int limit = 10,
+    int limit = 2000,
   }) async {
     try {
       final token = _getAuthToken();
@@ -337,7 +337,7 @@ class ApiService {
             }).toList(),
             total: responseData['total'] ?? 0,
             page: responseData['page'] ?? 1,
-            limit: responseData['limit'] ?? 10,
+            limit: responseData['limit'] ?? 2000,
             totalPages: responseData['totalPages'] ?? 1,
           );
         } else {
@@ -358,7 +358,7 @@ class ApiService {
   static Future<PaginatedResponse<Client>> getClientsByRoute(
     int routeId, {
     int page = 1,
-    int limit = 10,
+    int limit = 2000,
   }) async {
     return fetchClients(routeId: routeId, page: page, limit: limit);
   }
@@ -376,7 +376,7 @@ class ApiService {
   // Get clients for current user's route with pagination
   static Future<PaginatedResponse<Client>> getClientsForCurrentRoute({
     int page = 1,
-    int limit = 10,
+    int limit = 2000,
   }) async {
     final routeId = getCurrentUserRouteId();
     if (routeId == null) {
@@ -400,7 +400,7 @@ class ApiService {
   @Deprecated('Use fetchClients() instead')
   static Future<List<Outlet>> fetchOutlets({
     int page = 1,
-    int limit = 10,
+    int limit = 2000,
     int? routeId,
   }) async {
     try {
@@ -526,7 +526,7 @@ class ApiService {
 
   // Fetch Journey Plans
   static Future<List<JourneyPlan>> fetchJourneyPlans(
-      {int page = 1, int limit = 10}) async {
+      {int page = 1, int limit = 2000}) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
@@ -927,7 +927,7 @@ class ApiService {
   // Get products (independent of outlets)
   static Future<List<Product>> getProducts({
     int page = 1,
-    int limit = 20,
+    int limit = 200,
     String? search,
   }) async {
     try {
@@ -1155,7 +1155,7 @@ class ApiService {
   // Get orders with pagination
   static Future<PaginatedResponse<Order>> getOrders({
     int page = 1,
-    int limit = 10,
+    int limit = 100,
   }) async {
     try {
       final token = _getAuthToken();

@@ -265,47 +265,72 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
               comment: comment.value, // Add comment
             );
 
+      print('Order response received: $response');
+      print('Response type: ${response.runtimeType}');
+
       // Check for outstanding balance
       if (response != null) {
-        if (response is Map<String, dynamic> &&
-            response['hasOutstandingBalance'] == true) {
-          final dialog = response['dialog'];
-          await Get.dialog(
-            AlertDialog(
-              title: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Text(dialog?['title'] ?? 'Outstanding Balance'),
+        print('Response is not null, checking type...');
+        if (response is Map<String, dynamic>) {
+          print('Response is Map, checking contents...');
+          print('Response keys: ${response.keys.toList()}');
+          print('Success value: ${response['success']}');
+          print('Data value: ${response['data']}');
+
+          if (response['hasOutstandingBalance'] == true) {
+            print('Has outstanding balance, showing dialog...');
+            final dialog = response['dialog'];
+            await Get.dialog(
+              AlertDialog(
+                title: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Text(dialog?['title'] ?? 'Outstanding Balance'),
+                  ],
+                ),
+                content: Text(dialog?['message'] ??
+                    'This client has an outstanding balance.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back();
+                      // Proceed with order despite balance warning
+                      _processOrderSuccess();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Proceed Anyway'),
+                  ),
                 ],
               ),
-              content: Text(dialog?['message'] ??
-                  'This client has an outstanding balance.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Get.back();
-                    // Proceed with order despite balance warning
-                    _processOrderSuccess();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Proceed Anyway'),
-                ),
-              ],
-            ),
-            barrierDismissible: false,
-          );
-          return;
-        } else if (response is OrderModel) {
+              barrierDismissible: false,
+            );
+            return;
+          } else if (response['success'] == true && response['data'] != null) {
+            print('Order created successfully, processing success...');
+            _processOrderSuccess();
+          } else {
+            print('Response did not match expected format');
+            print('Response: $response');
+          }
+        } else if (response is OrderModel ||
+            response.runtimeType.toString() == 'Order') {
+          print('Response is Order/OrderModel, processing success...');
           _processOrderSuccess();
+        } else {
+          print('Response is neither Map nor Order/OrderModel');
+          print('Response type: ${response.runtimeType}');
         }
+      } else {
+        print('Response is null');
       }
     } catch (e) {
       print('Error placing order: $e');
