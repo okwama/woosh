@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/pages/journeyplan/createJourneyplan.dart';
 import 'package:woosh/pages/journeyplan/journeyview.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
@@ -11,58 +12,6 @@ import 'package:get/get.dart';
 import '../../services/hive/journey_plan_hive_service.dart';
 import '../../models/hive/journey_plan_model.dart';
 
-class JourneyPlansController extends GetxController {
-  final JourneyPlanHiveService _hiveService = JourneyPlanHiveService();
-  final _journeyPlans = <JourneyPlanModel>[].obs;
-  final _isLoading = false.obs;
-
-  List<JourneyPlanModel> get journeyPlans => _journeyPlans;
-  bool get isLoading => _isLoading.value;
-
-  @override
-  void onInit() {
-    super.onInit();
-    loadJourneyPlans();
-  }
-
-  Future<void> loadJourneyPlans() async {
-    _isLoading.value = true;
-    try {
-      // First load from Hive
-      final localPlans = _hiveService.getAllJourneyPlans();
-      if (localPlans.isNotEmpty) {
-        _journeyPlans.value = localPlans;
-      }
-
-      // Then fetch from API and update Hive
-      final apiPlans = await ApiService.fetchJourneyPlans();
-      final journeyPlanModels = apiPlans.map((plan) {
-        return JourneyPlanModel(
-          id: plan.id ?? 0,
-          date: plan.date,
-          time: plan.time,
-          userId: plan.salesRepId ?? 0,
-          clientId: plan.clientId ?? 0,
-          status: plan.status,
-          showUpdateLocation: false,
-          routeId: plan.routeId,
-        );
-      }).toList();
-
-      await _hiveService.saveJourneyPlans(journeyPlanModels);
-      _journeyPlans.value = journeyPlanModels;
-    } catch (e) {
-      print('Error loading journey plans: $e');
-      // If API call fails, we still have the local data
-    } finally {
-      _isLoading.value = false;
-    }
-  }
-
-  Future<void> refreshJourneyPlans() async {
-    await loadJourneyPlans();
-  }
-}
 
 class JourneyPlansPage extends StatefulWidget {
   const JourneyPlansPage({super.key});
@@ -81,25 +30,116 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   int _currentPage = 1;
   bool _hasMoreData = true;
   final ScrollController _scrollController = ScrollController();
-  static const String _journeyPlansCacheKey = 'cached_journey_plans';
-  static const String _clientsCacheKey = 'cached_clients';
-  static const int _prefetchThreshold =
-      5; // Start loading when 5 items from bottom
-  static const int _pageSize = 10; // Items per page
-  JourneyPlan? _activeVisit; // Add this to track active visit
+  JourneyPlan? _activeVisit;
+  
+  // Hive service for local storage
+  final JourneyPlanHiveService _hiveService = JourneyPlanHiveService();
 
-  // Add date filtering state
+  // Date filtering state
   DateTime _startDate = DateTime.now();
-  DateTime _endDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   bool _isCustomRange = false;
+  bool _showFuturePlans = true; // New flag to show future plans
 
   @override
   void initState() {
     super.initState();
-    _loadCachedData();
+    _initHiveService();
     _loadData();
     _scrollController.addListener(_onScroll);
-    _checkActiveVisit(); // Add this to check for active visits on init
+    _checkActiveVisit();
+  }
+  
+  // Initialize Hive service
+  Future<void> _initHiveService() async {
+    try {
+      await _hiveService.init();
+      // Load cached journey plans after initializing Hive
+      _loadCachedJourneyPlans();
+    } catch (e) {
+      print('Error initializing Hive service: $e');
+    }
+  }
+  
+  // Load journey plans from local Hive storage
+  void _loadCachedJourneyPlans() {
+    try {
+      final cachedPlans = _hiveService.getAllJourneyPlans();
+      if (cachedPlans.isNotEmpty) {
+        // Convert Hive models to JourneyPlan objects
+        final journeyPlans = cachedPlans.map((model) => _convertToJourneyPlan(model)).toList();
+        setState(() {
+          _journeyPlans = journeyPlans;
+        });
+        print('Loaded ${journeyPlans.length} journey plans from local storage');
+      }
+    } catch (e) {
+      print('Error loading cached journey plans: $e');
+    }
+  }
+  
+  // Convert JourneyPlanModel (Hive) to JourneyPlan
+  JourneyPlan _convertToJourneyPlan(JourneyPlanModel model) {
+    // Find the client by ID or create a placeholder
+    Client client = _findClientById(model.clientId);
+    
+    // Create a JourneyPlan from the model
+    return JourneyPlan(
+      id: model.id,
+      date: model.date,
+      time: model.time, // Time is required
+      salesRepId: model.userId,
+      status: model.status,
+      routeId: model.routeId,
+      client: client,
+      showUpdateLocation: model.showUpdateLocation, // This is already non-null in the model
+    );
+  }
+  
+  // Find a client by ID or create a placeholder
+  Client _findClientById(int clientId) {
+    // Try to find the client in the loaded clients list
+    try {
+      return _clients.firstWhere((client) => client.id == clientId);
+    } catch (e) {
+      // Create a placeholder client with required fields
+      return Client(
+        id: clientId,
+        name: 'Unknown Client',
+        address: '',
+        regionId: 0,
+        region: '',
+        countryId: 0,
+      );
+    }
+  }
+  
+  // Convert JourneyPlan to JourneyPlanModel (Hive)
+  JourneyPlanModel _convertToJourneyPlanModel(JourneyPlan plan) {
+    return JourneyPlanModel(
+      id: plan.id ?? 0,
+      date: plan.date,
+      time: plan.time,
+      userId: plan.salesRepId ?? 0,
+      clientId: plan.client.id,
+      status: plan.status,
+      showUpdateLocation: plan.showUpdateLocation,
+      routeId: plan.routeId,
+    );
+  }
+  
+  // Save journey plans to Hive
+  Future<void> _saveJourneyPlansToHive(List<JourneyPlan> journeyPlans) async {
+    try {
+      // Convert JourneyPlan objects to JourneyPlanModel objects
+      final journeyPlanModels = journeyPlans.map(_convertToJourneyPlanModel).toList();
+      
+      // Save to Hive
+      await _hiveService.saveJourneyPlans(journeyPlanModels);
+      print('Saved ${journeyPlans.length} journey plans to local storage');
+    } catch (e) {
+      print('Error saving journey plans to Hive: $e');
+    }
   }
 
   @override
@@ -111,7 +151,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      // 200px threshold
       if (!_isLoadingMore && _hasMoreData) {
         _loadMoreData();
       }
@@ -126,10 +165,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     });
 
     try {
-      // Prefetch next page
       final newPlans = await ApiService.fetchJourneyPlans(
         page: _currentPage + 1,
-        limit: _pageSize,
       );
 
       if (newPlans.isEmpty) {
@@ -141,7 +178,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
           _journeyPlans.addAll(newPlans);
           _currentPage++;
         });
-        _cacheData(); // Cache the new data
+        
+        // Save the new journey plans to Hive
+        _saveJourneyPlansToHive(newPlans);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -151,33 +190,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       setState(() {
         _isLoadingMore = false;
       });
-    }
-  }
-
-  Future<void> _loadCachedData() async {
-    try {
-      final cachedPlans =
-          ApiService.getCachedData<List<JourneyPlan>>(_journeyPlansCacheKey);
-      final cachedClients =
-          ApiService.getCachedData<List<Client>>(_clientsCacheKey);
-
-      if (cachedPlans != null && cachedClients != null) {
-        setState(() {
-          _journeyPlans = cachedPlans;
-          _clients = cachedClients;
-        });
-      }
-    } catch (e) {
-      print('Error loading cached data: $e');
-    }
-  }
-
-  Future<void> _cacheData() async {
-    try {
-      ApiService.cacheData(_journeyPlansCacheKey, _journeyPlans);
-      ApiService.cacheData(_clientsCacheKey, _clients);
-    } catch (e) {
-      print('Error caching data: $e');
     }
   }
 
@@ -202,22 +214,68 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
           _journeyPlans = journeyPlans;
           _isLoading = false;
         });
-        _cacheData(); // Cache the new data
+        
+        // Save journey plans to Hive for offline access
+        _saveJourneyPlansToHive(journeyPlans);
       }
     } catch (e) {
+      print('Error loading data: $e');
+      
+      // If we have cached data, use it
+      if (_journeyPlans.isEmpty) {
+        _loadCachedJourneyPlans();
+      }
+      
       setState(() {
         _isLoading = false;
       });
 
-      // Check if it's a connection error
       if (e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('timeout') ||
-          e.toString().toLowerCase().contains('socket')) {
+          e.toString().toLowerCase().contains('timeout')) {
         _showConnectionErrorDialog();
       } else {
         _showGenericErrorDialog();
       }
     }
+  }
+
+  List<JourneyPlan> _getFilteredPlans() {
+    // Get current date in local timezone (Nairobi/EAT)
+    final now = DateTime.now();
+    // Create date-only version for comparison (no time component)
+    final today = DateTime(now.year, now.month, now.day);
+    
+    return _journeyPlans.where((plan) {
+      if (_hiddenJourneyPlans.contains(plan.id)) {
+        return false;
+      }
+      
+      // Always ensure we're working with local time
+      final localPlanDate = plan.date.toLocal();
+      // Create date-only version for comparison
+      final planDateOnly = DateTime(
+        localPlanDate.year,
+        localPlanDate.month,
+        localPlanDate.day
+      );
+      
+      if (_isCustomRange) {
+        // Create date-only versions of start/end dates
+        final startDateOnly = DateTime(_startDate.year, _startDate.month, _startDate.day);
+        final endDateOnly = DateTime(_endDate.year, _endDate.month, _endDate.day);
+        
+        // Compare only dates (no time component)
+        return planDateOnly.isAtSameMomentAs(startDateOnly) || 
+               planDateOnly.isAtSameMomentAs(endDateOnly) ||
+               (planDateOnly.isAfter(startDateOnly) && 
+                planDateOnly.isBefore(endDateOnly));
+      } else {
+        // Show today's and future plans by default
+        return _showFuturePlans 
+            ? planDateOnly.isAtSameMomentAs(today) || planDateOnly.isAfter(today)
+            : planDateOnly.isAtSameMomentAs(today);
+      }
+    }).toList();
   }
 
   void _showConnectionErrorDialog() {
@@ -276,43 +334,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     );
   }
 
-  Future<void> _createJourneyPlan(int clientId, DateTime date,
-      {String? notes, int? routeId}) async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      await ApiService.createJourneyPlan(
-        clientId,
-        date,
-        notes: notes,
-        routeId: routeId,
-      );
-
-      // Refresh journey plans after creating a new one
-      final journeyPlans = await ApiService.fetchJourneyPlans();
-
-      setState(() {
-        _journeyPlans = journeyPlans;
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Journey plan created successfully')),
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Failed to create journey plan: ${e.toString()}')),
-      );
-    }
-  }
-
   Future<void> _checkActiveVisit() async {
     try {
       final activeVisit = await ApiService.getActiveVisit();
@@ -324,170 +345,26 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
   }
 
-  void _showClientSelectionDialog() {
-    DateTime selectedDate = DateTime.now();
-    String searchQuery = '';
-    List<Client> filteredClients = _clients;
-    final TextEditingController notesController = TextEditingController();
-    int? selectedRouteId;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Create Journey Plan'),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Select Date',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final DateTime? picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 30)),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          selectedDate = picked;
-                        });
-                      }
-                    },
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today),
-                        const SizedBox(width: 8),
-                        Text(DateFormat('MMM dd, yyyy').format(selectedDate)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Add route selection dropdown
-                  const Text(
-                    'Select Route (Optional)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: ApiService.getRoutes(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator();
-                      }
-
-                      if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      }
-
-                      final routes = snapshot.data ?? [];
-                      return DropdownButtonFormField<int>(
-                        value: selectedRouteId,
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8.0,
-                            horizontal: 12.0,
-                          ),
-                        ),
-                        hint: const Text('Select a route'),
-                        items: [
-                          const DropdownMenuItem<int>(
-                            value: null,
-                            child: Text('No route selected'),
-                          ),
-                          ...routes.map((route) => DropdownMenuItem<int>(
-                                value: route['id'],
-                                child: Text(route['name']),
-                              )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            selectedRouteId = value;
-                          });
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.toLowerCase();
-                        filteredClients = _clients.where((client) {
-                          return client.name
-                                  .toLowerCase()
-                                  .contains(searchQuery) ||
-                              (client.address ?? '')
-                                  .toLowerCase()
-                                  .contains(searchQuery);
-                        }).toList();
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search by name or address',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 8.0, horizontal: 12.0),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Select Client',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 200,
-                    child: _clients.isEmpty
-                        ? const Center(child: Text('No clients available'))
-                        : filteredClients.isEmpty
-                            ? const Center(
-                                child: Text('No matching clients found'))
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: filteredClients.length,
-                                itemBuilder: (context, index) {
-                                  final client = filteredClients[index];
-                                  return ListTile(
-                                    title: Text(client.name),
-                                    subtitle: Text(client.address ?? ''),
-                                    onTap: () {
-                                      Navigator.pop(context);
-                                      _createJourneyPlan(
-                                        client.id,
-                                        selectedDate,
-                                        notes: notesController.text.trim(),
-                                        routeId: selectedRouteId,
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
+  void _navigateToCreateJourneyPlan() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateJourneyPlanPage(
+          clients: _clients,
+          onSuccess: (updatedJourneyPlans) {
+            // Save the newly created journey plan to Hive
+            if (updatedJourneyPlans.isNotEmpty) {
+              _saveJourneyPlansToHive(updatedJourneyPlans);
+            }
+            
+            // Reload data to show the newly created journey plan
+            _loadData();
+            
+            // Show a success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Journey plan created and saved locally')),
+            );
+          },
         ),
       ),
     );
@@ -514,37 +391,11 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     );
   }
 
-  // Add date filtering methods
-  List<JourneyPlan> _getFilteredPlans() {
-    // Convert UTC to local time for today's date
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    return _journeyPlans.where((plan) {
-      if (_hiddenJourneyPlans.contains(plan.id)) {
-        return false;
-      }
-      if (!_isCustomRange) {
-        // Convert plan date from UTC to local time
-        final localDate = plan.date.toLocal();
-        // Compare only year, month, and day
-        return localDate.year == today.year &&
-            localDate.month == today.month &&
-            localDate.day == today.day;
-      } else {
-        // Show plans within custom date range
-        return plan.date
-                .isAfter(_startDate.subtract(const Duration(days: 1))) &&
-            plan.date.isBefore(_endDate.add(const Duration(days: 1)));
-      }
-    }).toList();
-  }
-
   Future<void> _showDateRangePicker(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: DateTimeRange(
         start: _startDate,
         end: _endDate,
@@ -560,15 +411,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
   }
 
-  void _resetToToday() {
-    setState(() {
-      _isCustomRange = false;
-      _startDate = DateTime.now();
-      _endDate = DateTime.now();
-    });
-  }
-
-  // Add this method to handle hiding journey plans
   void _hideJourneyPlan(int journeyPlanId) {
     setState(() {
       _hiddenJourneyPlans.add(journeyPlanId);
@@ -596,7 +438,17 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
       appBar: GradientAppBar(
         title: 'Journey Plans',
         actions: [
-          // Date range selector
+          // Toggle for showing future plans
+          IconButton(
+            icon: Icon(_showFuturePlans ? Icons.calendar_today : Icons.calendar_view_day),
+            tooltip: _showFuturePlans ? 'Show Only Today' : 'Show Future Plans',
+            onPressed: () {
+              setState(() {
+                _showFuturePlans = !_showFuturePlans;
+                _isCustomRange = false;
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.date_range),
             tooltip: 'Select Date Range',
@@ -604,137 +456,100 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () {
-              setState(() {
-                _currentPage = 1;
-                _hasMoreData = true;
-                _journeyPlans.clear();
-              });
-              _loadData();
-            },
+            onPressed: _loadData,
           ),
         ],
       ),
       body: _isLoading && _journeyPlans.isEmpty
           ? const JourneyPlansSkeleton()
-          : _errorMessage != null
-              ? Center(child: Text(_errorMessage!))
-              : Column(
-                  children: [
-                    // Date range header
-                    Container(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          : Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _isCustomRange
-                                    ? '${DateFormat('MMM d').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}'
+                          Text(
+                            _isCustomRange
+                                ? '${DateFormat('MMM d').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}'
+                                : _showFuturePlans 
+                                    ? 'Upcoming Plans' 
                                     : 'Today\'s Plans',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_isCustomRange)
-                                TextButton.icon(
-                                  icon: const Icon(Icons.today),
-                                  label: const Text('Show Today'),
-                                  onPressed: _resetToToday,
-                                ),
-                            ],
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           if (_isCustomRange)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                '${_getFilteredPlans().length} plans found',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.today),
+                              label: const Text('Show Upcoming'),
+                              onPressed: () {
+                                setState(() {
+                                  _isCustomRange = false;
+                                  _showFuturePlans = true;
+                                });
+                              },
                             ),
                         ],
                       ),
-                    ),
-                    // List view
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: () async {
-                          setState(() {
-                            _currentPage = 1;
-                            _hasMoreData = true;
-                            _journeyPlans.clear();
-                          });
-                          await _loadData();
-                        },
-                        child: _getFilteredPlans().isEmpty
-                            ? const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.add_location_alt_rounded,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                                    Text('No journey plans found'),
-                                  ],
-                                ),
-                              )
-                            : ListView.builder(
-                                controller: _scrollController,
-                                key: const PageStorageKey('journey_plans_list'),
-                                itemCount: _getFilteredPlans().length +
-                                    (_hasMoreData ? 1 : 0),
-                                itemBuilder: (context, index) {
-                                  if (index == _getFilteredPlans().length) {
-                                    return _isLoadingMore
-                                        ? const Center(
-                                            child: Padding(
-                                              padding: EdgeInsets.all(16.0),
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink();
-                                  }
-
-                                  final journeyPlan =
-                                      _getFilteredPlans()[index];
-                                  return RepaintBoundary(
-                                    child: JourneyPlanItem(
-                                      journeyPlan: journeyPlan,
-                                      onTap: () =>
-                                          _navigateToJourneyView(journeyPlan),
-                                      onHide: journeyPlan.statusText ==
-                                                  'Completed' &&
-                                              journeyPlan.id != null
-                                          ? () =>
-                                              _hideJourneyPlan(journeyPlan.id!)
-                                          : null,
-                                    ),
-                                  );
-                                },
-                              ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          '${_getFilteredPlans().length} plans found',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: _getFilteredPlans().isEmpty
+                        ? const Center(child: Text('No journey plans found'))
+                        : ListView.builder(
+                            controller: _scrollController,
+                            itemCount: _getFilteredPlans().length + (_hasMoreData ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index == _getFilteredPlans().length) {
+                                return _isLoadingMore
+                                    ? const Center(child: Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: CircularProgressIndicator(),
+                                      ))
+                                    : const SizedBox.shrink();
+                              }
+
+                              final journeyPlan = _getFilteredPlans()[index];
+                              return JourneyPlanItem(
+                                journeyPlan: journeyPlan,
+                                onTap: () => _navigateToJourneyView(journeyPlan),
+                                onHide: journeyPlan.statusText == 'Completed' && journeyPlan.id != null
+                                    ? () => _hideJourneyPlan(journeyPlan.id!)
+                                    : null,
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showClientSelectionDialog,
+        onPressed: _navigateToCreateJourneyPlan,
         child: const Icon(Icons.add),
       ),
     );
   }
 }
 
-// Extract journey plan item to a separate widget for better performance
+// Journey plan item widget
 class JourneyPlanItem extends StatelessWidget {
   final JourneyPlan journeyPlan;
   final VoidCallback onTap;
@@ -790,8 +605,9 @@ class JourneyPlanItem extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              DateFormat('MMM dd, yyyy')
-                                  .format(journeyPlan.date),
+                              // Convert to local time (Nairobi/EAT) before formatting
+                              DateFormat('MMM dd, yyyy - HH:mm')
+                                  .format(journeyPlan.date.toLocal()),
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 12,

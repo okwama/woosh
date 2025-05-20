@@ -7,7 +7,7 @@ class ClientController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool hasMore = true.obs;
   final RxInt currentPage = 1.obs;
-  final int pageSize = 10;
+  final int pageSize = 2000;
   int? routeId;
 
   @override

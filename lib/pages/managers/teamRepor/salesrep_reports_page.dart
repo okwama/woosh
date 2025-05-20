@@ -163,10 +163,8 @@ class _SalesRepReportsPageState extends State<SalesRepReportsPage> {
       if (report.user?.name != null && report.user!.name.isNotEmpty) {
         return report.user!.name;
       }
-      if (report.salesRepId != null) {
-        return 'Sales Rep #${report.salesRepId}';
-      }
-    } catch (e) {
+      return 'Sales Rep #${report.salesRepId}';
+        } catch (e) {
       print('Error getting display name: $e');
     }
     return 'Unknown User';

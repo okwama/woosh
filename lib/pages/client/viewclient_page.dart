@@ -15,6 +15,7 @@ import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 import '../../services/hive/client_hive_service.dart';
 import '../../models/hive/client_model.dart';
 
+
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
   final bool forUpliftSale;
@@ -40,9 +41,9 @@ class _ViewClientPageState extends State<ViewClientPage> {
   final ScrollController _scrollController = ScrollController();
   int _currentPage = 1;
   bool _hasMore = true;
-  static const int _pageSize = 2000;
+  static const int _pageSize = 2000; // Smaller page size for better performance
   static const int _prefetchThreshold =
-      200; // Start loading 200px before bottom
+      2000; // Increased threshold to load earlier when scrolling
 
   @override
   void initState() {
@@ -59,10 +60,15 @@ class _ViewClientPageState extends State<ViewClientPage> {
   }
 
   void _onScroll() {
+    // Debug print to verify scroll events
+    print('Scroll position: ${_scrollController.position.pixels}, Max: ${_scrollController.position.maxScrollExtent}');
+    
+    // Check if we're near the bottom of the list
     if (_scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent - _prefetchThreshold &&
         !_isLoadingMore &&
         _hasMore) {
+      print('Triggering load more at page: ${_currentPage + 1}');
       _loadMoreOutlets();
     }
   }
@@ -76,24 +82,83 @@ class _ViewClientPageState extends State<ViewClientPage> {
     });
 
     try {
-      // Clear cache when refreshing
-      ApiService.clearOutletsCache();
-
-      final routeId = ApiService.getCurrentUserRouteId();
-      final outlets = await ApiService.fetchOutlets(
-        page: 1,
-        limit: _pageSize,
-        routeId: routeId,
-      );
-      setState(() {
-        _outlets = outlets;
-        _isLoading = false;
-        _hasMore = outlets.length >= _pageSize;
-      });
+      // First try to load from local cache
+      final clientHiveService = Get.find<ClientHiveService>();
+      final cachedClients = clientHiveService.getAllClients();
+      
+      if (cachedClients.isNotEmpty) {
+        // Convert ClientModel to Outlet
+        final cachedOutlets = cachedClients.map((client) => Outlet(
+              id: client.id,
+              name: client.name,
+              address: client.address,
+              latitude: client.latitude,
+              longitude: client.longitude,
+              email: client.email,
+              contact: client.phone, // Use phone as contact
+              regionId: 0, // Default values for required fields
+              region: '', // Default values for required fields
+              countryId: 0, // Default values for required fields
+            )).toList();
+        
+        setState(() {
+          _outlets = cachedOutlets;
+          _isLoading = false;
+        });
+      }
+      
+      // Then try to fetch from API (even if we loaded from cache)
+      try {
+        final routeId = ApiService.getCurrentUserRouteId();
+        final outlets = await ApiService.fetchOutlets(
+          page: 1,
+          limit: _pageSize,
+          routeId: routeId,
+        );
+        
+        // Save to local cache
+        final clientModels = outlets.map((outlet) => ClientModel(
+              id: outlet.id,
+              name: outlet.name,
+              address: outlet.address,
+              phone: outlet.contact ?? '', // Use contact as phone
+              email: outlet.email ?? '',
+              latitude: outlet.latitude ?? 0.0,
+              longitude: outlet.longitude ?? 0.0,
+              status: 'active', // Default status
+            )).toList();
+        
+        await clientHiveService.saveClients(clientModels);
+        
+        setState(() {
+          _outlets = outlets;
+          _isLoading = false;
+          _hasMore = outlets.length >= _pageSize;
+        });
+      } catch (e) {
+        // If we already loaded from cache, just show a toast
+        if (cachedClients.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Using cached data. Could not refresh from server.')),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        } else {
+          // If we don't have cached data, show error
+          setState(() {
+            _errorMessage =
+                'Unable to connect to the server. Please check your internet connection and try again.';
+            _isLoading = false;
+          });
+          _showErrorDialog();
+        }
+      }
     } catch (e) {
+      // Error with Hive or other unexpected error
       setState(() {
         _errorMessage =
-            'Unable to connect to the server. Please check your internet connection and try again.';
+            'An unexpected error occurred. Please try again.';
         _isLoading = false;
       });
       _showErrorDialog();
@@ -116,19 +181,39 @@ class _ViewClientPageState extends State<ViewClientPage> {
       );
 
       if (mounted) {
+        // Save to local cache
+        final clientHiveService = Get.find<ClientHiveService>();
+        final clientModels = newOutlets.map((outlet) => ClientModel(
+              id: outlet.id,
+              name: outlet.name,
+              address: outlet.address,
+              phone: outlet.contact ?? '', // Use contact as phone
+              email: outlet.email ?? '',
+              latitude: outlet.latitude ?? 0.0,
+              longitude: outlet.longitude ?? 0.0,
+              status: 'active', // Default status
+            )).toList();
+        
+        await clientHiveService.saveClients(clientModels);
+        
         setState(() {
           _outlets.addAll(newOutlets);
           _currentPage++;
           _isLoadingMore = false;
+          // Make sure we only set hasMore to false if we received fewer items than requested
           _hasMore = newOutlets.length >= _pageSize;
+          print('Loaded ${newOutlets.length} more outlets, hasMore: $_hasMore');
         });
       }
     } catch (e) {
+      print('Error loading more outlets: $e');
       if (mounted) {
         setState(() {
           _isLoadingMore = false;
         });
-        _showErrorDialog();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load more outlets. Check your connection.')),
+        );
       }
     }
   }
@@ -208,6 +293,22 @@ class _ViewClientPageState extends State<ViewClientPage> {
         transition: Transition.rightToLeft,
       );
     }
+  }
+
+  // Helper method to build the list footer
+  Widget _buildListFooter() {
+    if (_isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (!_hasMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.0),
+        child: Center(child: Text('No more outlets to load')),
+      );
+    }
+    return const SizedBox(height: 80); // Add space at the bottom for better UX
   }
 
   @override
@@ -327,15 +428,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                   (_hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index == _getFilteredOutlets().length) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16.0),
-                                    child: Center(
-                                      child: _isLoadingMore
-                                          ? const CircularProgressIndicator()
-                                          : const SizedBox.shrink(),
-                                    ),
-                                  );
+                                  return _buildListFooter();
                                 }
 
                                 final outlet = _getFilteredOutlets()[index];
@@ -426,7 +519,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const AddClientPage(),
+              builder: (context) => AddClientPage(),
             ),
           ).then((_) => _loadOutlets()); // Refresh list after returning
         },

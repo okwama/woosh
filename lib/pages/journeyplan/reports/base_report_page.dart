@@ -37,34 +37,6 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
 
     try {
       // Verify the report has a valid salesRepId
-      if (report.salesRepId == null) {
-        final box = GetStorage();
-        final salesRepData = box.read('salesRep');
-
-        if (salesRepData == null || salesRepData is! Map<String, dynamic>) {
-          throw Exception("Authentication error: No valid salesRep data found");
-        }
-
-        final int? salesRepId = salesRepData['id'];
-        if (salesRepId == null) {
-          throw Exception(
-              "Authentication error: Could not determine salesRep ID");
-        }
-
-        // Create a new report with the salesRepId
-        report = Report(
-          id: report.id,
-          type: report.type,
-          journeyPlanId: report.journeyPlanId,
-          salesRepId: salesRepId,
-          clientId: report.clientId,
-          createdAt: report.createdAt,
-          productReport: report.productReport,
-          visibilityReport: report.visibilityReport,
-          feedbackReport: report.feedbackReport,
-        );
-      }
-
       await _apiService.submitReport(report);
 
       if (mounted) {

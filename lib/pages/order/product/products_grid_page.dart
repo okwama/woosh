@@ -12,7 +12,12 @@ import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/skeleton_loader.dart';
+import 'package:woosh/services/hive/product_hive_service.dart';
+import 'package:woosh/models/hive/product_model.dart';
 import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:hive/hive.dart';
+import 'package:flutter/foundation.dart';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;
@@ -37,6 +42,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   final ScrollController _scrollController = ScrollController();
   Timer? _searchDebounce;
   String _currentSearchQuery = '';
+  late ProductHiveService _productHiveService;
 
   @override
   void initState() {
@@ -50,8 +56,34 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
       ),
       pageSize: 20,
     );
-    _loadInitialData();
+    _initializeAndLoad();
     _scrollController.addListener(_onScroll);
+  }
+  
+  Future<void> _initializeAndLoad() async {
+    try {
+      // Ensure the adapter is registered
+      ensureProductHiveAdapterRegistered();
+      
+      // Try to get the ProductHiveService from Get
+      if (Get.isRegistered<ProductHiveService>()) {
+        _productHiveService = Get.find<ProductHiveService>();
+        debugPrint('[ProductsGrid] Found ProductHiveService from Get');
+      } else {
+        // If not registered, create a new instance and initialize it
+        _productHiveService = ProductHiveService();
+        await _productHiveService.init();
+        Get.put(_productHiveService); // Register it for future use
+        debugPrint('[ProductsGrid] Created new ProductHiveService instance');
+      }
+      
+      // Load data
+      await _loadFromCacheAndApi();
+    } catch (e) {
+      debugPrint('[ProductsGrid] Error initializing: $e');
+      // Fall back to API-only if initialization fails
+      _loadInitialData();
+    }
   }
 
   List<Product> _getFilteredProducts() {
@@ -76,6 +108,54 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
     });
   }
 
+  Future<void> _loadFromCacheAndApi() async {
+    // First try to load from cache
+    await _loadFromCache();
+    
+    // Then check connectivity before loading from API
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      await _loadInitialData();
+    } else if (_paginatedData == null || _paginatedData!.items.isEmpty) {
+      // Only show no connectivity error if we don't have cached data
+      setState(() {
+        _error = 'No internet connection';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _loadFromCache() async {
+    setState(() {
+      if (_paginatedData == null) {
+        _isLoading = true;
+      }
+    });
+    
+    try {
+      final cachedProducts = await _productHiveService.getAllProducts();
+      if (cachedProducts.isNotEmpty) {
+        print('[ProductsGrid] Loaded ${cachedProducts.length} products from cache');
+        
+        if (mounted) {
+          setState(() {
+            _paginatedData = PaginatedData<Product>(
+              items: cachedProducts,
+              currentPage: 1,
+              totalPages: 1,
+              hasMore: false,
+            );
+            _isLoading = false;
+          });
+        }
+      } else {
+        print('[ProductsGrid] No cached products found');
+      }
+    } catch (e) {
+      print('[ProductsGrid] Error loading products from cache: $e');
+    }
+  }
+
   Future<void> _loadInitialData() async {
     setState(() {
       _isLoading = true;
@@ -83,18 +163,37 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
     });
 
     try {
-      print('[ProductsGrid] Loading initial products...');
+      print('[ProductsGrid] Loading initial products from API...');
       final data = await _productService.loadInitialData();
 
       if (mounted) {
         setState(() {
           _paginatedData = data;
           _isLoading = false;
-          print('[ProductsGrid] Loaded ${data.items.length} products');
+          print('[ProductsGrid] Loaded ${data.items.length} products from API');
         });
+        
+        // Try to save products to local storage if possible
+        try {
+          ensureProductHiveAdapterRegistered();
+          
+          if (Get.isRegistered<ProductHiveService>()) {
+            _productHiveService = Get.find<ProductHiveService>();
+            await _productHiveService.saveProducts(data.items);
+            debugPrint('[ProductsGrid] Saved ${data.items.length} products to local storage');
+            
+            // Update last update timestamp
+            await _productHiveService.setLastUpdateTime(DateTime.now());
+          } else {
+            debugPrint('[ProductsGrid] ProductHiveService not registered, skipping local storage');
+          }
+        } catch (storageError) {
+          // Just log the error but don't fail the whole operation
+          debugPrint('[ProductsGrid] Error saving to local storage: $storageError');
+        }
       }
     } catch (e) {
-      print('[ProductsGrid] Error loading products: $e');
+      print('[ProductsGrid] Error loading products from API: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -123,6 +222,27 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
           print(
               '[ProductsGrid] Loaded more products. Total: ${newData.items.length}');
         });
+        
+        // Try to save new products to local storage
+        try {
+          ensureProductHiveAdapterRegistered();
+          
+          if (Get.isRegistered<ProductHiveService>()) {
+            _productHiveService = Get.find<ProductHiveService>();
+            // Calculate the new products that were added
+            final int previousCount = _paginatedData!.items.length;
+            final int newCount = newData.items.length;
+            final newProducts = newData.items.sublist(previousCount, newCount);
+            
+            if (newProducts.isNotEmpty) {
+              await _productHiveService.saveProducts(newProducts);
+              debugPrint('[ProductsGrid] Saved ${newProducts.length} more products to local storage');
+            }
+          }
+        } catch (storageError) {
+          // Just log the error but don't fail the whole operation
+          debugPrint('[ProductsGrid] Error saving more products to local storage: $storageError');
+        }
       }
     } catch (e) {
       print('[ProductsGrid] Error loading more products: $e');
@@ -305,13 +425,32 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   @override
   Widget build(BuildContext context) {
     final filteredProducts = _getFilteredProducts();
-
-    return Scaffold(
-      backgroundColor: appBackground,
-      appBar: GradientAppBar(
-        title: widget.outlet.name,
-      ),
-      body: _isLoading && _paginatedData == null
+    final bool isInitialLoading = _isLoading && _paginatedData == null;
+    
+    // Use FutureBuilder to handle the async lastUpdate
+    return FutureBuilder<DateTime?>(
+      future: Get.isRegistered<ProductHiveService>() ? 
+              Get.find<ProductHiveService>().getLastUpdateTime() : 
+              Future.value(null),
+      builder: (context, snapshot) {
+        final DateTime? lastUpdate = snapshot.data;
+        
+        return Scaffold(
+          backgroundColor: appBackground,
+          appBar: GradientAppBar(
+            title: widget.outlet.name,
+            actions: [
+              if (lastUpdate != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Tooltip(
+                    message: 'Last updated: ${lastUpdate.toString().substring(0, 16)}',
+                    child: const Icon(Icons.info_outline),
+                  ),
+                ),
+            ],
+          ),
+          body: isInitialLoading
           ? GridView.builder(
               padding: const EdgeInsets.all(8),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -426,6 +565,8 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                 ),
               ],
             ),
+        );
+      },
     );
   }
 

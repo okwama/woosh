@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 
 class NoConnectionPage extends StatelessWidget {
@@ -19,45 +18,34 @@ class NoConnectionPage extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Error Icon
                 Icon(
                   Icons.signal_wifi_off_rounded,
-                  size: 80,
+                  size: 50,
                   color: Theme.of(context).colorScheme.error,
                 ),
-                const SizedBox(height: 24),
-
-                // Error Title
+                const SizedBox(height: 12),
                 Text(
                   'No Internet Connection',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Theme.of(context).colorScheme.error,
                         fontWeight: FontWeight.bold,
                       ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-
-                // Error Message
+                const SizedBox(height: 8),
                 Text(
-                  message ??
-                      'Please check your internet connection and try again.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onBackground
-                            .withOpacity(0.7),
+                  message ?? 'Check connection and try again.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
                       ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 32),
-
-                // Retry Button
-                ElevatedButton.icon(
+                const SizedBox(height: 16),
+                ElevatedButton(
                   onPressed: () {
                     if (onRetry != null) {
                       onRetry!();
@@ -71,12 +59,11 @@ class NoConnectionPage extends StatelessWidget {
                       }
                     }
                   },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Try Again'),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    minimumSize: const Size(120, 36),
                   ),
+                  child: const Text('Try Again'),
                 ),
               ],
             ),

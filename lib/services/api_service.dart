@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
+import 'package:hive/hive.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +11,17 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart'
     hide FormData, MultipartFile; // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
+import 'package:woosh/models/hive/pending_journey_plan_model.dart';
+import 'package:woosh/models/hive/route_model.dart';
+// Generated files cannot be directly imported
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/noticeboard_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/user_model.dart';
+import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
+import 'package:woosh/services/hive/route_hive_service.dart';
 import 'package:woosh/utils/config.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/models/order_model.dart';
@@ -276,84 +282,73 @@ class ApiService {
   }
 
   // Fetch Clients with route filtering and pagination
-  static Future<PaginatedResponse<Client>> fetchClients({
-    int? routeId,
-    int page = 1,
-    int limit = 2000,
-  }) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      // Build query parameters
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'limit': limit.toString(),
-        if (routeId != null) 'route_id': routeId.toString(),
-      };
-
-      final uri =
-          Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
-      final response = await http
-          .get(
-        uri,
-        headers: await _headers(),
-      )
-          .timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw Exception("Connection timeout");
-        },
-      );
-
-      final handledResponse = await _handleResponse(response);
-
-      if (handledResponse.statusCode == 200) {
-        final Map<String, dynamic> responseData =
-            json.decode(handledResponse.body);
-        if (responseData.containsKey('data') && responseData['data'] is List) {
-          final List<dynamic> data = responseData['data'];
-          return PaginatedResponse<Client>(
-            data: data.map((json) {
-              final outlet = Outlet.fromJson(json);
-              return Client(
-                id: outlet.id,
-                name: outlet.name,
-                address: outlet.address,
-                balance: outlet.balance,
-                latitude: outlet.latitude,
-                longitude: outlet.longitude,
-                email: outlet.email,
-                contact: outlet.contact,
-                taxPin: outlet.taxPin,
-                location: outlet.location,
-                clientType: outlet.clientType,
-                regionId: outlet.regionId ?? 0,
-                region: outlet.region ?? '',
-                countryId: outlet.countryId ?? 0,
-              );
-            }).toList(),
-            total: responseData['total'] ?? 0,
-            page: responseData['page'] ?? 1,
-            limit: responseData['limit'] ?? 2000,
-            totalPages: responseData['totalPages'] ?? 1,
-          );
-        } else {
-          throw Exception(
-              'Invalid response format: missing data field or not a list');
-        }
-      } else {
-        throw Exception(
-            'Failed to load clients: ${handledResponse.statusCode}');
-      }
-    } catch (e) {
-      handleNetworkError(e);
-      rethrow;
+ static Future<PaginatedResponse<Client>> fetchClients({
+  int? routeId,
+  int page = 1,
+  int limit = 2000,
+}) async {
+  try {
+    final token = _getAuthToken();
+    if (token == null) {
+      throw Exception("Authentication token is missing");
     }
-  }
 
+    // Build query parameters
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+      'fields': 'id,name,longitude,latitude,route_id',
+      if (routeId != null) 'route_id': routeId.toString(),
+    };
+
+    final uri = Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
+    final response = await http
+        .get(
+          uri,
+          headers: await _headers(),
+        )
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw Exception("Connection timeout");
+          },
+        );
+
+    final handledResponse = await _handleResponse(response);
+
+    if (handledResponse.statusCode == 200) {
+      final Map<String, dynamic> responseData = json.decode(handledResponse.body);
+      if (responseData.containsKey('data') && responseData['data'] is List) {
+        final List<dynamic> data = responseData['data'];
+        return PaginatedResponse<Client>(
+          data: data.map((json) {
+            return Client(
+              id: json['id'],
+              name: json['name'],
+              address: json['address'] ?? '',
+              latitude: json['latitude'],
+              longitude: json['longitude'],
+              regionId: json['region_id'] ?? 0,
+              region: json['region'] ?? '',
+              countryId: json['country_id'] ?? 0
+            );
+          }).toList(),
+          total: responseData['total'] ?? 0,
+          page: responseData['page'] ?? 1,
+          limit: responseData['limit'] ?? 2000,
+          totalPages: responseData['totalPages'] ?? 1,
+        );
+      } else {
+        throw Exception('Invalid response format: missing data field or not a list');
+      }
+    } else {
+      throw Exception('Failed to load clients: ${handledResponse.statusCode}');
+    }
+  } catch (e) {
+    handleNetworkError(e);
+    rethrow;
+  }
+}
   // Get clients by route with pagination
   static Future<PaginatedResponse<Client>> getClientsByRoute(
     int routeId, {
@@ -521,6 +516,65 @@ class ApiService {
     } catch (e) {
       print('Error in createJourneyPlan: $e');
       throw Exception('An error occurred while creating the journey plan: $e');
+    }
+  }
+
+  static Future<void> createJourneyPlanOffline(
+    int clientId,
+    DateTime date, {
+    String? notes,
+    int? routeId,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/journey-plans'),
+        headers: await _headers(),
+        body: jsonEncode({
+          'clientId': clientId,
+          'date': date.toIso8601String(),
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (routeId != null) 'routeId': routeId,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw Exception(
+            'Failed to create journey plan: ${response.statusCode}');
+      }
+      
+      // Clear journey plans cache to force refresh
+      ApiCache.remove('journey_plans');
+    } catch (e) {
+      print('Error creating journey plan: $e');
+      
+      // Check if it's a network error
+      if (e.toString().contains('SocketException') || 
+          e.toString().contains('Connection') || 
+          e.toString().contains('Network')) {
+        // Store the journey plan locally for later sync
+        try {
+          final pendingService = Get.find<PendingJourneyPlanHiveService>();
+          final pendingPlan = PendingJourneyPlanModel(
+            clientId: clientId,
+            date: date,
+            notes: notes,
+            routeId: routeId,
+            createdAt: DateTime.now(),
+            status: 'pending',
+          );
+          await pendingService.savePendingJourneyPlan(pendingPlan);
+          return; // Return without throwing exception as we've saved it locally
+        } catch (hiveError) {
+          print('Error saving pending journey plan: $hiveError');
+        }
+      }
+      
+      throw Exception('Failed to create journey plan: $e');
     }
   }
 
@@ -2605,7 +2659,43 @@ class ApiService {
 
   // Get available routes
   static Future<List<Map<String, dynamic>>> getRoutes() async {
+    // Check cache first
+    final cachedRoutes = ApiCache.get('routes');
+    if (cachedRoutes != null) {
+      print('Returning cached routes');
+      return List<Map<String, dynamic>>.from(cachedRoutes);
+    }
+
     try {
+      // We won't try to register the adapter here as it should be done in HiveInitializer
+      
+      // Try to find RouteHiveService or initialize it if not found
+      RouteHiveService routeHiveService;
+      try {
+        routeHiveService = Get.find<RouteHiveService>();
+      } catch (e) {
+        // If not found, initialize it
+        routeHiveService = RouteHiveService();
+        await routeHiveService.init();
+        Get.put(routeHiveService);
+      }
+      
+      // Check if we have routes in Hive
+      final hiveRoutes = routeHiveService.getAllRoutes();
+      if (hiveRoutes.isNotEmpty) {
+        final routesList = hiveRoutes
+            .map((route) => {
+                  'id': route.id,
+                  'name': route.name,
+                })
+            .toList();
+        
+        // Cache the routes
+        ApiCache.set('routes', routesList, validity: const Duration(hours: 24));
+        return routesList;
+      }
+
+      // If not in Hive, fetch from API
       final token = _getAuthToken();
       if (token == null) {
         throw Exception("Authentication token is missing");
@@ -2618,17 +2708,70 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data
+        final routesList = data
             .map((route) => {
                   'id': route['id'],
                   'name': route['name'],
                 })
             .toList();
+
+        // Save to Hive with error handling
+        try {
+          final routeModels = data.map((route) => RouteModel(
+                id: route['id'],
+                name: route['name'],
+              )).toList();
+          await routeHiveService.saveRoutes(routeModels);
+          print('Successfully saved ${routeModels.length} routes to Hive');
+        } catch (hiveError) {
+          print('Error saving routes to Hive: $hiveError');
+          // Continue execution even if saving to Hive fails
+        }
+
+        // Cache the routes
+        ApiCache.set('routes', routesList, validity: const Duration(hours: 24));
+        return routesList;
       } else {
         throw Exception('Failed to load routes: ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching routes: $e');
+      // If offline, try to get from Hive
+      try {
+        // Try to find RouteHiveService or initialize it if not found
+        try {
+          RouteHiveService routeHiveService;
+          try {
+            routeHiveService = Get.find<RouteHiveService>();
+          } catch (e) {
+            // If not found, initialize it
+            routeHiveService = RouteHiveService();
+            await routeHiveService.init();
+            Get.put(routeHiveService);
+          }
+          
+          // Safely get routes from Hive
+          try {
+            final hiveRoutes = routeHiveService.getAllRoutes();
+            if (hiveRoutes.isNotEmpty) {
+              final routesList = hiveRoutes
+                  .map((route) => {
+                        'id': route.id,
+                        'name': route.name,
+                      })
+                  .toList();
+              print('Successfully retrieved ${routesList.length} routes from Hive');
+              return routesList;
+            }
+          } catch (routeError) {
+            print('Error retrieving routes from Hive: $routeError');
+          }
+        } catch (serviceError) {
+          print('Error with RouteHiveService: $serviceError');
+        }
+      } catch (hiveError) {
+        print('Error fetching routes from Hive: $hiveError');
+      }
       throw Exception('Failed to load routes: $e');
     }
   }
