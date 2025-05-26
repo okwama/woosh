@@ -28,6 +28,7 @@ import 'package:woosh/services/session_service.dart';
 import 'package:woosh/services/session_state.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/session_model.dart';
+import 'package:woosh/controllers/auth_controller.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -179,24 +180,34 @@ class _HomePageState extends State<HomePage> {
       if (salesRep != null && salesRep is Map<String, dynamic>) {
         userId = salesRep['id']?.toString();
       }
-      // if (userId != null) {
-      //   try {
-      //     await SessionService.recordLogout(userId);
-      //   } catch (e) {
-      //     // Optionally show a message, but proceed with local logout
-      //     print('Failed to record logout on server: $e');
-      //   }
-      // }
+      if (userId != null) {
+        try {
+          await SessionService.recordLogout(userId);
+        } catch (e) {
+          print('Failed to record logout on server: $e');
+        }
+      }
+
+      // Clear session state
+      await _sessionHiveService.clearSession();
+      _sessionState.updateSessionState(false, null);
+
+      // Clear cart
+      await _cartController.clear();
 
       // Clear all stored data
       await box.erase();
+
+      // Update auth controller state
+      final authController = Get.find<AuthController>();
+      await authController.logout();
 
       // Close loading indicator
       if (!mounted) return;
       Get.back();
 
       // Navigate to login page and clear all previous routes
-      Get.offAll(() => const LoginPage());
+      Get.offAllNamed('/login');
     } catch (e) {
       print('Error during logout: $e');
       if (!mounted) return;

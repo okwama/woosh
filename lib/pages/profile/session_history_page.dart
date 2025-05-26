@@ -271,19 +271,52 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   }
 
   Widget _buildSessionCard(Session session) {
+    // Format the session start time
+    final startTime = session.sessionStart ?? session.loginAt.toIso8601String();
+    final startDateTime = DateTime.parse(startTime);
+    final formattedStartTime =
+        '${DateFormat('yyyy/MM/dd').format(startDateTime)} ${DateFormat('hh:mm a').format(startDateTime)}';
+
+    // Format the session end time and calculate duration
+    String? formattedEndTime;
+    String formattedDuration = 'N/A';
+
+    if (session.sessionEnd != null) {
+      final endDateTime = DateTime.parse(session.sessionEnd!);
+      formattedEndTime = DateFormat('hh:mm a').format(endDateTime);
+
+      // Calculate duration from start and end times
+      final duration = endDateTime.difference(startDateTime);
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes.remainder(60);
+      formattedDuration = '${hours}h ${minutes}m';
+    }
+
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 2.0),
-      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
         child: Row(
           children: [
-            Icon(
-              session.isLate ? Icons.warning : Icons.check_circle,
-              color: session.isLate ? Colors.orange : Colors.green,
-              size: 14,
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: session.isLate
+                    ? Colors.orange.withOpacity(0.1)
+                    : Colors.green.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                session.isLate ? Icons.warning : Icons.check_circle,
+                color: session.isLate ? Colors.orange : Colors.green,
+                size: 16,
+              ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,16 +324,19 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
                   Row(
                     children: [
                       Text(
-                        DateFormat('MMM d, h:mm a').format(session.loginAt),
-                        style: const TextStyle(fontSize: 11),
+                        formattedStartTime,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: _getStatusColor(session).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           session.formattedStatus,
@@ -313,20 +349,58 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.timer, size: 12),
-                      const SizedBox(width: 2),
-                      Text(
-                        session.formattedDuration,
-                        style: const TextStyle(fontSize: 11),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.timer,
+                                size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              formattedDuration,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const Spacer(),
-                      if (session.logoutAt != null)
-                        Text(
-                          'Logout: ${DateFormat('h:mm a').format(session.logoutAt!)}',
-                          style: const TextStyle(fontSize: 11),
+                      if (formattedEndTime != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.schedule,
+                                  size: 12, color: Colors.blue),
+                              const SizedBox(width: 4),
+                              Text(
+                                formattedEndTime,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -420,6 +494,88 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history,
+            size: 48,
+            color: Colors.grey.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No sessions found for the selected period',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return ListView.builder(
+      itemCount: 5,
+      padding: const EdgeInsets.all(6.0),
+      itemBuilder: (context, index) {
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Container(
+            height: 70,
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 100,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -434,14 +590,20 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: GradientCircularProgressIndicator())
+          ? _buildLoadingState()
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Colors.red.withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 16),
                       Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 11),
+                      const SizedBox(height: 16),
                       GoldGradientButton(
                         onPressed: _loadSessions,
                         child: const Text('Retry'),
@@ -459,20 +621,9 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildDateFilter(),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         if (_sessions.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Text(
-                                'No sessions found for the selected period',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          )
+                          _buildEmptyState()
                         else
                           ..._sessions.map(_buildSessionCard),
                         if (_isLoadingMore)

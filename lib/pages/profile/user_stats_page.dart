@@ -314,8 +314,7 @@ class _UserStatsPageState extends State<UserStatsPage> {
       final responses = await Future.wait([
         _retryOperation(
           () async => http.get(
-            Uri.parse(
-                '${ApiService.baseUrl}/analytics/login-hours/$_userId'),
+            Uri.parse('${ApiService.baseUrl}/analytics/login-hours/$_userId'),
             headers: await _getAuthHeaders(),
           ),
           maxRetries: 3,

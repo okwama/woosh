@@ -6,7 +6,8 @@ import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/report/productReport_model.dart';
 import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
 import 'package:woosh/services/api_service.dart';
-//           productReport: report.productReport,
+import 'package:woosh/services/hive/product_hive_service.dart';
+
 class ProductAvailabilityPage extends BaseReportPage {
   const ProductAvailabilityPage({
     super.key,
@@ -20,44 +21,129 @@ class ProductAvailabilityPage extends BaseReportPage {
 
 class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
     with BaseReportPageMixin {
-  Product? _selectedProduct;
-  final _quantityController = TextEditingController();
-  List<Product> _products = [];
+  final List<Product> _products = [];
+  final Map<int, TextEditingController> _quantityControllers = {};
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  final ProductHiveService _hiveService = ProductHiveService();
+  static const _cacheExpirationDuration = Duration(hours: 24);
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _initHiveAndLoadProducts();
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _initHiveAndLoadProducts() async {
     try {
-      final products = await ApiService.getProducts();
-      setState(() {
-        _products = products;
-        _isLoading = false;
-      });
+      await _hiveService.init();
+      await _loadProducts(forceRefresh: false);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading products: $e')),
-        );
+            SnackBar(content: Text('Error initializing storage: $e')));
       }
     }
   }
 
+  Future<void> _loadProducts({bool forceRefresh = false}) async {
+    try {
+      // Always load from Hive first - instant display
+      final cachedProducts = await _hiveService.getAllProducts();
+      if (cachedProducts.isNotEmpty) {
+        _updateProductsList(cachedProducts);
+        setState(() => _isLoading = false);
+      }
+
+      // Only fetch from API on manual refresh
+      if (forceRefresh) {
+        setState(() => _isRefreshing = true);
+
+        try {
+          final apiProducts = await ApiService.getProducts();
+          final validApiProducts = apiProducts
+              .where((product) =>
+                  product.category.isNotEmpty && product.name.isNotEmpty)
+              .map((product) => Product(
+                    id: product.id,
+                    name: product.name,
+                    category_id: product.category_id,
+                    category: product.category,
+                    description: null,
+                    packSize: null,
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                    imageUrl: null,
+                    clientId: null,
+                    priceOptions: const [],
+                    storeQuantities: const [],
+                  ))
+              .toList();
+
+          // Update local storage with new data
+          await _hiveService.saveProducts(validApiProducts);
+
+          // Update UI with new data
+          if (mounted) {
+            _updateProductsList(validApiProducts);
+          }
+        } catch (e) {
+          // If API fails, keep showing local data
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('Failed to refresh products. Using local data.')));
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading local products: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  void _updateProductsList(List<Product> products) {
+    // Sort products alphabetically
+    products.sort((a, b) => a.name.compareTo(b.name));
+
+    setState(() {
+      _products.clear();
+      _products.addAll(products);
+
+      // Initialize quantity controllers for all products
+      for (var product in _products) {
+        _quantityControllers.putIfAbsent(
+          product.id!,
+          () => TextEditingController(),
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
-    _quantityController.dispose();
+    // Dispose all quantity controllers
+    for (var controller in _quantityControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   void resetForm() {
     setState(() {
-      _selectedProduct = null;
-      _quantityController.clear();
+      for (var controller in _quantityControllers.values) {
+        controller.clear();
+      }
       commentController.clear();
       isSubmitting = false;
     });
@@ -65,24 +151,33 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
 
   @override
   Future<void> onSubmit() async {
-    if (_selectedProduct == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a product')),
-      );
-      return;
+    // Find all products with entered quantities
+    final productReports = <ProductReport>[];
+
+    for (var product in _products) {
+      final quantityText = _quantityControllers[product.id]?.text ?? '';
+      if (quantityText.isNotEmpty) {
+        final quantity = int.tryParse(quantityText);
+        if (quantity == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter valid quantities')),
+          );
+          return;
+        }
+
+        productReports.add(ProductReport(
+          reportId: 0, // Will be set by backend
+          productName: product.name,
+          quantity: quantity,
+          comment: commentController.text,
+        ));
+      }
     }
 
-    if (_quantityController.text.isEmpty) {
+    if (productReports.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the quantity')),
-      );
-      return;
-    }
-
-    final quantity = int.tryParse(_quantityController.text);
-    if (quantity == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid quantity')),
+        const SnackBar(
+            content: Text('Please enter quantities for at least one product')),
       );
       return;
     }
@@ -101,61 +196,50 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
       journeyPlanId: widget.journeyPlan.id!,
       salesRepId: userId,
       clientId: widget.journeyPlan.client.id,
-      productReport: ProductReport(
-        reportId: 0, // This will be set by the backend
-        productName: _selectedProduct!.name,
-        quantity: quantity,
-        comment: commentController.text,
-      ),
+      productReports: productReports,
     );
 
     await submitReport(report);
   }
 
   @override
-  Widget buildReportForm() {  
+  Widget buildReportForm() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Product Availability',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Product Availability',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: _isRefreshing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                  onPressed: _isRefreshing
+                      ? null
+                      : () => _loadProducts(forceRefresh: true),
+                  tooltip: 'Refresh Products',
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else
-              DropdownButtonFormField<Product>(
-                value: _selectedProduct,
-                decoration: const InputDecoration(
-                  labelText: 'Select Product',
-                  border: OutlineInputBorder(),
-                ),
-                items: _products.map((product) {
-                  return DropdownMenuItem(
-                    value: product,
-                    child: Text(product.name),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedProduct = value);
-                },
-              ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _quantityController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-            ),
+              _buildProductsTable(),
             const SizedBox(height: 16),
             TextField(
               controller: commentController,
@@ -167,6 +251,40 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProductsTable() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Product')),
+          DataColumn(label: Text('Category')),
+          DataColumn(label: Text('Quantity')),
+        ],
+        rows: _products.map((product) {
+          return DataRow(
+            cells: [
+              DataCell(Text(product.name)),
+              DataCell(Text(product.category)),
+              DataCell(
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _quantityControllers[product.id],
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Qty',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
       ),
     );
   }

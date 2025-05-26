@@ -4,14 +4,14 @@ import 'package:shimmer/shimmer.dart';
 class SkeletonLoader extends StatelessWidget {
   final double width;
   final double height;
-  final double borderRadius;
+  final double radius;
   final EdgeInsets margin;
 
   const SkeletonLoader({
     super.key,
     required this.width,
     required this.height,
-    this.borderRadius = 8.0,
+    this.radius = 4,
     this.margin = EdgeInsets.zero,
   });
 
@@ -26,7 +26,7 @@ class SkeletonLoader extends StatelessWidget {
         margin: margin,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(borderRadius),
+          borderRadius: BorderRadius.circular(radius),
         ),
       ),
     );
@@ -59,7 +59,7 @@ class ClientListSkeleton extends StatelessWidget {
                     SkeletonLoader(
                       width: 32,
                       height: 32,
-                      borderRadius: 6,
+                      radius: 6,
                     ),
                     const SizedBox(width: 8),
                     // Text placeholders
@@ -121,7 +121,7 @@ class JourneyPlansSkeleton extends StatelessWidget {
                       SkeletonLoader(
                         width: 20,
                         height: 20,
-                        borderRadius: 4,
+                        radius: 4,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -149,7 +149,7 @@ class JourneyPlansSkeleton extends StatelessWidget {
                     SkeletonLoader(
                       width: 60,
                       height: 24,
-                      borderRadius: 12,
+                      radius: 12,
                     ),
                     const SizedBox(width: 6),
                     SkeletonLoader(
@@ -180,7 +180,7 @@ class ProductsGridSkeleton extends StatelessWidget {
           child: SkeletonLoader(
             width: double.infinity,
             height: 48,
-            borderRadius: 12,
+            radius: 12,
           ),
         ),
         // Grid skeleton
@@ -208,7 +208,7 @@ class ProductsGridSkeleton extends StatelessWidget {
                       child: SkeletonLoader(
                         width: double.infinity,
                         height: double.infinity,
-                        borderRadius: 8,
+                        radius: 8,
                       ),
                     ),
                     Container(

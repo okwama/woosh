@@ -16,6 +16,7 @@ import 'package:woosh/utils/hive/hive_initializer.dart';
 import 'package:hive/hive.dart';
 import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
+import 'package:woosh/services/permission_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,9 @@ void main() async {
     await GetStorage.init();
     // Initialize Hive with all adapters
     await HiveInitializer.initialize();
+
+    // Request permissions at startup
+    await PermissionService.requestInitialPermissions();
 
     Get.put(AuthController());
     Get.put(UpliftCartController());

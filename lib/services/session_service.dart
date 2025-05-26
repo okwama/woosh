@@ -25,29 +25,46 @@ class SessionService {
 
   static Future<Map<String, dynamic>> recordLogin(String userId) async {
     try {
+      final now = DateTime.now();
+      print('Debug - Current time: ${now.toIso8601String()}');
+      print('Debug - Timezone: Africa/Nairobi (GMT+3)');
+
       final response = await http.post(
         Uri.parse('$baseUrl/sessions/login'),
         headers: {
           'Content-Type': 'application/json',
           'timezone': 'Africa/Nairobi', // Set default timezone to GMT+3
+          ...await _getAuthHeaders(),
         },
-        body: json.encode({'userId': userId}),
+        body: json.encode({
+          'userId': userId,
+          'clientTime': now.toIso8601String(),
+        }),
       );
 
       _updateToken(response);
 
       if (response.statusCode == 201) {
-        return json.decode(response.body);
+        final responseData = json.decode(response.body);
+        print(
+            'Debug - Server response time: ${responseData['loginAt'] ?? 'Not provided'}');
+        return responseData;
       } else {
+        print('Debug - Error response: ${response.body}');
         throw Exception('Failed to record login: ${response.body}');
       }
     } catch (e) {
+      print('Debug - Exception: $e');
       throw Exception('Error recording login: $e');
     }
   }
 
   static Future<Map<String, dynamic>> recordLogout(String userId) async {
     try {
+      final now = DateTime.now();
+      print('Debug - Logout - Current time: ${now.toIso8601String()}');
+      print('Debug - Logout - Timezone: Africa/Nairobi (GMT+3)');
+
       final response = await http.post(
         Uri.parse('$baseUrl/sessions/logout'),
         headers: {
@@ -55,17 +72,25 @@ class SessionService {
           'timezone': 'Africa/Nairobi', // Set default timezone to GMT+3
           ...await _getAuthHeaders(),
         },
-        body: json.encode({'userId': userId}),
+        body: json.encode({
+          'userId': userId,
+          'clientTime': now.toIso8601String(),
+        }),
       );
 
       _updateToken(response);
 
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final responseData = json.decode(response.body);
+        print(
+            'Debug - Logout - Server response time: ${responseData['logoutAt'] ?? 'Not provided'}');
+        return responseData;
       } else {
+        print('Debug - Logout - Error response: ${response.body}');
         throw Exception('Failed to record logout: ${response.body}');
       }
     } catch (e) {
+      print('Debug - Logout - Exception: $e');
       throw Exception('Error recording logout: $e');
     }
   }
@@ -76,7 +101,20 @@ class SessionService {
     String? endDate,
   }) async {
     try {
-      final url = '$baseUrl/sessions/history/$userId';
+      var url = '$baseUrl/sessions/history/$userId';
+
+      // Add query parameters if dates are provided
+      if (startDate != null || endDate != null) {
+        final queryParams = <String, String>{};
+        if (startDate != null) queryParams['startDate'] = startDate;
+        if (endDate != null) queryParams['endDate'] = endDate;
+
+        final uri = Uri.parse(url).replace(queryParameters: queryParams);
+        url = uri.toString();
+      }
+
+      print('Debug - Fetching sessions with URL: $url');
+      print('Debug - Date range: startDate=$startDate, endDate=$endDate');
 
       final response = await http.get(
         Uri.parse(url),
@@ -85,6 +123,7 @@ class SessionService {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
           'Expires': '0',
+          'timezone': 'Africa/Nairobi',
         },
       );
 
@@ -92,19 +131,43 @@ class SessionService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        // Store the successful response in GetStorage for future 304 responses
+
+        // Process sessions to ensure sessionStart and sessionEnd are properly handled
+        if (data['sessions'] != null) {
+          final sessions = data['sessions'] as List;
+          for (var session in sessions) {
+            // If sessionStart is not provided, use loginAt
+            if (session['sessionStart'] == null && session['loginAt'] != null) {
+              session['sessionStart'] = session['loginAt'];
+            }
+            // If sessionEnd is not provided, use logoutAt
+            if (session['sessionEnd'] == null && session['logoutAt'] != null) {
+              session['sessionEnd'] = session['logoutAt'];
+            }
+          }
+        }
+
+        // Store the processed response in GetStorage
         final box = GetStorage();
-        box.write('last_sessions_$userId', data);
+        final cacheKey =
+            'last_sessions_${userId}_${startDate ?? 'all'}_${endDate ?? 'all'}';
+        box.write(cacheKey, data);
+
+        print('Debug - Processed sessions: ${data['sessions']?.length ?? 0}');
         return data;
       } else if (response.statusCode == 304) {
         // Get the last known sessions from storage
         final box = GetStorage();
-        final lastKnownData = box.read('last_sessions_$userId');
+        final cacheKey =
+            'last_sessions_${userId}_${startDate ?? 'all'}_${endDate ?? 'all'}';
+        final lastKnownData = box.read(cacheKey);
         return lastKnownData ?? {'sessions': []};
       } else {
+        print('Debug - Error response: ${response.body}');
         throw Exception('Failed to fetch session history: ${response.body}');
       }
     } catch (e) {
+      print('Debug - Exception: $e');
       throw Exception('Error fetching session history: $e');
     }
   }

@@ -157,6 +157,36 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   Future<void> _toggleSession() async {
     if (isProcessing) return;
 
+    // Show confirmation dialog
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: GradientText(
+          isSessionActive ? 'End Session' : 'Start Session',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          isSessionActive
+              ? 'Are you sure you want to end your current session?'
+              : 'Are you sure you want to start a new session?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          GoldGradientButton(
+            onPressed: () => Get.back(result: true),
+            child: Text(isSessionActive ? 'End Session' : 'Start Session'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) {
+      return;
+    }
+
     setState(() => isProcessing = true);
     final box = GetStorage();
     final userId = box.read<String>('userId');
@@ -405,7 +435,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
   Widget _buildRoleBadge() {
     final String role =
-        controller.userRole.value.isEmpty ? 'Guard' : controller.userRole.value;
+        controller.userRole.value.isEmpty ? '`User`' : controller.userRole.value;
 
     final Color badgeColor =
         role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin'
