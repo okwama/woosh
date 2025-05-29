@@ -38,6 +38,7 @@ import 'package:woosh/models/uplift_sale_model.dart';
 import 'package:woosh/models/store_model.dart';
 // Handle platform-specific imports
 import 'image_upload.dart';
+import 'package:image/image.dart' as img;
 
 // API Caching System
 class ApiCache {
@@ -336,7 +337,7 @@ class ApiService {
             }).toList(),
             total: responseData['total'] ?? 0,
             page: responseData['page'] ?? 1,
-            limit: responseData['limit'] ?? 2000,
+            limit: responseData['limit'] ?? 20000,
             totalPages: responseData['totalPages'] ?? 1,
           );
         } else {
@@ -357,7 +358,7 @@ class ApiService {
   static Future<PaginatedResponse<Client>> getClientsByRoute(
     int routeId, {
     int page = 1,
-    int limit = 2000,
+    int limit = 20000,
   }) async {
     return fetchClients(routeId: routeId, page: page, limit: limit);
   }
@@ -375,7 +376,7 @@ class ApiService {
   // Get clients for current user's route with pagination
   static Future<PaginatedResponse<Client>> getClientsForCurrentRoute({
     int page = 1,
-    int limit = 2000,
+    int limit = 20000,
   }) async {
     final routeId = getCurrentUserRouteId();
     if (routeId == null) {
@@ -399,7 +400,7 @@ class ApiService {
   @Deprecated('Use fetchClients() instead')
   static Future<List<Outlet>> fetchOutlets({
     int page = 1,
-    int limit = 2000,
+    int limit = 20000,
     int? routeId,
   }) async {
     try {
@@ -808,7 +809,12 @@ class ApiService {
   }
 
   // Upload Image function for cross-platform compatibility
-  static Future<String> uploadImage(dynamic imageFile) async {
+  static Future<String> uploadImage(
+    dynamic imageFile, {
+    void Function(double)? onProgress,
+    int maxWidth = 1200,
+    int quality = 85,
+  }) async {
     try {
       final token = _getAuthToken();
       if (token == null) {
@@ -825,7 +831,12 @@ class ApiService {
       // Handle mobile platform
       if (!kIsWeb) {
         if (imageFile is XFile) {
-          final bytes = await imageFile.readAsBytes();
+          // Optimize image before upload
+          final bytes = await _optimizeImage(
+            await imageFile.readAsBytes(),
+            maxWidth: maxWidth,
+            quality: quality,
+          );
           final fileName = imageFile.name;
           final fileExtension = fileName.split('.').last.toLowerCase();
 
@@ -845,7 +856,12 @@ class ApiService {
             ),
           );
         } else if (imageFile is File) {
-          final bytes = await imageFile.readAsBytes();
+          // Optimize image before upload
+          final bytes = await _optimizeImage(
+            await imageFile.readAsBytes(),
+            maxWidth: maxWidth,
+            quality: quality,
+          );
           final fileName = imageFile.path.split('/').last;
           final fileExtension = fileName.split('.').last.toLowerCase();
 
@@ -871,7 +887,12 @@ class ApiService {
       } else {
         // Handle web platform
         if (imageFile is XFile) {
-          final bytes = await imageFile.readAsBytes();
+          // Optimize image before upload
+          final bytes = await _optimizeImage(
+            await imageFile.readAsBytes(),
+            maxWidth: maxWidth,
+            quality: quality,
+          );
           request.files.add(
             http.MultipartFile.fromBytes(
               'attachment',
@@ -885,21 +906,85 @@ class ApiService {
         }
       }
 
-      final response = await request.send();
+      // Track upload progress
+      final streamedResponse = await request.send();
+      final totalBytes = streamedResponse.contentLength ?? 0;
+      var receivedBytes = 0;
 
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final decodedJson = jsonDecode(responseData);
-        return decodedJson['imageUrl']; // The backend returns the ImageKit URL
-      } else {
-        final responseData = await response.stream.bytesToString();
-        print(
-            'Upload failed with status: ${response.statusCode}, response: $responseData');
-        throw Exception('Failed to upload image: ${response.statusCode}');
-      }
+      // Create a Completer to handle the response
+      final completer = Completer<String>();
+      final responseBytes = <int>[];
+
+      streamedResponse.stream.listen(
+        (chunk) {
+          receivedBytes += chunk.length;
+          if (totalBytes > 0 && onProgress != null) {
+            onProgress(receivedBytes / totalBytes);
+          }
+          responseBytes.addAll(chunk);
+        },
+        onDone: () {
+          final response = http.Response.bytes(
+            responseBytes,
+            streamedResponse.statusCode,
+            headers: streamedResponse.headers,
+          );
+
+          if (response.statusCode == 200) {
+            final decodedJson = jsonDecode(response.body);
+            completer.complete(decodedJson['imageUrl']);
+          } else {
+            completer.completeError(
+              Exception('Failed to upload image: ${response.statusCode}'),
+            );
+          }
+        },
+        onError: (error) {
+          completer.completeError(error);
+        },
+        cancelOnError: true,
+      );
+
+      return completer.future;
     } catch (e) {
       print('Upload error: $e');
       throw Exception('An error occurred while uploading the image: $e');
+    }
+  }
+
+  // Helper function to optimize images before upload
+  static Future<Uint8List> _optimizeImage(
+    Uint8List bytes, {
+    required int maxWidth,
+    required int quality,
+  }) async {
+    try {
+      // Decode the image
+      var image = img.decodeImage(bytes);
+      if (image == null) {
+        throw Exception('Failed to decode image');
+      }
+
+      // Resize if needed
+      if (image.width > maxWidth) {
+        final ratio = maxWidth / image.width;
+        final newHeight = (image.height * ratio).round();
+        image = img.copyResize(
+          image,
+          width: maxWidth,
+          height: newHeight,
+          interpolation: img.Interpolation.linear,
+        );
+      }
+
+      // Encode with quality
+      return Uint8List.fromList(
+        img.encodeJpg(image, quality: quality),
+      );
+    } catch (e) {
+      print('Image optimization error: $e');
+      // Return original bytes if optimization fails
+      return bytes;
     }
   }
 

@@ -16,12 +16,24 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 class ProductReportPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
   final VoidCallback? onReportSubmitted;
+  final List<Product>? preloadedProducts;
 
   const ProductReportPage({
     super.key,
     required this.journeyPlan,
     this.onReportSubmitted,
+    this.preloadedProducts,
   });
+
+  static Future<List<Product>> preloadProducts() async {
+    try {
+      final products = await ApiService.getProducts(page: 1, limit: 20);
+      return products;
+    } catch (e) {
+      print('Error preloading products: $e');
+      return [];
+    }
+  }
 
   @override
   State<ProductReportPage> createState() => _ProductReportPageState();
@@ -50,9 +62,9 @@ class _ProductReportPageState extends State<ProductReportPage> {
     super.initState();
     _initHiveService();
     _checkConnectivity();
-    _loadProducts();
+    _initializeProducts();
     _scrollController.addListener(_onScroll);
-    
+
     // Listen for connectivity changes
     final connectivity = Connectivity();
     connectivity.onConnectivityChanged.listen((result) {
@@ -64,18 +76,20 @@ class _ProductReportPageState extends State<ProductReportPage> {
       }
     });
   }
-  
+
   Future<void> _initHiveService() async {
     try {
       // Ensure adapters are registered
-      if (!Hive.isAdapterRegistered(10)) { // 10 is the typeId for ProductReportHiveModel
+      if (!Hive.isAdapterRegistered(10)) {
+        // 10 is the typeId for ProductReportHiveModel
         Hive.registerAdapter(ProductReportHiveModelAdapter());
       }
-      
-      if (!Hive.isAdapterRegistered(11)) { // 11 is the typeId for ProductQuantityHiveModel
+
+      if (!Hive.isAdapterRegistered(11)) {
+        // 11 is the typeId for ProductQuantityHiveModel
         Hive.registerAdapter(ProductQuantityHiveModelAdapter());
       }
-      
+
       // Try to get the already registered service
       try {
         _productReportHiveService = Get.find<ProductReportHiveService>();
@@ -85,7 +99,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
         await _productReportHiveService.init();
         Get.put(_productReportHiveService);
       }
-      
+
       // Only load existing report after service is properly initialized
       // and we're sure the journey plan ID is not null
       if (widget.journeyPlan.id != null) {
@@ -95,7 +109,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
       print('Error initializing Hive service: $e');
     }
   }
-  
+
   Future<void> _checkConnectivity() async {
     final connectivity = Connectivity();
     var connectivityResult = await connectivity.checkConnectivity();
@@ -103,13 +117,14 @@ class _ProductReportPageState extends State<ProductReportPage> {
       _isOnline = connectivityResult != ConnectivityResult.none;
     });
   }
-  
+
   void _loadExistingReport() {
     // Add null check for journeyPlan.id
     final journeyPlanId = widget.journeyPlan.id;
     if (journeyPlanId == null) return;
-    
-    final savedReport = _productReportHiveService.getReportByJourneyPlanId(journeyPlanId);
+
+    final savedReport =
+        _productReportHiveService.getReportByJourneyPlanId(journeyPlanId);
     if (savedReport != null && !savedReport.isSynced) {
       setState(() {
         _hasUnsyncedData = true;
@@ -138,20 +153,31 @@ class _ProductReportPageState extends State<ProductReportPage> {
     }
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _initializeProducts() async {
     try {
-      // First try to load from API if online
+      setState(() => _isLoading = true);
+
+      // Use preloaded products if available
+      if (widget.preloadedProducts != null &&
+          widget.preloadedProducts!.isNotEmpty) {
+        _setupProductsState(widget.preloadedProducts!);
+        return;
+      }
+
+      // Otherwise load from API or local storage
       if (_isOnline) {
-        final products = await ApiService.getProducts(page: 1, limit: _pageSize);
+        final products =
+            await ApiService.getProducts(page: 1, limit: _pageSize);
         _setupProductsState(products);
       } else {
         // If offline, show a message
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Working offline. Some features may be limited.')),
+          const SnackBar(
+              content: Text('Working offline. Some features may be limited.')),
         );
         setState(() => _isLoading = false);
       }
-      
+
       // Load saved quantities from Hive if available
       _loadSavedQuantities();
     } catch (e) {
@@ -163,7 +189,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
       }
     }
   }
-  
+
   void _setupProductsState(List<Product> products) {
     if (mounted) {
       setState(() {
@@ -178,21 +204,24 @@ class _ProductReportPageState extends State<ProductReportPage> {
       });
     }
   }
-  
+
   void _loadSavedQuantities() {
     // Add null check for journeyPlan.id before using it
     if (widget.journeyPlan.id == null) return;
-    
-    final savedReport = _productReportHiveService.getReportByJourneyPlanId(widget.journeyPlan.id!);
+
+    final savedReport = _productReportHiveService
+        .getReportByJourneyPlanId(widget.journeyPlan.id!);
     if (savedReport != null) {
       // Update quantities from saved report
       for (var product in savedReport.products) {
         // Check if productId is not null before using it
-        if (product.productId != null && _productQuantities.containsKey(product.productId!)) {
+        if (product.productId != null &&
+            _productQuantities.containsKey(product.productId!)) {
           setState(() {
             // Use null-aware operators to safely handle nullable values
             _productQuantities[product.productId!] = product.quantity ?? 0;
-            _quantityControllers[product.productId!]?.text = (product.quantity ?? 0).toString();
+            _quantityControllers[product.productId!]?.text =
+                (product.quantity ?? 0).toString();
           });
         }
       }
@@ -206,30 +235,41 @@ class _ProductReportPageState extends State<ProductReportPage> {
 
     try {
       final nextPage = _currentPage + 1;
+
+      // Use await for API call
       final moreProducts =
           await ApiService.getProducts(page: nextPage, limit: _pageSize);
 
-      if (mounted) {
-        setState(() {
-          _products.addAll(moreProducts);
-          _productQuantities
-              .addAll({for (var product in moreProducts) product.id: 0});
-          _quantityControllers.addAll({
-            for (var product in moreProducts)
-              product.id: TextEditingController(text: '0')
-          });
-          _currentPage = nextPage;
-          _hasMoreProducts = moreProducts.length == _pageSize;
-          _isLoadingMore = false;
+      if (!mounted) return;
+
+      // Update state with new products
+      setState(() {
+        _products.addAll(moreProducts);
+        _productQuantities
+            .addAll({for (var product in moreProducts) product.id: 0});
+        _quantityControllers.addAll({
+          for (var product in moreProducts)
+            product.id: TextEditingController(text: '0')
         });
-      }
+        _currentPage = nextPage;
+        _hasMoreProducts = moreProducts.length == _pageSize;
+        _isLoadingMore = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingMore = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading more products: $e')),
-        );
-      }
+      if (!mounted) return;
+
+      setState(() => _isLoadingMore = false);
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading more products: $e'),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: _loadMoreProducts,
+          ),
+        ),
+      );
     }
   }
 
@@ -251,7 +291,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
     try {
       // Save to Hive first (works offline)
       await _saveReportToHive();
-      
+
       // If online, try to submit to API
       if (_isOnline) {
         await _submitReportToApi();
@@ -259,7 +299,9 @@ class _ProductReportPageState extends State<ProductReportPage> {
         // If offline, show message that it will sync later
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Report saved offline. It will be submitted when you are back online.')),
+            const SnackBar(
+                content: Text(
+                    'Report saved offline. It will be submitted when you are back online.')),
           );
           setState(() => _hasUnsyncedData = true);
           widget.onReportSubmitted?.call();
@@ -278,7 +320,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
       }
     }
   }
-  
+
   Future<void> _saveReportToHive() async {
     // Ensure journeyPlanId is not null before proceeding
     final journeyPlanId = widget.journeyPlan.id;
@@ -287,7 +329,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
       print('Cannot save report: Journey Plan ID is null');
       return;
     }
-    
+
     try {
       await _productReportHiveService.saveProductReport(
         journeyPlanId: journeyPlanId,
@@ -304,7 +346,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
       rethrow;
     }
   }
-  
+
   Future<void> _submitReportToApi() async {
     final box = GetStorage();
     final salesRepData = box.read('salesRep');
@@ -338,7 +380,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
     );
 
     await _apiService.submitReport(report);
-    
+
     // Mark as synced in Hive
     final journeyPlanId = widget.journeyPlan.id;
     if (journeyPlanId != null) {
@@ -354,21 +396,22 @@ class _ProductReportPageState extends State<ProductReportPage> {
       Navigator.pop(context);
     }
   }
-  
+
   Future<void> _syncUnsyncedReports() async {
     final unsyncedReports = _productReportHiveService.getUnsyncedReports();
     if (unsyncedReports.isEmpty) return;
-    
+
     final box = GetStorage();
     final salesRepData = box.read('salesRep');
     final salesRepId =
         salesRepData is Map<String, dynamic> ? salesRepData['id'] as int : 0;
 
     if (salesRepId == 0) return;
-    
+
     for (var report in unsyncedReports) {
       try {
-        final apiReport = _productReportHiveService.convertToReportModel(report, salesRepId);
+        final apiReport =
+            _productReportHiveService.convertToReportModel(report, salesRepId);
         await _apiService.submitReport(apiReport);
         await _productReportHiveService.markAsSynced(report.journeyPlanId);
       } catch (e) {
@@ -376,7 +419,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
         // Continue with next report even if this one fails
       }
     }
-    
+
     setState(() => _hasUnsyncedData = false);
   }
 

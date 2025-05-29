@@ -180,13 +180,6 @@ class _HomePageState extends State<HomePage> {
       if (salesRep != null && salesRep is Map<String, dynamic>) {
         userId = salesRep['id']?.toString();
       }
-      if (userId != null) {
-        try {
-          await SessionService.recordLogout(userId);
-        } catch (e) {
-          print('Failed to record logout on server: $e');
-        }
-      }
 
       // Clear session state
       await _sessionHiveService.clearSession();
