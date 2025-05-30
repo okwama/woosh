@@ -7,6 +7,7 @@ import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 import 'package:woosh/controllers/uplift_cart_controller.dart';
 import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/controllers/uplift_sale_controller.dart';
+import 'package:woosh/pages/login/sign_page.dart';
 
 class AppRoutes {
   static final routes = [
@@ -52,6 +53,11 @@ class AppRoutes {
       binding: BindingsBuilder(() {
         Get.lazyPut<UpliftSaleController>(() => UpliftSaleController());
       }),
+    ),
+    GetPage(
+      name: '/sign-up',
+      page: () => const SignUpPage(),
+      transition: Transition.rightToLeft,
     ),
   ];
 }

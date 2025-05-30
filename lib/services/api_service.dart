@@ -1032,29 +1032,61 @@ class ApiService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode(userData),
       );
 
+      final responseData = jsonDecode(response.body);
+      
       if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
         return {
           'success': true,
-          'salesRep': data['data']['salesRep'],
+          'message': responseData['message'] ?? 'Registration successful',
+          'salesRep': responseData['salesRep'],
+          'token': responseData['token'],
         };
       } else {
-        final error = jsonDecode(response.body);
+        String errorMessage = 'Registration failed';
+        if (responseData is Map) {
+          errorMessage = responseData['message'] ?? 
+                        responseData['error'] ?? 
+                        'Registration failed';
+          
+          // Handle validation errors
+          if (responseData['errors'] != null) {
+            final errors = responseData['errors'] as Map<String, dynamic>;
+            errorMessage = errors.entries
+                .map((e) => '${e.key}: ${e.value.join(', ')}')
+                .join('\n');
+          }
+        }
+        
         return {
           'success': false,
-          'error': error['error'] ?? 'Registration failed',
-          'details': error['details'],
+          'message': errorMessage,
+          'statusCode': response.statusCode,
         };
       }
+    } on FormatException catch (e) {
+      print('JSON Format Error: $e');
+      return {
+        'success': false,
+        'message': 'Invalid server response format',
+      };
+    } on http.ClientException catch (e) {
+      print('Network Error: $e');
+      return {
+        'success': false,
+        'message': 'Network error: ${e.message}',
+      };
     } catch (e) {
       print('Registration error: $e');
       return {
         'success': false,
-        'error': 'Network error occurred',
+        'message': 'An unexpected error occurred',
       };
     }
   }

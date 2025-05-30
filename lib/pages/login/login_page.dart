@@ -182,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 12),
 
                       // Forgot Password
-                      _buildForgotPasswordButton(),
+                      // _buildForgotPasswordButton(),
 
                       const SizedBox(height: 24),
 
@@ -192,7 +192,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 24),
 
                       // Don't have an account
-                      _buildSignUpRow(),
+                       _buildSignUpRow(),
                     ],
                   ),
                 ),
@@ -304,10 +304,10 @@ class _LoginPageState extends State<LoginPage> {
         ),
         GestureDetector(
           onTap: () {
-            Get.toNamed('/register');
+            Get.toNamed('/sign-up');
           },
           child: GradientText(
-            'Contact Admin',
+            'Sign Up',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
             ),

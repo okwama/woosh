@@ -1,10 +1,10 @@
 class Config {
-   static const String baseUrl = 'http://192.168.100.10:5000';
-  //static const String baseUrl = 'https://woosh-api.vercel.app';
+   //static const String baseUrl = 'http://192.168.100.10:5000';
+static const String baseUrl = 'https://woosh-api.vercel.app';
  // static const String baseUrl = 'http://192.168.100.2:5000';
   static const String apiVersion = 'v1';
-   static const String imageBaseUrl = 'http://wooshgold.com:5000/uploads';
-  //static const String imageBaseUrl = 'http://woosh-api.vercel.app/uploads';
+   //static const String imageBaseUrl = 'http://wooshgold.com:5000/uploads';
+static const String imageBaseUrl = 'http://woosh-api.vercel.app/uploads';
 
   // API Endpoints
   static const String loginEndpoint = '/auth/login';
