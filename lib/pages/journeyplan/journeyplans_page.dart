@@ -378,8 +378,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
                             setState(() {
                               final index = _journeyPlans
                                   .indexWhere((p) => p.id == updatedPlan.id);
-                              if (index != -1)
+                              if (index != -1) {
                                 _journeyPlans[index] = updatedPlan;
+                              }
                               _activeVisit = updatedPlan;
                             });
                           },

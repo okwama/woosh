@@ -72,7 +72,7 @@ class SalesRepReportService {
     return reports.fold<Map<int, List<Report>>>(
       {},
       (map, report) {
-        map.putIfAbsent(report.clientId!, () => []).add(report);
+        map.putIfAbsent(report.clientId, () => []).add(report);
               return map;
       },
     );

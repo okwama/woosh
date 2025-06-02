@@ -317,7 +317,7 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
         if (imageError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(imageError!),
+              content: Text(imageError),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 5),
             ),
@@ -442,8 +442,9 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
                                             fit: BoxFit.cover,
                                             loadingBuilder: (context, child,
                                                 loadingProgress) {
-                                              if (loadingProgress == null)
+                                              if (loadingProgress == null) {
                                                 return child;
+                                              }
                                               return Container(
                                                 height: 200,
                                                 width: double.infinity,

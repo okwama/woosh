@@ -215,12 +215,11 @@ class _ProductReportPageState extends State<ProductReportPage> {
       // Update quantities from saved report
       for (var product in savedReport.products) {
         // Check if productId is not null before using it
-        if (product.productId != null &&
-            _productQuantities.containsKey(product.productId!)) {
+        if (_productQuantities.containsKey(product.productId)) {
           setState(() {
             // Use null-aware operators to safely handle nullable values
-            _productQuantities[product.productId!] = product.quantity ?? 0;
-            _quantityControllers[product.productId!]?.text =
+            _productQuantities[product.productId] = product.quantity ?? 0;
+            _quantityControllers[product.productId]?.text =
                 (product.quantity ?? 0).toString();
           });
         }

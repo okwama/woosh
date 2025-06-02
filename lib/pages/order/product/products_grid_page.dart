@@ -17,7 +17,6 @@ import 'package:woosh/models/hive/product_model.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
-import 'package:flutter/foundation.dart';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;

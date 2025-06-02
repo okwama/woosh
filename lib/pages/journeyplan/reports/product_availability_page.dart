@@ -122,7 +122,7 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
       // Initialize quantity controllers for all products
       for (var product in _products) {
         _quantityControllers.putIfAbsent(
-          product.id!,
+          product.id,
           () => TextEditingController(),
         );
       }
