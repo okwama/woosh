@@ -26,17 +26,80 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   final TextEditingController notesController = TextEditingController();
   int? selectedRouteId;
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  int _currentPage = 1;
+  bool _hasMoreData = true;
+  final ScrollController _scrollController = ScrollController();
+  List<Client> _allClients = [];
 
   @override
   void initState() {
     super.initState();
-    filteredClients = widget.clients;
+    _allClients = widget.clients;
+    filteredClients = _allClients;
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     notesController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore && _hasMoreData) {
+        _loadMoreClients();
+      }
+    }
+  }
+
+  Future<void> _loadMoreClients() async {
+    if (_isLoadingMore || !_hasMoreData) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final routeId = ApiService.getCurrentUserRouteId();
+      final response = await ApiService.fetchClients(
+        routeId: routeId,
+        page: _currentPage + 1,
+        limit: 2000,
+      );
+
+      if (response.data.isEmpty) {
+        setState(() {
+          _hasMoreData = false;
+        });
+      } else {
+        setState(() {
+          _allClients.addAll(response.data);
+          _currentPage++;
+          _updateFilteredClients();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading more clients: ${e.toString()}')),
+      );
+    } finally {
+      setState(() {
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  void _updateFilteredClients() {
+    setState(() {
+      filteredClients = _allClients.where((client) {
+        return client.name.toLowerCase().contains(searchQuery) ||
+            (client.address ?? '').toLowerCase().contains(searchQuery);
+      }).toList();
+    });
   }
 
   Future<void> createJourneyPlan(
@@ -254,17 +317,11 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
 
                 // Search field
                 TextField(
+                  // In the TextField onChanged callback
                   onChanged: (value) {
                     setState(() {
                       searchQuery = value.toLowerCase();
-                      filteredClients = widget.clients.where((client) {
-                        return client.name
-                                .toLowerCase()
-                                .contains(searchQuery) ||
-                            (client.address ?? '')
-                                .toLowerCase()
-                                .contains(searchQuery);
-                      }).toList();
+                      _updateFilteredClients();
                     });
                   },
                   decoration: InputDecoration(
@@ -342,8 +399,17 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                 child: Text('No matching clients found',
                                     style: TextStyle(fontSize: 13)))
                             : ListView.builder(
-                                itemCount: filteredClients.length,
+                                controller: _scrollController,
+                                itemCount: filteredClients.length + (_hasMoreData ? 1 : 0),
                                 itemBuilder: (context, index) {
+                                  if (index == filteredClients.length) {
+                                    return Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
                                   final client = filteredClients[index];
                                   return InkWell(
                                     onTap: () {
