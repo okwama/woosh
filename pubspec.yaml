@@ -1,7 +1,8 @@
 name: woosh
 description: "A new Flutter project."
 
-version: 1.0.0+9
+version: 1.0.1+10  # Small fix/update
+
 
 environment:
   sdk: ">=3.6.0 <4.0.0"

@@ -4,6 +4,22 @@ import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'dart:async';
+import 'package:flutter/services.dart';
+
+// Simple class to represent a match
+class _Match {
+  final int start;
+  final int end;
+  _Match(this.start, this.end);
+}
+
+// Add this class to store client with relevance score
+class _ScoredClient {
+  final Client client;
+  final double score;
+  _ScoredClient(this.client, this.score);
+}
 
 class CreateJourneyPlanPage extends StatefulWidget {
   final List<Client> clients;
@@ -24,6 +40,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   String searchQuery = '';
   late List<Client> filteredClients;
   final TextEditingController notesController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
   int? selectedRouteId;
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -31,12 +48,17 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   bool _hasMoreData = true;
   final ScrollController _scrollController = ScrollController();
   List<Client> _allClients = [];
+  Timer? _debounce;
+  bool _searchByName = true;
+  bool _searchByAddress = true;
+  Map<String, List<Client>> _searchCache = {};
+  bool _isInitialLoad = true;
+  bool _isCreatingJourneyPlan = false;
 
   @override
   void initState() {
     super.initState();
-    _allClients = widget.clients;
-    filteredClients = _allClients;
+    _initializeClients();
     _scrollController.addListener(_onScroll);
   }
 
@@ -44,6 +66,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   void dispose() {
     _scrollController.dispose();
     notesController.dispose();
+    searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -52,6 +76,35 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoadingMore && _hasMoreData) {
         _loadMoreClients();
+      }
+    }
+  }
+
+  Future<void> _initializeClients() async {
+    if (_isInitialLoad) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Load initial clients
+        _allClients = widget.clients;
+        filteredClients = _allClients;
+
+        // Preload more clients in the background
+        _loadMoreClients();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading clients: ${e.toString()}'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      } finally {
+        setState(() {
+          _isLoading = false;
+          _isInitialLoad = false;
+        });
       }
     }
   }
@@ -77,14 +130,21 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       } else {
         setState(() {
-          _allClients.addAll(response.data);
+          // Use a Set to prevent duplicates
+          final existingIds = _allClients.map((c) => c.id).toSet();
+          final newClients =
+              response.data.where((c) => !existingIds.contains(c.id)).toList();
+          _allClients.addAll(newClients);
           _currentPage++;
           _updateFilteredClients();
         });
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading more clients: ${e.toString()}')),
+        SnackBar(
+          content: Text('Error loading more clients: ${e.toString()}'),
+          backgroundColor: Colors.red.shade600,
+        ),
       );
     } finally {
       setState(() {
@@ -93,13 +153,438 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     }
   }
 
-  void _updateFilteredClients() {
+  Future<void> _refreshClients() async {
     setState(() {
-      filteredClients = _allClients.where((client) {
-        return client.name.toLowerCase().contains(searchQuery) ||
-            (client.address ?? '').toLowerCase().contains(searchQuery);
-      }).toList();
+      _currentPage = 1;
+      _hasMoreData = true;
+      _searchCache.clear();
     });
+
+    try {
+      final routeId = ApiService.getCurrentUserRouteId();
+      final response = await ApiService.fetchClients(
+        routeId: routeId,
+        page: 1,
+        limit: 2000,
+      );
+
+      setState(() {
+        _allClients = response.data;
+        _updateFilteredClients();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error refreshing clients: ${e.toString()}'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        searchQuery = query.toLowerCase();
+        _updateFilteredClients();
+      });
+    });
+  }
+
+  String _normalizeText(String text) {
+    return text
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[-\s_.,;:/\\]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  List<_ScoredClient> _matchAndScoreClients(
+      List<Client> clients, List<String> patternWords) {
+    final scoredClients = <_ScoredClient>[];
+
+    for (final client in clients) {
+      final searchableText = [
+        client.name,
+        if (client.address != null) client.address!,
+      ].join(' ');
+
+      final normalizedText = _normalizeText(searchableText);
+      final normalizedPattern = _normalizeText(patternWords.join(' '));
+
+      final textWordList = normalizedText.split(' ');
+      final patternWordList = normalizedPattern.split(' ');
+
+      bool allWordsFound = true;
+      int totalDistance = 0;
+      int lastMatchIndex = -1;
+
+      for (final patternWord in patternWordList) {
+        if (patternWord.isEmpty) continue;
+
+        bool wordFound = false;
+        int bestDistance = 999999;
+        int bestIndex = -1;
+
+        for (int i = 0; i < textWordList.length; i++) {
+          final textWord = textWordList[i];
+          if (textWord.contains(patternWord) ||
+              patternWord.contains(textWord)) {
+            wordFound = true;
+            int distance = lastMatchIndex == -1 ? 0 : i - lastMatchIndex;
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestIndex = i;
+            }
+          }
+        }
+
+        if (!wordFound) {
+          allWordsFound = false;
+          break;
+        }
+
+        if (bestIndex != -1) {
+          totalDistance += bestDistance;
+          lastMatchIndex = bestIndex;
+        }
+      }
+
+      if (allWordsFound) {
+        double score = 100.0;
+
+        score -= totalDistance * 5;
+
+        if (normalizedText.contains(normalizedPattern)) {
+          score += 50;
+        }
+
+        if (normalizedText.startsWith(patternWordList[0])) {
+          score += 30;
+        }
+
+        score -= (textWordList.length - patternWordList.length) * 2;
+
+        scoredClients.add(_ScoredClient(client, score));
+      }
+    }
+
+    scoredClients.sort((a, b) => b.score.compareTo(a.score));
+    return scoredClients;
+  }
+
+  void _updateFilteredClients() {
+    if (searchQuery.isEmpty) {
+      setState(() {
+        filteredClients = _allClients;
+      });
+      return;
+    }
+
+    if (_searchCache.containsKey(searchQuery)) {
+      setState(() {
+        filteredClients = _searchCache[searchQuery]!;
+      });
+      return;
+    }
+
+    final patternWords = _normalizeText(searchQuery).split(' ');
+    final scoredClients = _matchAndScoreClients(_allClients, patternWords);
+
+    setState(() {
+      filteredClients = scoredClients.map((sc) => sc.client).toList();
+      _searchCache[searchQuery] = filteredClients;
+    });
+  }
+
+  Widget _buildHighlightedText(String text, String query) {
+    if (query.isEmpty) return Text(text);
+
+    final normalizedText = _normalizeText(text);
+    final normalizedQuery = _normalizeText(query);
+    final queryWords = normalizedQuery.split(' ');
+    final matches = <_Match>[];
+
+    for (final word in queryWords) {
+      if (word.isEmpty) continue;
+
+      int startIndex = 0;
+      while (true) {
+        final index = normalizedText.indexOf(word, startIndex);
+        if (index == -1) break;
+
+        int originalIndex = _findOriginalPosition(text, normalizedText, index);
+        int originalEnd =
+            _findOriginalPosition(text, normalizedText, index + word.length);
+        matches.add(_Match(originalIndex, originalEnd));
+
+        startIndex = index + 1;
+      }
+    }
+
+    if (matches.isEmpty) return Text(text);
+
+    matches.sort((a, b) => a.start.compareTo(b.start));
+
+    final mergedMatches = <_Match>[];
+    _Match? currentMatch;
+
+    for (final match in matches) {
+      if (currentMatch == null) {
+        currentMatch = match;
+      } else if (match.start <= currentMatch.end) {
+        currentMatch = _Match(currentMatch.start,
+            match.end > currentMatch.end ? match.end : currentMatch.end);
+      } else {
+        mergedMatches.add(currentMatch);
+        currentMatch = match;
+      }
+    }
+    if (currentMatch != null) {
+      mergedMatches.add(currentMatch);
+    }
+
+    final spans = <TextSpan>[];
+    int lastIndex = 0;
+
+    for (final match in mergedMatches) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex, match.start),
+          style: const TextStyle(color: Colors.black87),
+        ));
+      }
+
+      spans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: const TextStyle(
+          color: Colors.blue,
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: const TextStyle(color: Colors.black87),
+      ));
+    }
+
+    return RichText(text: TextSpan(children: spans));
+  }
+
+  int _findOriginalPosition(
+      String original, String normalized, int normalizedPos) {
+    int originalPos = 0;
+    int normalizedIndex = 0;
+
+    while (normalizedIndex < normalizedPos && originalPos < original.length) {
+      if (_isSeparator(original[originalPos])) {
+        originalPos++;
+        continue;
+      }
+      if (normalized[normalizedIndex] == original[originalPos].toLowerCase()) {
+        normalizedIndex++;
+      }
+      originalPos++;
+    }
+
+    return originalPos;
+  }
+
+  bool _isSeparator(String char) {
+    return RegExp(r'[-\s_.,;:/\\]').hasMatch(char);
+  }
+
+  Future<void> _showConfirmationDialog(
+    BuildContext context,
+    Client client,
+    DateTime date, {
+    String? notes,
+    int? routeId,
+    String? routeName,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.assignment_add,
+                color: Theme.of(context).primaryColor,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Confirm Journey Plan',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please confirm the details of your journey plan:',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDetailRow(
+                      icon: Icons.person,
+                      label: 'Client',
+                      value: client.name,
+                      context: context,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      icon: Icons.calendar_today,
+                      label: 'Date',
+                      value: DateFormat('EEEE, MMM dd, yyyy').format(date),
+                      context: context,
+                    ),
+                    if (routeName != null) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow(
+                        icon: Icons.route,
+                        label: 'Route',
+                        value: routeName,
+                        context: context,
+                      ),
+                    ],
+                    if (client.address != null &&
+                        client.address!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildDetailRow(
+                        icon: Icons.location_on,
+                        label: 'Address',
+                        value: client.address!,
+                        context: context,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Create Plan',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await createJourneyPlan(
+        context,
+        client.id,
+        date,
+        notes: notes,
+        routeId: routeId,
+        onSuccess: widget.onSuccess,
+      );
+    }
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required BuildContext context,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Theme.of(context).primaryColor,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> createJourneyPlan(
@@ -112,6 +597,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   }) async {
     setState(() {
       _isLoading = true;
+      _isCreatingJourneyPlan = true;
     });
 
     try {
@@ -122,384 +608,710 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         routeId: routeId,
       );
 
-      // Refresh journey plans after creating a new one
       final journeyPlans = await ApiService.fetchJourneyPlans();
 
       if (onSuccess != null) {
         onSuccess(journeyPlans);
       }
 
+      await _refreshClients();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Journey plan created successfully')),
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Text('Journey plan created successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       );
 
-      // Navigate back to the journey plans page
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to create journey plan: ${e.toString()}'),
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Failed to create journey plan: ${e.toString()}'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     } finally {
       setState(() {
         _isLoading = false;
+        _isCreatingJourneyPlan = false;
       });
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: GradientAppBar(
-        title: 'Create Journey Plan',
-      ),
-      body: Stack(
-        children: [
-          // Main content
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top controls section - more compact
-                Row(
+  Widget _buildClientList() {
+    return RefreshIndicator(
+      onRefresh: _refreshClients,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade200,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: widget.clients.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Date selector
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Date',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13),
+                    Icon(
+                      Icons.people_outline,
+                      size: 48,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No clients available',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : filteredClients.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No matching clients found',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
                           ),
-                          const SizedBox(height: 4),
-                          InkWell(
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: filteredClients.length + (_hasMoreData ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == filteredClients.length) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+                      final client = filteredClients[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
                             onTap: () async {
-                              final DateTime? picked = await showDatePicker(
-                                context: context,
-                                initialDate: selectedDate,
-                                firstDate: DateTime.now(),
-                                lastDate: DateTime.now()
-                                    .add(const Duration(days: 30)),
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  selectedDate = picked;
-                                });
+                              if (!_isLoading) {
+                                String? routeName;
+                                if (selectedRouteId != null) {
+                                  try {
+                                    final routes = await ApiService.getRoutes();
+                                    final route = routes.firstWhere(
+                                      (r) => r['id'] == selectedRouteId,
+                                      orElse: () => <String, dynamic>{},
+                                    );
+                                    routeName = route['name'];
+                                  } catch (e) {
+                                    // Handle error silently
+                                  }
+                                }
+
+                                await _showConfirmationDialog(
+                                  context,
+                                  client,
+                                  selectedDate,
+                                  notes: notesController.text.trim(),
+                                  routeId: selectedRouteId,
+                                  routeName: routeName,
+                                );
                               }
                             },
+                            borderRadius: BorderRadius.circular(8),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8),
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                    color:
-                                        const Color.fromARGB(255, 77, 77, 77)),
-                                borderRadius: BorderRadius.circular(6),
+                                  color: Colors.grey.shade200,
+                                  width: 1,
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.calendar_today,
-                                      size: 16,
-                                      color: Theme.of(context).primaryColor),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    DateFormat('MMM dd, yyyy')
-                                        .format(selectedDate),
-                                    style: const TextStyle(fontSize: 13),
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Theme.of(context).primaryColor,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _buildHighlightedText(
+                                            client.name, searchQuery),
+                                        if (client.address != null &&
+                                            client.address!.isNotEmpty)
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.only(top: 4),
+                                            child: _buildHighlightedText(
+                                              client.address!,
+                                              searchQuery,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    size: 16,
+                                    color: Colors.grey.shade400,
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ],
+                        ),
+                      );
+                    },
+                  ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: GradientAppBar(
+        title: 'Create Journey Plan',
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.refresh,
+              color: Colors.white,
+            ),
+            onPressed: () async {
+              // Show loading indicator in snackbar
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
                       ),
+                      const SizedBox(width: 12),
+                      const Text('Refreshing client list...'),
+                    ],
+                  ),
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: Theme.of(context).primaryColor,
+                ),
+              );
+
+              // Refresh the client list
+              await _refreshClients();
+
+              // Show success message
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Client list refreshed'),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    // Route selector
-                    Expanded(
-                      flex: 1,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    backgroundColor: Colors.green.shade600,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            tooltip: 'Refresh client list',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade200,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
                         children: [
-                          const Text(
-                            'Route (Optional)',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          const SizedBox(height: 4),
-                          FutureBuilder<List<Map<String, dynamic>>>(
-                            future: ApiService.getRoutes(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const SizedBox(
-                                  height: 36,
-                                  child: Center(
-                                      child: SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2))),
-                                );
-                              }
-
-                              if (snapshot.hasError) {
-                                return Text('Error: ${snapshot.error}',
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Colors.red));
-                              }
-
-                              final routes = snapshot.data ?? [];
-                              return SizedBox(
-                                height: 36, // Match the height of date selector
-                                child: DropdownButtonFormField<int>(
-                                  value: selectedRouteId,
-                                  isDense: true,
-                                  isExpanded: true,
-                                  icon: Icon(Icons.arrow_drop_down, size: 18),
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: BorderSide(
-                                          color: const Color.fromARGB(
-                                              255, 74, 74, 74)),
+                          Expanded(
+                            flex: 1,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_today,
+                                      size: 16,
+                                      color: Theme.of(context).primaryColor,
                                     ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: BorderSide(
-                                          color: const Color.fromARGB(
-                                              255, 74, 74, 74)),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Date',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.black87,
+                                      ),
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 0.0, // Reduced vertical padding
-                                      horizontal: 10.0,
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final DateTime? picked =
+                                        await showDatePicker(
+                                      context: context,
+                                      initialDate: selectedDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now()
+                                          .add(const Duration(days: 30)),
+                                      builder: (context, child) {
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            colorScheme: Theme.of(context)
+                                                .colorScheme
+                                                .copyWith(
+                                                  primary: Theme.of(context)
+                                                      .primaryColor,
+                                                ),
+                                          ),
+                                          child: child!,
+                                        );
+                                      },
+                                    );
+                                    if (picked != null) {
+                                      setState(() {
+                                        selectedDate = picked;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                        width: 1.5,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.event,
+                                          size: 18,
+                                          color: Theme.of(context).primaryColor,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            DateFormat('MMM dd, yyyy')
+                                                .format(selectedDate),
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  hint: const Text('Select route',
-                                      style: TextStyle(fontSize: 13)),
-                                  items: [
-                                    const DropdownMenuItem<int>(
-                                      value: null,
-                                      child: Text('No route',
-                                          style: TextStyle(fontSize: 13)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 1,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.route,
+                                      size: 16,
+                                      color: Theme.of(context).primaryColor,
                                     ),
-                                    ...routes
-                                        .map((route) => DropdownMenuItem<int>(
-                                              value: route['id'],
-                                              child: Text(
-                                                route['name'],
-                                                style: const TextStyle(
-                                                    fontSize: 13),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            )),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Route (Optional)',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
                                   ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      selectedRouteId = value;
-                                    });
+                                ),
+                                const SizedBox(height: 8),
+                                FutureBuilder<List<Map<String, dynamic>>>(
+                                  future: ApiService.getRoutes(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Container(
+                                        height: 42,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade50,
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                            width: 1.5,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: const Center(
+                                          child: SizedBox(
+                                            height: 16,
+                                            width: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    if (snapshot.hasError) {
+                                      return Text(
+                                        'Error loading routes',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.red.shade600,
+                                        ),
+                                      );
+                                    }
+
+                                    final routes = snapshot.data ?? [];
+                                    return Container(
+                                      height: 42,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade50,
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                          width: 1.5,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<int>(
+                                          value: selectedRouteId,
+                                          isExpanded: true,
+                                          icon:
+                                              Icon(Icons.expand_more, size: 20),
+                                          hint: const Text(
+                                            'Select route',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                          items: [
+                                            const DropdownMenuItem<int>(
+                                              value: null,
+                                              child: Text(
+                                                'No route',
+                                                style: TextStyle(fontSize: 14),
+                                              ),
+                                            ),
+                                            ...routes.map((route) =>
+                                                DropdownMenuItem<int>(
+                                                  value: route['id'],
+                                                  child: Text(
+                                                    route['name'],
+                                                    style: const TextStyle(
+                                                        fontSize: 14),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                )),
+                                          ],
+                                          onChanged: (value) {
+                                            setState(() {
+                                              selectedRouteId = value;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    );
                                   },
                                 ),
-                              );
-                            },
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Search field
-                TextField(
-                  // In the TextField onChanged callback
-                  onChanged: (value) {
-                    setState(() {
-                      searchQuery = value.toLowerCase();
-                      _updateFilteredClients();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search clients',
-                    hintStyle: const TextStyle(fontSize: 13),
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(
-                          color: const Color.fromARGB(255, 74, 74, 74)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(
-                          color: const Color.fromARGB(255, 74, 74, 74)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        vertical: 8.0, horizontal: 10.0),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Table header
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.1),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(6),
-                      topRight: Radius.circular(6),
-                    ),
-                  ),
-                  child: Row(
-                    children: const [
-                      Expanded(
-                        flex: 5,
-                        child: Text(
-                          'CLIENT',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 5,
-                        child: Text(
-                          'ADDRESS',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ),
-                      SizedBox(width: 30),
                     ],
                   ),
                 ),
-
-                // Client list in table format
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: const Color.fromARGB(255, 179, 179, 179)),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(6),
-                        bottomRight: Radius.circular(6),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.shade200,
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Search clients...',
+                      hintStyle:
+                          TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        size: 20,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          Icons.filter_list,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(16)),
+                            ),
+                            builder: (context) => Container(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    'Search Filters',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SwitchListTile(
+                                    title: const Text('Search by Name'),
+                                    value: _searchByName,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _searchByName = value;
+                                        _updateFilteredClients();
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  ),
+                                  SwitchListTile(
+                                    title: const Text('Search by Address'),
+                                    value: _searchByAddress,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _searchByAddress = value;
+                                        _updateFilteredClients();
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      fillColor: Colors.white,
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
                       ),
                     ),
-                    child: widget.clients.isEmpty
-                        ? const Center(
-                            child: Text('No clients available',
-                                style: TextStyle(fontSize: 13)))
-                        : filteredClients.isEmpty
-                            ? const Center(
-                                child: Text('No matching clients found',
-                                    style: TextStyle(fontSize: 13)))
-                            : ListView.builder(
-                                controller: _scrollController,
-                                itemCount: filteredClients.length + (_hasMoreData ? 1 : 0),
-                                itemBuilder: (context, index) {
-                                  if (index == filteredClients.length) {
-                                    return Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    );
-                                  }
-                                  final client = filteredClients[index];
-                                  return InkWell(
-                                    onTap: () {
-                                      if (!_isLoading) {
-                                        createJourneyPlan(
-                                          context,
-                                          client.id,
-                                          selectedDate,
-                                          notes: notesController.text.trim(),
-                                          routeId: selectedRouteId,
-                                          onSuccess: widget.onSuccess,
-                                        );
-                                      }
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: index ==
-                                                    filteredClients.length - 1
-                                                ? Colors.transparent
-                                                : const Color.fromARGB(
-                                                    255, 179, 179, 179),
-                                            width: 1,
-                                          ),
-                                        ),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 12, horizontal: 12),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            flex: 5,
-                                            child: Text(
-                                              client.name,
-                                              style:
-                                                  const TextStyle(fontSize: 16),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          //   Expanded(
-                                          //     flex: 5,
-                                          //     child: Text(
-                                          //       client.address ?? '',
-                                          //       style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                                          //       overflow: TextOverflow.ellipsis,
-                                          //     ),
-                                          //   ),
-                                          Icon(
-                                            Icons.arrow_forward_ios,
-                                            size: 14,
-                                            color: Colors.grey.shade400,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.people,
+                        size: 18,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Select Client',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (filteredClients.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${filteredClients.length} client${filteredClients.length != 1 ? 's' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _buildClientList(),
                 ),
               ],
             ),
           ),
-          // Loading overlay
-          if (_isLoading)
+          // Loading overlay - only show for journey plan creation
+          if (_isLoading && _isCreatingJourneyPlan)
             Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withOpacity(0.6),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 10,
-                        spreadRadius: 2,
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 4,
                       ),
                     ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
                         'Creating Journey Plan...',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please wait while we process your request',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),

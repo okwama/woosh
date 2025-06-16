@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:woosh/pages/404/noConnection_page.dart';
+import 'package:woosh/pages/404/offlineToast.dart';
 import 'package:woosh/pages/home/home_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
@@ -150,7 +150,7 @@ class MyApp extends StatelessWidget {
           GetPage(name: '/login', page: () => const LoginPage()),
           GetPage(name: '/home', page: () => HomePage()),
           GetPage(name: '/manager-home', page: () => const ManagerHomePage()),
-          GetPage(name: '/no_connection', page: () => const NoConnectionPage()),
+          GetPage(name: '/no_connection', page: () => const OfflineToast()),
           ...AppRoutes.routes,
         ],
       ),

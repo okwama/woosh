@@ -39,6 +39,7 @@ import 'package:woosh/models/store_model.dart';
 // Handle platform-specific imports
 import 'image_upload.dart';
 import 'package:image/image.dart' as img;
+import 'package:woosh/services/offline_toast_service.dart';
 
 // API Caching System
 class ApiCache {
@@ -241,10 +242,29 @@ class ApiService {
   }
 
   static void handleNetworkError(dynamic error) {
+    // Log the error for debugging but don't show raw error to user
+    print('Network error occurred: $error');
+
+    String errorMessage = "Unable to connect to the server";
+
     if (error.toString().contains('SocketException') ||
-        error.toString().contains('XMLHttpRequest error')) {
-      Get.toNamed('/no_connection');
+        error.toString().contains('XMLHttpRequest error') ||
+        error.toString().contains('Connection timeout') ||
+        error.toString().contains('Failed to fetch') ||
+        error.toString().contains('ClientException')) {
+      errorMessage = "You're offline. Please check your internet connection.";
+    } else if (error.toString().contains('TimeoutException')) {
+      errorMessage = "Request timed out. Please try again.";
     }
+
+    // Always show the offline toast instead of raw error
+    OfflineToastService.showOfflineToast(
+      message: errorMessage,
+      duration: const Duration(seconds: 4),
+      onRetry: () {
+        Get.back();
+      },
+    );
   }
 
   static Future<dynamic> _handleResponse(http.Response response) async {
@@ -1040,7 +1060,7 @@ class ApiService {
       );
 
       final responseData = jsonDecode(response.body);
-      
+
       if (response.statusCode == 201) {
         return {
           'success': true,
@@ -1051,10 +1071,10 @@ class ApiService {
       } else {
         String errorMessage = 'Registration failed';
         if (responseData is Map) {
-          errorMessage = responseData['message'] ?? 
-                        responseData['error'] ?? 
-                        'Registration failed';
-          
+          errorMessage = responseData['message'] ??
+              responseData['error'] ??
+              'Registration failed';
+
           // Handle validation errors
           if (responseData['errors'] != null) {
             final errors = responseData['errors'] as Map<String, dynamic>;
@@ -1063,7 +1083,7 @@ class ApiService {
                 .join('\n');
           }
         }
-        
+
         return {
           'success': false,
           'message': errorMessage,
@@ -1950,26 +1970,26 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getProfile() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/profile'),
+      final response = await _safeGet(
+        '$baseUrl/profile',
         headers: await _headers(),
       );
 
       if (response.statusCode != 200) {
-        final errorMsg = json.decode(response.body)['message'] ??
-            'Failed to fetch profile data';
-        throw Exception(errorMsg);
+        // Use a generic error message instead of raw error
+        throw Exception('Unable to fetch profile data');
       }
 
       final responseData = json.decode(response.body);
       if (responseData['salesRep'] == null) {
-        throw Exception('Invalid response format from server');
+        throw Exception('Unable to fetch profile data');
       }
 
       return responseData;
     } catch (e) {
       handleNetworkError(e);
-      rethrow;
+      // Return empty data instead of rethrowing
+      return {'salesRep': null};
     }
   }
 
@@ -2913,5 +2933,46 @@ class ApiService {
       }
       throw Exception('Failed to load routes: $e');
     }
+  }
+
+  static Future<http.Response> _safeHttpCall(
+      Future<http.Response> Function() httpCall) async {
+    try {
+      final response = await httpCall();
+      return response;
+    } catch (e) {
+      // Handle all network errors with OfflineToast
+      handleNetworkError(e);
+      // Return a custom error response instead of rethrowing
+      return http.Response('{"error": "Network error occurred"}', 503);
+    }
+  }
+
+  static Future<http.Response> _safeGet(String url,
+      {Map<String, String>? headers}) async {
+    return _safeHttpCall(() => http.get(Uri.parse(url), headers: headers));
+  }
+
+  static Future<http.Response> _safePost(String url,
+      {Map<String, String>? headers, Object? body}) async {
+    return _safeHttpCall(
+        () => http.post(Uri.parse(url), headers: headers, body: body));
+  }
+
+  static Future<http.Response> _safePut(String url,
+      {Map<String, String>? headers, Object? body}) async {
+    return _safeHttpCall(
+        () => http.put(Uri.parse(url), headers: headers, body: body));
+  }
+
+  static Future<http.Response> _safeDelete(String url,
+      {Map<String, String>? headers}) async {
+    return _safeHttpCall(() => http.delete(Uri.parse(url), headers: headers));
+  }
+
+  static Future<http.Response> _safePatch(String url,
+      {Map<String, String>? headers, Object? body}) async {
+    return _safeHttpCall(
+        () => http.patch(Uri.parse(url), headers: headers, body: body));
   }
 }
