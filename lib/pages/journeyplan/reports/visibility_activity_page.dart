@@ -25,7 +25,7 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
     with BaseReportPageMixin, WidgetsBindingObserver {
   File? _imageFile;
   String? _imageUrl;
-  // ignore: unused_field
+  bool _isUploading = false;
   final _apiService = ApiService();
 
   @override
@@ -54,14 +54,19 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
 
   Future<void> _pickImage() async {
     try {
-      final pickedFile =
-          await ImagePicker().pickImage(source: ImageSource.camera);
+      final pickedFile = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+      );
       if (pickedFile == null) return;
 
       setState(() {
         _imageFile = File(pickedFile.path);
         _imageUrl = null;
       });
+
+      // Start upload immediately
+      _uploadImage();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -71,20 +76,46 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
     }
   }
 
-  Future<String?> _uploadImage() async {
-    if (_imageFile == null) return null;
+  Future<void> _uploadImage() async {
+    if (_imageFile == null) return;
+
+    setState(() => _isUploading = true);
 
     try {
+      // Show upload progress
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: LinearProgressIndicator(),
+          duration: Duration(seconds: 30),
+          backgroundColor: Colors.white,
+        ),
+      );
+
+      // Direct upload without any optimization - let Cloudinary handle it
       final imageUrl = await ApiService.uploadImage(_imageFile!);
-      setState(() => _imageUrl = imageUrl);
-      return imageUrl;
+
+      // Clear progress indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        setState(() {
+          _imageUrl = imageUrl;
+          _isUploading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading image: $e')),
-        );
+        setState(() => _isUploading = false);
+
+        // Use API service's network error handler
+        if (e.toString().contains('SocketException') ||
+            e.toString().contains('XMLHttpRequest error')) {
+          ApiService.handleNetworkError(e);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error uploading image: $e')),
+          );
+        }
       }
-      return null;
     }
   }
 
@@ -93,6 +124,14 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
     if (_imageFile == null && _imageUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please take a photo')),
+      );
+      return;
+    }
+
+    if (_isUploading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Please wait for image upload to complete')),
       );
       return;
     }
@@ -106,11 +145,8 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
       return;
     }
 
-    String? imageUrl = _imageUrl;
-    if (_imageFile != null && _imageUrl == null) {
-      imageUrl = await _uploadImage();
-      if (imageUrl == null) return;
-    }
+    // Only include comment if not empty
+    final comment = commentController.text.trim();
 
     final report = Report(
       type: ReportType.VISIBILITY_ACTIVITY,
@@ -118,9 +154,9 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
       salesRepId: userId,
       clientId: widget.journeyPlan.client.id,
       visibilityReport: VisibilityReport(
-        reportId: 0, // This will be set by the backend
-        comment: commentController.text,
-        imageUrl: imageUrl,
+        reportId: 0,
+        comment: comment.isNotEmpty ? comment : null, // Skip empty comments
+        imageUrl: _imageUrl,
       ),
     );
 
@@ -166,9 +202,19 @@ class _VisibilityActivityPageState extends State<VisibilityActivityPage>
                       ],
                     )
                   : ElevatedButton.icon(
-                      onPressed: _pickImage,
+                      onPressed: _isUploading ? null : _pickImage,
                       icon: const Icon(Icons.camera_alt),
-                      label: const Text('Take Photo'),
+                      label: _isUploading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Take Photo'),
                     ),
             ),
             const SizedBox(height: 16),

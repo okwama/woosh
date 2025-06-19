@@ -97,12 +97,21 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     // Remove observer
     WidgetsBinding.instance.removeObserver(this);
 
+    // Clean up any image picker resources
+    ImageCache().clear();
+    ImageCache().clearLiveImages();
+
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // No camera controller logic needed
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // Clean up camera resources when app goes to background
+      ImageCache().clear();
+      ImageCache().clearLiveImages();
+    }
   }
 
   @override
@@ -153,386 +162,178 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
-  void _checkIn() async {
+  Future<void> _submitSimplifiedCheckIn(File imageFile) async {
     try {
-      setState(() {
-        _isCheckingIn = true;
-      });
+      print('🔄 Starting simplified check-in submission...');
 
-      // First check if there's an active visit
-      final activeVisit = await ApiService.getActiveVisit();
-      print('Current journey plan status: ${widget.journeyPlan.status}');
-      print('Active visit found: ${activeVisit != null}');
-
-      // Check if current journey plan is already in progress
-      if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
-        Get.snackbar(
-          'Already Checked In',
-          'You are already checked in to this visit.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        setState(() {
-          _isCheckingIn = false;
-        });
-        return;
-      }
-
-      // If there's an active visit and it's not this one, and it's either checked in or in progress
-      if (activeVisit != null &&
-          activeVisit.id != widget.journeyPlan.id &&
-          (activeVisit.status == JourneyPlan.statusInProgress || 
-           activeVisit.status == JourneyPlan.statusCheckedIn)) {
-        Get.dialog(
-          AlertDialog(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Active Visit Found',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'You have an active visit with:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  activeVisit.clientName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(activeVisit.status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _getStatusText(activeVisit.status),
-                    style: TextStyle(
-                      color: _getStatusColor(activeVisit.status),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Please complete your current visit before starting a new one.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Get.back(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Get.back();
-                  Get.toNamed('/journey-view', arguments: activeVisit);
-                },
-                child: const Text('Go to Active Visit'),
-              ),
-            ],
-          ),
-        );
-        print('Active visit found: ${activeVisit.id}');
-        setState(() {
-          _isCheckingIn = false;
-        });
-        return;
-      }
-
-      // Final validation - Double check active visit status right before proceeding
-      final finalActiveVisit = await ApiService.getActiveVisit();
-      if (finalActiveVisit != null && 
-          finalActiveVisit.id != widget.journeyPlan.id && 
-          (finalActiveVisit.status == JourneyPlan.statusInProgress || 
-           finalActiveVisit.status == JourneyPlan.statusCheckedIn)) {
-        Get.snackbar(
-          'Cannot Check In',
-          'Another visit became active. Please try again.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        setState(() {
-          _isCheckingIn = false;
-        });
-        return;
-      }
-
-      // Check geofence before proceeding
-      if (!await _checkGeofence()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'You must be closer to the client to check in. Please move within ${(GEOFENCE_RADIUS_METERS / 1000).toStringAsFixed(0)} kilometers.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isCheckingIn = false;
-        });
-        return;
-      }
-
-      // Open camera using image_picker
-      await _openCameraAndCapture();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Check-in error: $e'),
-          backgroundColor: Colors.red,
+      // Show loading indicator
+      print('⌛ Showing loading indicator...');
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
         ),
       );
-      setState(() {
-        _isCheckingIn = false;
-      });
-    }
-  }
 
-  Future<void> _openCameraAndCapture() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+      // Upload image
+      print('📤 Uploading image...');
+      print('📦 Image file size: ${await imageFile.length()} bytes');
+      print('📦 Image file path: ${imageFile.path}');
+
+      final imageUrl = await ApiService.uploadImage(
+        imageFile,
+        maxWidth: 800,
+        quality: 60,
       );
+      print('✅ Image uploaded successfully');
+      print('🔗 Image URL: $imageUrl');
 
-      if (image == null) {
-        setState(() {
-          _isCheckingIn = false;
-        });
-        return;
+      // Update journey plan
+      print('📝 Updating journey plan...');
+      print(
+          '📍 Location data: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
+      final updatedPlan = await ApiService.updateJourneyPlan(
+        journeyId: widget.journeyPlan.id!,
+        clientId: widget.journeyPlan.client.id,
+        status: JourneyPlan.statusInProgress,
+        imageUrl: imageUrl,
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
+      );
+      print('✅ Journey plan updated successfully');
+      print('📊 New status: ${updatedPlan.statusText}');
+
+      // Dismiss loading indicator
+      if (mounted && Navigator.canPop(context)) {
+        print('⌛ Dismissing loading indicator...');
+        Navigator.pop(context);
       }
 
-      _capturedImage = File(image.path);
-      _imageUrl = null;
-
-      // Show confirmation dialog
-      await _showConfirmationDialog(_capturedImage);
-    } catch (e) {
-      print('Error capturing image: $e');
+      // Show success message
       if (mounted) {
+        print('✅ Showing success message...');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Check-in successful'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Update parent
+      if (widget.onCheckInSuccess != null) {
+        print('📢 Notifying parent of success...');
+        widget.onCheckInSuccess!(updatedPlan);
+      }
+
+      // Navigate to reports
+      if (mounted) {
+        print('🔄 Navigating to reports page...');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ReportsOrdersPage(
+              journeyPlan: updatedPlan,
+              onAllReportsSubmitted: _handleAllReportsSubmitted,
+            ),
+          ),
+        );
+      }
+      print('✅ Check-in process completed successfully');
+    } catch (e) {
+      print('❌ Error during check-in submission:');
+      print('Error details: $e');
+      print('Stack trace: ${StackTrace.current}');
+
+      if (mounted) {
+        // Dismiss loading indicator
+        if (Navigator.canPop(context)) {
+          print('⌛ Dismissing error loading indicator...');
+          Navigator.pop(context);
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not access camera: $e'),
+            content: Text('Failed to submit check-in: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
         );
-        setState(() {
-          _isCheckingIn = false;
-        });
       }
+      throw e;
     }
   }
 
-  Future<void> _showConfirmationDialog(File? imageFile) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Confirm Check-in Photo',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            if (imageFile != null)
-              Container(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: Image.file(imageFile),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context, false);
-                      // Retake photo
-                      _openCameraAndCapture();
-                    },
-                    child: const Text('Retake'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
-                    child: const Text('Confirm'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed == true) {
-      // Proceed with check-in
-      await _submitCheckIn();
-    } else if (confirmed == false) {
-      // Will retake photo, so don't reset _isCheckingIn
-    } else {
-      // Dialog was dismissed some other way
-      setState(() {
-        _isCheckingIn = false;
-      });
-    }
-  }
-
-  Future<void> _submitCheckIn() async {
+  Future<void> _checkIn() async {
     try {
-      // First upload the image
-      print('Uploading image...');
-      final dynamic imageFile = _capturedImage;
-      final imageUrl = await ApiService.uploadImage(imageFile);
-      print('Image uploaded successfully: $imageUrl');
+      print('🔵 Starting check-in process...');
+      setState(() {
+        _isCheckingIn = true;
+      });
 
-      if (widget.journeyPlan.id == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Journey ID is required to check in.')),
-          );
-        }
-        setState(() {
-          _isCheckingIn = false;
-        });
+      // 1. Check for active visits
+      print('🔍 Checking for active visits...');
+      final activeVisit = await ApiService.getActiveVisit();
+      if (activeVisit != null) {
+        print('⚠️ Found active visit: ${activeVisit.id}');
+      }
+
+      // 2. Validation checks
+      if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
+        print('⚠️ Already checked in to this visit');
+        Get.snackbar(
+            'Already Checked In', 'You are already checked in to this visit.');
         return;
       }
 
-      // Show loading indicator
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
+      if (activeVisit != null && activeVisit.id != widget.journeyPlan.id) {
+        print('⚠️ Another visit is active: ${activeVisit.id}');
+        Get.snackbar(
+            'Active Visit', 'Please complete your current visit first.');
+        return;
       }
 
-      // Ensure we pass the clientId
-      final updatedPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        clientId: widget.journeyPlan.client.id,
-        status: JourneyPlan.statusCheckedIn,
-        checkInTime: DateTime.now(),
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
-        imageUrl: imageUrl,
-      );
-
-      // Immediately update to In Progress status
-      final inProgressPlan = await ApiService.updateJourneyPlan(
-        journeyId: widget.journeyPlan.id!,
-        clientId: widget.journeyPlan.client.id,
-        status: JourneyPlan.statusInProgress,
-      );
-
-      // Close loading indicator
-      if (mounted) {
-        Navigator.pop(context);
+      // 3. Get location if needed
+      if (_currentPosition == null) {
+        print('📍 Getting current position...');
+        await _getCurrentPosition();
+        if (_currentPosition == null) {
+          print('❌ Failed to get location');
+          throw Exception('Could not get current location');
+        }
+        print(
+            '📍 Position obtained: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
       }
 
-      if (widget.onCheckInSuccess != null && mounted) {
-        widget.onCheckInSuccess!(inProgressPlan);
+      // 4. Take photo
+      print('📸 Opening camera...');
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 600,
+        imageQuality: 60,
+      );
+
+      if (image == null) {
+        print('❌ No image captured');
+        return;
       }
+      print('📸 Image captured: ${image.path}');
 
-      // Show success dialog with details
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text('Check-in Successful!'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Client: ${inProgressPlan.client.name}'),
-              const SizedBox(height: 8),
-              Text('Time: ${DateFormat('HH:mm:ss').format(DateTime.now())}'),
-              const SizedBox(height: 8),
-              Text('Location: $_currentAddress'),
-              const SizedBox(height: 8),
-              const Text('Status: In Progress'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('View Reports'),
-            ),
-          ],
-        ),
-      );
-
-      // Navigate to reports page
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReportsOrdersPage(journeyPlan: inProgressPlan),
-        ),
-      );
+      // 5. Submit check-in
+      print('📤 Submitting check-in...');
+      await _submitSimplifiedCheckIn(File(image.path));
     } catch (e) {
-      print('Error checking in: $e');
+      print('❌ Check-in error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error checking in: $e'),
+            content: Text('Check-in failed: ${e.toString()}'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -749,54 +550,93 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
   }
 
-  // Handle completion when all reports are submitted
+  // Simplified check-out handler
   Future<void> _handleAllReportsSubmitted() async {
+    if (!mounted || widget.journeyPlan.id == null) return;
+
     try {
-      // Update journey status to completed
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Completing visit...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      // 1. Quick validation
+      if (widget.journeyPlan.status != JourneyPlan.statusInProgress) {
+        throw Exception('Journey must be in progress to complete');
+      }
+
+      // 2. Submit completion with minimal data
       final completedPlan = await ApiService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,
       );
 
-      if (!mounted) return;
-
-      // Show completion dialog
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.task_alt, color: Colors.green),
-              SizedBox(width: 8),
-              Text('Journey Completed!'),
-            ],
-          ),
-          content: const Text(
-              'All reports have been submitted successfully. The journey plan is now complete.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+      // 3. Show quick success message and update UI
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Visit completed successfully'),
+              ],
             ),
-          ],
-        ),
-      );
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
 
-      // Update parent if callback exists
-      if (widget.onCheckInSuccess != null) {
-        widget.onCheckInSuccess!(completedPlan);
+        // Update parent if needed
+        if (widget.onCheckInSuccess != null) {
+          widget.onCheckInSuccess!(completedPlan);
+        }
+
+        // Navigate back or to next screen
+        Navigator.of(context).pop();
       }
     } catch (e) {
-      if (!mounted) return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not complete visit: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _handleAllReportsSubmitted,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // Helper method to validate completion requirements
+  bool _canCompleteJourney() {
+    return widget.journeyPlan.id != null &&
+        widget.journeyPlan.status == JourneyPlan.statusInProgress;
+  }
+
+  // Method to handle manual completion if needed
+  Future<void> _completeJourney() async {
+    if (!_canCompleteJourney()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to complete journey: $e'),
-          duration: const Duration(seconds: 5),
-          backgroundColor: Colors.red,
+        const SnackBar(
+          content: Text('Cannot complete visit at this time'),
+          backgroundColor: Colors.orange,
         ),
       );
+      return;
     }
+
+    await _handleAllReportsSubmitted();
   }
 
   // Fix journey status if it's stuck in checked in instead of in progress
@@ -1253,24 +1093,39 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            _isWithinGeofence
+                                            widget.journeyPlan.status ==
+                                                    JourneyPlan.statusInProgress
                                                 ? Icons.check_circle
-                                                : Icons.warning,
+                                                : _isWithinGeofence
+                                                    ? Icons.check_circle
+                                                    : Icons.warning,
                                             size: 12,
-                                            color: _isWithinGeofence
-                                                ? Colors.green
-                                                : Colors.red,
+                                            color: widget.journeyPlan.status ==
+                                                    JourneyPlan.statusInProgress
+                                                ? Colors.blue
+                                                : _isWithinGeofence
+                                                    ? Colors.green
+                                                    : Colors.red,
                                           ),
                                           const SizedBox(width: 3),
                                           Flexible(
                                             child: Text(
-                                              _isWithinGeofence
-                                                  ? 'Within range'
-                                                  : 'Outside range',
+                                              widget.journeyPlan.status ==
+                                                      JourneyPlan
+                                                          .statusInProgress
+                                                  ? 'Checked In'
+                                                  : _isWithinGeofence
+                                                      ? 'Within range'
+                                                      : 'Outside range',
                                               style: TextStyle(
-                                                color: _isWithinGeofence
-                                                    ? Colors.green
-                                                    : Colors.red,
+                                                color: widget.journeyPlan
+                                                            .status ==
+                                                        JourneyPlan
+                                                            .statusInProgress
+                                                    ? Colors.blue
+                                                    : _isWithinGeofence
+                                                        ? Colors.green
+                                                        : Colors.red,
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -1279,7 +1134,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                         ],
                                       ),
                                     ),
-                                    if (!_isWithinGeofence)
+                                    // Only show distance if not checked in
+                                    if (!_isWithinGeofence &&
+                                        widget.journeyPlan.status !=
+                                            JourneyPlan.statusInProgress)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 3),
                                         child: Text(
@@ -1378,6 +1236,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   }
 
   Widget _buildInfoItem(String label, String value, IconData icon) {
+    // Don't show location info if already checked in
+    if (label == 'Current Location' &&
+        (widget.journeyPlan.status == JourneyPlan.statusInProgress ||
+            widget.journeyPlan.status == JourneyPlan.statusCompleted)) {
+      return const SizedBox.shrink(); // Hide location info after check-in
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1400,47 +1265,12 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 ),
               ),
               const SizedBox(height: 1),
-              if (_isFetchingLocation && label == 'Current Location')
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 10,
-                      height: 10,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).primaryColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Fetching location...',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
-                    height: 1.2,
-                    color: value.startsWith('Error') ||
-                            value.contains('denied') ||
-                            value == 'Address not available'
-                        ? Colors.red.shade700
-                        : Colors.black87,
-                  ),
-                  // Allow multiple lines for address
-                  maxLines: label.contains('Location') ? 3 : 1,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                value,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
             ],
           ),
         ),
@@ -1613,5 +1443,22 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  // Stop location tracking after check-in
+  void _stopLocationTracking() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+    setState(() {
+      _isFetchingLocation = false;
+    });
+  }
+
+  // Modify check-in success handler
+  void _onCheckInSuccess() {
+    _stopLocationTracking();
+    setState(() {
+      _isCheckingIn = false;
+    });
   }
 }

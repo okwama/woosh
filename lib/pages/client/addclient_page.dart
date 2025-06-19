@@ -3,6 +3,8 @@ import 'package:woosh/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/client_model.dart';
+import 'package:get/get.dart';
+import 'package:woosh/services/outlet_service.dart';
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -108,60 +110,56 @@ class _AddClientPageState extends State<AddClientPage> {
   }
 
   Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      // Try to get location if not already available
-      if (_currentPosition == null) {
-        try {
-          await _getCurrentPosition();
-        } catch (e) {
-          print('Failed to get location on submit: $e');
-          // Continue with submission even if location fails
-        }
-      }
-
-      await ApiService.createOutlet(
-        name: _nameController.text,
-        address: _addressController.text,
-        taxPin: _kraPinController.text.isEmpty ? null : _kraPinController.text,
-        email: _emailController.text.isEmpty ? null : _emailController.text,
-        contact: _phoneController.text,
-        // Include coordinates if available
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
-        // Include country and region data
-        countryId: _countryId,
-        region: _region,
-        regionId: _regionId,
-        // Default client type
-        clientType: 1,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Client added successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
+    if (_formKey.currentState!.validate()) {
       setState(() {
-        // Check if it's a 500 error
-        if (e.toString().contains('500')) {
-          _error = 'Oops!';
-        } else {
-          _error = 'Failed to add client: $e';
-        }
-        _isLoading = false;
+        _isLoading = true;
       });
+
+      try {
+        final outlet = await ApiService.createOutlet(
+          name: _nameController.text,
+          address: _addressController.text,
+          taxPin:
+              _kraPinController.text.isEmpty ? null : _kraPinController.text,
+          email: _emailController.text.isEmpty ? null : _emailController.text,
+          contact: _phoneController.text,
+          latitude: _currentPosition?.latitude ?? 0.0,
+          longitude: _currentPosition?.longitude ?? 0.0,
+          countryId: _countryId,
+          region: _region,
+          regionId: _regionId,
+          clientType: 1,
+        );
+
+        // Notify the OutletService about the new outlet
+        final outletService = Get.find<OutletService>();
+        await outletService.addOutlet(outlet);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Client added successfully'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+
+          // Return true to indicate successful addition
+          Get.back(result: true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to add client: $e'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -205,7 +203,7 @@ class _AddClientPageState extends State<AddClientPage> {
                     TextFormField(
                       controller: _kraPinController,
                       decoration: const InputDecoration(
-                        labelText: 'KRA PIN',
+                        labelText: 'TAX PIN',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -241,7 +239,6 @@ class _AddClientPageState extends State<AddClientPage> {
                       maxLines: 3,
                     ),
                     const SizedBox(height: 12),
-
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _submitForm,

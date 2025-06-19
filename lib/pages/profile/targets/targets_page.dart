@@ -12,6 +12,9 @@ import 'package:woosh/utils/app_theme.dart' hide CreamGradientCard;
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/widgets/cream_gradient_card.dart';
+import 'package:woosh/pages/profile/targets/visits_tab.dart';
+import 'package:woosh/pages/profile/targets/orders_tab.dart';
+import 'package:woosh/pages/profile/targets/all_targets_tab.dart';
 
 class TargetsPage extends StatefulWidget {
   const TargetsPage({super.key});
@@ -31,12 +34,17 @@ class _TargetsPageState extends State<TargetsPage>
   String? _errorMessage;
   String _sortOption = 'endDate';
   int _totalItemsSold = 0;
-  final DateTime _twoWeeksAgo = DateTime.now().subtract(const Duration(days: 14));
+  final DateTime _twoWeeksAgo =
+      DateTime.now().subtract(const Duration(days: 14));
   static const int _prefetchThreshold = 200;
   static const int _precachePages = 2;
   int _currentPage = 1;
   bool _hasMoreOrders = true;
   final ScrollController _scrollController = ScrollController();
+  Map<String, dynamic> _dailyVisitTargets = {};
+  bool _isLoadingDailyVisits = true;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -44,6 +52,7 @@ class _TargetsPageState extends State<TargetsPage>
     _tabController = TabController(length: 3, vsync: this);
     _loadTargets();
     _loadUserOrders();
+    _loadDailyVisitTargets();
     _scrollController.addListener(_onScroll);
   }
 
@@ -63,6 +72,95 @@ class _TargetsPageState extends State<TargetsPage>
     }
   }
 
+  Future<void> _showDateRangePicker() async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: _startDate != null && _endDate != null
+          ? DateTimeRange(start: _startDate!, end: _endDate!)
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).primaryColor,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).primaryColor,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+      helpText: 'Select Date Range',
+      cancelText: 'Cancel',
+      confirmText: 'Select',
+      saveText: 'Save',
+      errorFormatText: 'Invalid date format',
+      errorInvalidText: 'Invalid date range',
+      errorInvalidRangeText: 'Invalid date range',
+      fieldStartHintText: 'Start',
+      fieldEndHintText: 'End',
+      fieldStartLabelText: 'Start date',
+      fieldEndLabelText: 'End date',
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate =
+            DateTime(picked.start.year, picked.start.month, picked.start.day);
+        _endDate = DateTime(
+            picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+      });
+      _refreshData();
+    }
+  }
+
+  Future<void> _showYearPicker() async {
+    final DateTime? picked = await showDialog<DateTime>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Year'),
+          content: SizedBox(
+            width: 300,
+            height: 300,
+            child: YearPicker(
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+              selectedDate: _startDate ?? DateTime.now(),
+              onChanged: (DateTime dateTime) {
+                Navigator.pop(context, dateTime);
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = DateTime(picked.year, 1, 1);
+        _endDate = DateTime(picked.year, 12, 31, 23, 59, 59);
+      });
+      _refreshData();
+    }
+  }
+
+  Future<void> _clearDateRange() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+    });
+    return _refreshData();
+  }
+
   Future<void> _loadTargets() async {
     setState(() {
       _isLoading = true;
@@ -70,13 +168,17 @@ class _TargetsPageState extends State<TargetsPage>
     });
 
     try {
-      final targets = await TargetService.getTargets();
+      final targets = await TargetService.getTargets(
+        page: _currentPage,
+        limit: 10,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
       if (mounted) {
         setState(() {
           _targets = targets;
           _isLoading = false;
         });
-        // Precache next pages if available
         _precacheNextTargets();
       }
     } catch (e) {
@@ -115,7 +217,6 @@ class _TargetsPageState extends State<TargetsPage>
     });
 
     try {
-      // Try to get cached data first
       final cachedData =
           ApiService.getCachedData<Map<String, dynamic>>('sales_data');
 
@@ -123,30 +224,37 @@ class _TargetsPageState extends State<TargetsPage>
         if (mounted) {
           setState(() {
             _totalItemsSold = cachedData['totalItemsSold'];
-            _userOrders = cachedData['recentOrders'];
+            _userOrders = (cachedData['recentOrders'] as List)
+                .map((item) => Order.fromJson(item))
+                .toList();
             _isLoadingOrders = false;
           });
         }
         return;
       }
 
-      final salesData = await TargetService.getSalesData();
+      final salesData = await TargetService.getSalesData(
+        page: _currentPage,
+        limit: 10,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
 
       if (mounted) {
         setState(() {
           _totalItemsSold = salesData['totalItemsSold'];
-          _userOrders = salesData['recentOrders'];
+          _userOrders = (salesData['recentOrders'] as List)
+              .map((item) => Order.fromJson(item))
+              .toList();
           _isLoadingOrders = false;
         });
 
-        // Cache the sales data
         ApiService.cacheData(
           'sales_data',
           salesData,
           validity: const Duration(minutes: 5),
         );
 
-        // Precache next pages of orders
         _precacheNextOrders();
       }
     } catch (e) {
@@ -168,13 +276,15 @@ class _TargetsPageState extends State<TargetsPage>
 
     try {
       // Try to get cached data first
-      final cachedData = ApiService.getCachedData<List<Order>>(
+      final cachedData = ApiService.getCachedData<List<dynamic>>(
           'orders_page_${_currentPage + 1}');
 
       if (cachedData != null) {
         if (mounted) {
           setState(() {
-            _userOrders.addAll(cachedData);
+            _userOrders.addAll(
+              cachedData.map((item) => Order.fromJson(item)).toList(),
+            );
             _currentPage++;
             _isLoadingMore = false;
             _hasMoreOrders = _currentPage < _precachePages + 1;
@@ -190,7 +300,11 @@ class _TargetsPageState extends State<TargetsPage>
 
       if (mounted) {
         setState(() {
-          _userOrders.addAll(salesData['recentOrders']);
+          _userOrders.addAll(
+            (salesData['recentOrders'] as List)
+                .map((item) => Order.fromJson(item))
+                .toList(),
+          );
           _currentPage++;
           _isLoadingMore = false;
           _hasMoreOrders = salesData['hasMore'];
@@ -263,6 +377,43 @@ class _TargetsPageState extends State<TargetsPage>
     ]);
   }
 
+  Future<void> _loadDailyVisitTargets() async {
+    setState(() {
+      _isLoadingDailyVisits = true;
+    });
+
+    try {
+      final box = GetStorage();
+      final userId = box.read<String>('userId');
+      if (userId == null) {
+        throw Exception('User ID not found');
+      }
+
+      final date = _startDate ?? DateTime.now();
+      final formattedDate =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+      final visitData = await TargetService.getDailyVisitTargets(
+        userId: userId,
+        date: formattedDate,
+      );
+
+      if (mounted) {
+        setState(() {
+          _dailyVisitTargets = visitData;
+          _isLoadingDailyVisits = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load daily visit targets: $e';
+          _isLoadingDailyVisits = false;
+        });
+      }
+    }
+  }
+
   // Filter targets by status
   List<Target> get _activeTargets =>
       _sortTargets(_targets.where((t) => t.isActive()).toList());
@@ -324,6 +475,22 @@ class _TargetsPageState extends State<TargetsPage>
       appBar: GradientAppBar(
         title: 'Targets',
         actions: [
+          if (_startDate != null && _endDate != null)
+            IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: _clearDateRange,
+              tooltip: 'Clear Date Range',
+            ),
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: _showYearPicker,
+            tooltip: 'Select Year',
+          ),
+          IconButton(
+            icon: const Icon(Icons.date_range),
+            onPressed: _showDateRangePicker,
+            tooltip: 'Select Date Range',
+          ),
           IconButton(
             icon: const Icon(Icons.sort),
             onPressed: _showSortOptions,
@@ -335,19 +502,60 @@ class _TargetsPageState extends State<TargetsPage>
             tooltip: 'Refresh',
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-                child: Text('Active ($_activeCount)',
-                    style: const TextStyle(color: Colors.white, fontSize: 12))),
-            Tab(
-                child: Text('Upcoming ($_upcomingCount)',
-                    style: const TextStyle(color: Colors.white, fontSize: 12))),
-            Tab(
-                child: Text('Completed ($_completedCount)',
-                    style: const TextStyle(color: Colors.white, fontSize: 12))),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48.0),
+          child: Column(
+            children: [
+              if (_startDate != null && _endDate != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${DateFormat('MMM d, yyyy').format(_startDate!)} - ${DateFormat('MMM d, yyyy').format(_endDate!)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (_startDate?.year == _endDate?.year)
+                        Text(
+                          ' (${_startDate?.year})',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(
+                    child: Text(
+                      'Visits',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                  // Tab(
+                  //   child: Text(
+                  //     'Orders',
+                  //     style: TextStyle(color: Colors.white, fontSize: 12),
+                  //   ),
+                  // ),
+                  Tab(
+                    child: Text(
+                      'All Targets',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
       body: _isLoading
@@ -370,127 +578,27 @@ class _TargetsPageState extends State<TargetsPage>
                     ],
                   ),
                 )
-              : Column(
+              : TabBarView(
+                  controller: _tabController,
                   children: [
-                    if (_targets.isNotEmpty) _buildSummaryCard(),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildTargetList(
-                              _activeTargets, 'No active targets found'),
-                          _buildTargetList(
-                              _upcomingTargets, 'No upcoming targets found'),
-                          _buildTargetList(
-                              _completedTargets, 'No completed targets found'),
-                        ],
-                      ),
+                    VisitsTab(
+                      dailyVisitTargets: _dailyVisitTargets,
+                      isLoadingDailyVisits: _isLoadingDailyVisits,
+                      onRefresh: _refreshData,
+                    ),
+                   
+                    AllTargetsTab(
+                      targets: _targets,
+                      userOrders: _userOrders,
+                      isLoading: _isLoading,
+                      isLoadingOrders: _isLoadingOrders,
+                      dailyVisitTargets: _dailyVisitTargets,
+                      isLoadingDailyVisits: _isLoadingDailyVisits,
+                      totalItemsSold: _totalItemsSold,
+                      onRefresh: _refreshData,
                     ),
                   ],
                 ),
-    );
-  }
-
-  Widget _buildSummaryCard() {
-    return CreamGradientCard(
-      borderWidth: 1.5,
-      padding: const EdgeInsets.all(12.0),
-      margin: const EdgeInsets.all(6.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6.0),
-            child: Text(
-              'Products sold targets are tracked every two weeks',
-              style: TextStyle(
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              CircularPercentIndicator(
-                radius: 35.0,
-                lineWidth: 8.0,
-                percent: _overallProgress / 100,
-                center: GradientText(
-                  "${_overallProgress.toStringAsFixed(0)}%",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14.0,
-                  ),
-                ),
-                backgroundColor: Colors.grey[300]!,
-                progressColor: goldMiddle2,
-                circularStrokeCap: CircularStrokeCap.round,
-                animation: true,
-                animationDuration: 1500,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Overall Progress',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _buildStatItem(Icons.check_circle, Colors.green,
-                            _completedCount.toString(), 'Completed'),
-                        _buildStatItem(Icons.pending, Colors.orange,
-                            _activeCount.toString(), 'Active'),
-                        _buildStatItem(Icons.upcoming, Colors.blue,
-                            _upcomingCount.toString(), 'Upcoming'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(
-      IconData icon, Color color, String value, String label) {
-    return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 14),
-          const SizedBox(width: 2),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                  fontSize: 14,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -550,490 +658,6 @@ class _TargetsPageState extends State<TargetsPage>
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTargetList(List<Target> targets, String emptyMessage) {
-    if (_isLoading) {
-      return ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: 3,
-        itemBuilder: (context, index) {
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 375),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: _buildSkeletonCard(),
-              ),
-            ),
-          );
-        },
-      );
-    }
-
-    if (targets.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.track_changes, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              emptyMessage,
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: AnimationLimiter(
-        child: ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(8.0),
-          itemCount: targets.length + 1 + (_hasMoreOrders ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return _isLoadingOrders
-                  ? _buildSkeletonSalesCard()
-                  : _buildSalesDataCard();
-            }
-
-            if (index == targets.length + 1) {
-              return _isLoadingMore
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  : const SizedBox.shrink();
-            }
-
-            final target = targets[index - 1];
-            return AnimationConfiguration.staggeredList(
-              position: index,
-              duration: const Duration(milliseconds: 375),
-              child: SlideAnimation(
-                verticalOffset: 50.0,
-                child: FadeInAnimation(
-                  child: _buildTargetCard(target),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSalesDataCard() {
-    return Card(
-      margin: const EdgeInsets.all(6.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.shopping_cart,
-                    color: Theme.of(context).primaryColor, size: 16),
-                const SizedBox(width: 6),
-                const Text(
-                  'Sales Summary',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _isLoadingOrders
-                ? const Center(
-                    child: SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.0),
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total items sold:',
-                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$_totalItemsSold items',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'From ${_userOrders.length} orders',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                      ),
-                      if (_userOrders.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Recent Orders:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        ..._userOrders.map((order) {
-                          final orderData = order as Map<String, dynamic>;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 4.0),
-                            child: Row(
-                              children: [
-                                Icon(Icons.shopping_bag,
-                                    size: 12, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${orderData['totalItems']} items',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text(
-                                  DateFormat('MMM d, yyyy').format(
-                                    DateTime.parse(orderData['createdAt']),
-                                  ),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTargetCard(Target target) {
-    final dateFormatter = DateFormat('MMM d, yyyy');
-    final progress = target.progress;
-    final daysLeft = target.endDate.difference(DateTime.now()).inDays;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 3.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    target.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    gradient: goldGradient,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    target.typeText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (target.description.isNotEmpty) ...[
-              Text(
-                target.description,
-                style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 6),
-            ],
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  '${dateFormatter.format(target.startDate)} - ${dateFormatter.format(target.endDate)}',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                ),
-                const Spacer(),
-                if (!target.isCompleted &&
-                    !target.isOverdue() &&
-                    daysLeft >= 0) ...[
-                  Icon(Icons.timer, size: 12, color: Colors.blue[400]),
-                  const SizedBox(width: 3),
-                  Text(
-                    '$daysLeft days left',
-                    style: TextStyle(
-                        color: Colors.blue[400],
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                CircularPercentIndicator(
-                  radius: 20.0,
-                  lineWidth: 4.0,
-                  percent: progress / 100,
-                  center: GradientText(
-                    "${progress.toStringAsFixed(0)}%",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 9.0,
-                    ),
-                  ),
-                  progressColor: goldMiddle2,
-                  backgroundColor: Colors.grey[300]!,
-                  circularStrokeCap: CircularStrokeCap.round,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Progress: ${target.achievedValue} / ${target.targetValue}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 12),
-                      ),
-                      const SizedBox(height: 3),
-                      GradientLinearProgressIndicator(
-                        value: progress / 100,
-                        height: 6.0,
-                        borderRadius: 3.0,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (target.isOverdue() && !target.isCompleted) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        color: Colors.red, size: 12),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Overdue by ${DateTime.now().difference(target.endDate).inDays} days',
-                      style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonCard() {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 3.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 120,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                Container(
-                  width: 80,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: 200,
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        width: 100,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonSalesCard() {
-    return Card(
-      margin: const EdgeInsets.all(6.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  width: 100,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: 120,
-              height: 12,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: 80,
-              height: 20,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: 150,
-              height: 12,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

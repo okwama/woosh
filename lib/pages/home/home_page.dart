@@ -343,13 +343,13 @@ class _HomePageState extends State<HomePage> {
                       title: 'Journey Plans',
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
-                      onTap: () {
-                        Get.to(
-                          () => const JourneyPlansPage(),
-                          preventDuplicates: true,
-                          transition: Transition.rightToLeft,
-                        )?.then((_) => _loadPendingJourneyPlans());
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const JourneyPlansLoadingScreen(),
+                        ),
+                      ),
                     ),
                     MenuTile(
                       title: 'View Client',

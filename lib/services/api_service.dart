@@ -255,6 +255,8 @@ class ApiService {
       errorMessage = "You're offline. Please check your internet connection.";
     } else if (error.toString().contains('TimeoutException')) {
       errorMessage = "Request timed out. Please try again.";
+    } else if (error.toString().contains('500')) {
+      errorMessage = "Server error. Please try again later.";
     }
 
     // Always show the offline toast instead of raw error
@@ -306,7 +308,7 @@ class ApiService {
   static Future<PaginatedResponse<Client>> fetchClients({
     int? routeId,
     int page = 1,
-    int limit = 2000,
+    int limit = 20000,
   }) async {
     try {
       final token = _getAuthToken();
@@ -422,6 +424,7 @@ class ApiService {
     int page = 1,
     int limit = 20000,
     int? routeId,
+    DateTime? createdAfter,
   }) async {
     try {
       final token = _getAuthToken();
@@ -429,9 +432,9 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
-      // Generate cache key based on page, limit and route
+      // Generate cache key based on page, limit, route and createdAfter
       final cacheKey =
-          'outlets_page_${page}_limit_$limit${routeId != null ? '_route_$routeId' : ''}';
+          'outlets_page_${page}_limit_$limit${routeId != null ? '_route_$routeId' : ''}${createdAfter != null ? '_after_${createdAfter.toIso8601String()}' : ''}';
 
       // Try to get from cache first
       final cachedData = ApiCache.get(cacheKey);
@@ -445,6 +448,8 @@ class ApiService {
         'page': page.toString(),
         'limit': limit.toString(),
         if (routeId != null) 'route_id': routeId.toString(),
+        if (createdAfter != null)
+          'created_after': createdAfter.toIso8601String(),
       };
 
       final uri =
@@ -850,35 +855,10 @@ class ApiService {
 
       // Handle mobile platform
       if (!kIsWeb) {
-        if (imageFile is XFile) {
+        if (imageFile is File) {
           // Optimize image before upload
           final bytes = await _optimizeImage(
-            await imageFile.readAsBytes(),
-            maxWidth: maxWidth,
-            quality: quality,
-          );
-          final fileName = imageFile.name;
-          final fileExtension = fileName.split('.').last.toLowerCase();
-
-          // Validate file type
-          final allowedTypes = ['jpg', 'jpeg', 'png', 'pdf'];
-          if (!allowedTypes.contains(fileExtension)) {
-            throw Exception(
-                'Invalid file type. Only JPG, JPEG, PNG, and PDF files are allowed.');
-          }
-
-          request.files.add(
-            http.MultipartFile.fromBytes(
-              'attachment',
-              bytes,
-              filename: fileName,
-              contentType: MediaType('image', fileExtension),
-            ),
-          );
-        } else if (imageFile is File) {
-          // Optimize image before upload
-          final bytes = await _optimizeImage(
-            await imageFile.readAsBytes(),
+            await File(imageFile.path).readAsBytes(),
             maxWidth: maxWidth,
             quality: quality,
           );
@@ -902,7 +882,7 @@ class ApiService {
           );
         } else {
           throw Exception(
-              'Invalid file type for mobile platform. Expected XFile or File.');
+              'Invalid file type for mobile platform. Expected File.');
         }
       } else {
         // Handle web platform
@@ -951,8 +931,22 @@ class ApiService {
           );
 
           if (response.statusCode == 200) {
-            final decodedJson = jsonDecode(response.body);
-            completer.complete(decodedJson['imageUrl']);
+            try {
+              final decodedJson = jsonDecode(response.body);
+              print('Upload response: $decodedJson'); // Debug log
+
+              // Handle the actual response format from your server
+              if (decodedJson['attachment'] != null &&
+                  decodedJson['attachment']['main'] != null &&
+                  decodedJson['attachment']['main']['url'] != null) {
+                completer.complete(decodedJson['attachment']['main']['url']);
+              } else {
+                throw Exception('Invalid response format from server');
+              }
+            } catch (e) {
+              print('Error parsing response: $e');
+              completer.completeError(e);
+            }
           } else {
             completer.completeError(
               Exception('Failed to upload image: ${response.statusCode}'),
@@ -960,6 +954,7 @@ class ApiService {
           }
         },
         onError: (error) {
+          print('Upload stream error: $error');
           completer.completeError(error);
         },
         cancelOnError: true,

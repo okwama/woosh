@@ -13,6 +13,7 @@ class Outlet {
   final int? regionId;
   final String? region;
   final int? countryId;
+  final DateTime? createdAt;
 
   Outlet({
     required this.id,
@@ -29,6 +30,7 @@ class Outlet {
     this.regionId,
     this.region,
     this.countryId,
+    this.createdAt,
   });
 
   factory Outlet.fromJson(Map<String, dynamic> json) {
@@ -51,6 +53,9 @@ class Outlet {
       regionId: json['region_id'] as int?,
       region: json['region'] as String?,
       countryId: json['country']?['id'] as int?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : null,
     );
   }
 
@@ -70,6 +75,7 @@ class Outlet {
       if (regionId != null) 'region_id': regionId,
       if (region != null) 'region': region,
       if (countryId != null) 'country': {'id': countryId},
+      if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
     };
   }
 
@@ -88,6 +94,7 @@ class Outlet {
     int? regionId,
     String? region,
     int? countryId,
+    DateTime? createdAt,
   }) {
     return Outlet(
       id: id ?? this.id,
@@ -104,6 +111,7 @@ class Outlet {
       regionId: regionId ?? this.regionId,
       region: region ?? this.region,
       countryId: countryId ?? this.countryId,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

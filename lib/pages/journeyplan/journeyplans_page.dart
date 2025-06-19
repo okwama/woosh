@@ -14,8 +14,116 @@ import 'package:shimmer/shimmer.dart';
 import '../../services/hive/journey_plan_hive_service.dart';
 import '../../models/hive/journey_plan_model.dart';
 
+class JourneyPlansLoadingScreen extends StatefulWidget {
+  const JourneyPlansLoadingScreen({super.key});
+
+  @override
+  State<JourneyPlansLoadingScreen> createState() =>
+      _JourneyPlansLoadingScreenState();
+}
+
+class _JourneyPlansLoadingScreenState extends State<JourneyPlansLoadingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _preloadData();
+  }
+
+  Future<void> _preloadData() async {
+    try {
+      // Initialize Hive service
+      final hiveService = JourneyPlanHiveService();
+      await hiveService.init();
+
+      // Load cached data first
+      final cachedPlans = hiveService.getAllJourneyPlans();
+
+      // PRIORITY: Load journey plans first (primary data)
+      final journeyPlans = await ApiService.fetchJourneyPlans(page: 1);
+
+      // Save journey plans to Hive immediately
+      if (journeyPlans.isNotEmpty) {
+        final journeyPlanModels = journeyPlans
+            .map((plan) => JourneyPlanModel(
+                  id: plan.id ?? 0,
+                  date: plan.date,
+                  time: plan.time,
+                  userId: plan.salesRepId ?? 0,
+                  clientId: plan.client.id,
+                  status: plan.status,
+                  showUpdateLocation: plan.showUpdateLocation,
+                  routeId: plan.routeId,
+                ))
+            .toList();
+        await hiveService.saveJourneyPlans(journeyPlanModels);
+      }
+
+      // Load clients in background (secondary data)
+      final routeId = ApiService.getCurrentUserRouteId();
+      final clientsResponse = await ApiService.fetchClients(routeId: routeId);
+
+      // Navigate to main page with preloaded data
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => JourneyPlansPage(
+              preloadedClients: clientsResponse.data,
+              preloadedPlans: journeyPlans,
+              cachedPlans: cachedPlans,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error preloading data: $e');
+      // If there's an error, still navigate but with cached data
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const JourneyPlansPage(),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: appBackground,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            Text(
+              'Loading Journey Plans...',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class JourneyPlansPage extends StatefulWidget {
-  const JourneyPlansPage({super.key});
+  final List<Client>? preloadedClients;
+  final List<JourneyPlan>? preloadedPlans;
+  final List<JourneyPlanModel>? cachedPlans;
+
+  const JourneyPlansPage({
+    super.key,
+    this.preloadedClients,
+    this.preloadedPlans,
+    this.cachedPlans,
+  });
 
   @override
   State<JourneyPlansPage> createState() => _JourneyPlansPageState();
@@ -45,7 +153,21 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
   void initState() {
     super.initState();
     _initHiveService();
-    _loadData();
+
+    // Use preloaded data if available
+    if (widget.preloadedClients != null) {
+      _clients = widget.preloadedClients!;
+    }
+    if (widget.preloadedPlans != null) {
+      _journeyPlans = widget.preloadedPlans!;
+      _isLoading = false;
+    } else if (widget.cachedPlans != null && widget.cachedPlans!.isNotEmpty) {
+      _journeyPlans = widget.cachedPlans!.map(_convertToJourneyPlan).toList();
+      _isLoading = false;
+    } else {
+      _loadData();
+    }
+
     _scrollController.addListener(_onScroll);
     _checkActiveVisit();
   }
@@ -183,7 +305,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
     }
 
     try {
-      await _loadClients();
+      // PRIORITY: Load journey plans first (primary data)
       final journeyPlans = await ApiService.fetchJourneyPlans(page: 1);
 
       if (mounted) {
@@ -193,6 +315,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
         });
         _saveJourneyPlansToHive(journeyPlans);
       }
+
+      // Load clients in background (secondary data)
+      _loadClients();
     } catch (e) {
       print('Error loading data: $e');
 
@@ -306,14 +431,16 @@ class _JourneyPlansPageState extends State<JourneyPlansPage> {
           MaterialPageRoute(
             builder: (context) => CreateJourneyPlanPage(
               clients: _clients,
-              onSuccess: (updatedJourneyPlans) {
-                if (updatedJourneyPlans.isNotEmpty) {
-                  _saveJourneyPlansToHive(updatedJourneyPlans);
+              onSuccess: (newJourneyPlans) {
+                if (newJourneyPlans.isNotEmpty) {
+                  setState(() {
+                    _journeyPlans.insert(0, newJourneyPlans[0]);
+                  });
+                  _saveJourneyPlansToHive(newJourneyPlans);
                 }
-                _loadData();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                      content: Text('Journey plan created and saved locally')),
+                      content: Text('Journey plan created successfully')),
                 );
               },
             ),

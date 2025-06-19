@@ -188,6 +188,14 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
       setState(() {
         searchQuery = query.toLowerCase();
         _updateFilteredClients();
+        // Reset scroll position to top when search query changes
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       });
     });
   }
@@ -203,69 +211,57 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   List<_ScoredClient> _matchAndScoreClients(
       List<Client> clients, List<String> patternWords) {
     final scoredClients = <_ScoredClient>[];
+    final searchQuery = patternWords.join(' ').trim().toLowerCase();
 
     for (final client in clients) {
-      final searchableText = [
-        client.name,
-        if (client.address != null) client.address!,
-      ].join(' ');
+      final name = client.name.trim().toLowerCase();
+      final address = client.address?.trim().toLowerCase() ?? '';
 
-      final normalizedText = _normalizeText(searchableText);
-      final normalizedPattern = _normalizeText(patternWords.join(' '));
+      // Skip empty searches
+      if (searchQuery.isEmpty) {
+        scoredClients.add(_ScoredClient(client, 0.0));
+        continue;
+      }
 
-      final textWordList = normalizedText.split(' ');
-      final patternWordList = normalizedPattern.split(' ');
+      double score = 0.0;
 
-      bool allWordsFound = true;
-      int totalDistance = 0;
-      int lastMatchIndex = -1;
+      // Exact full string match
+      if (name == searchQuery || address == searchQuery) {
+        score = 1000.0;
+      }
+      // Contains exact search query as a substring
+      else if (name.contains(searchQuery) || address.contains(searchQuery)) {
+        score = 800.0;
+        // Boost score if it matches at word boundary
+        if (name.split(' ').any((word) => word == searchQuery) ||
+            address.split(' ').any((word) => word == searchQuery)) {
+          score = 900.0;
+        }
+        // Boost score if it matches at start
+        if (name.startsWith(searchQuery) || address.startsWith(searchQuery)) {
+          score += 50.0;
+        }
+      }
+      // Partial word match
+      else {
+        final searchWords = searchQuery.split(' ');
+        final nameWords = name.split(' ');
+        final addressWords = address.split(' ');
 
-      for (final patternWord in patternWordList) {
-        if (patternWord.isEmpty) continue;
-
-        bool wordFound = false;
-        int bestDistance = 999999;
-        int bestIndex = -1;
-
-        for (int i = 0; i < textWordList.length; i++) {
-          final textWord = textWordList[i];
-          if (textWord.contains(patternWord) ||
-              patternWord.contains(textWord)) {
-            wordFound = true;
-            int distance = lastMatchIndex == -1 ? 0 : i - lastMatchIndex;
-            if (distance < bestDistance) {
-              bestDistance = distance;
-              bestIndex = i;
-            }
+        int matchedWords = 0;
+        for (final searchWord in searchWords) {
+          if (nameWords.any((word) => word.contains(searchWord)) ||
+              addressWords.any((word) => word.contains(searchWord))) {
+            matchedWords++;
           }
         }
 
-        if (!wordFound) {
-          allWordsFound = false;
-          break;
-        }
-
-        if (bestIndex != -1) {
-          totalDistance += bestDistance;
-          lastMatchIndex = bestIndex;
+        if (matchedWords > 0) {
+          score = 500.0 * (matchedWords / searchWords.length);
         }
       }
 
-      if (allWordsFound) {
-        double score = 100.0;
-
-        score -= totalDistance * 5;
-
-        if (normalizedText.contains(normalizedPattern)) {
-          score += 50;
-        }
-
-        if (normalizedText.startsWith(patternWordList[0])) {
-          score += 30;
-        }
-
-        score -= (textWordList.length - patternWordList.length) * 2;
-
+      if (score > 0) {
         scoredClients.add(_ScoredClient(client, score));
       }
     }
@@ -278,6 +274,10 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     if (searchQuery.isEmpty) {
       setState(() {
         filteredClients = _allClients;
+        // Reset scroll position when clearing search
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
       });
       return;
     }
@@ -285,6 +285,10 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     if (_searchCache.containsKey(searchQuery)) {
       setState(() {
         filteredClients = _searchCache[searchQuery]!;
+        // Reset scroll position when using cached results
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
       });
       return;
     }
@@ -601,20 +605,16 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     });
 
     try {
-      await ApiService.createJourneyPlan(
+      final newJourneyPlan = await ApiService.createJourneyPlan(
         clientId,
         date,
         notes: notes,
         routeId: routeId,
       );
 
-      final journeyPlans = await ApiService.fetchJourneyPlans();
-
       if (onSuccess != null) {
-        onSuccess(journeyPlans);
+        onSuccess([newJourneyPlan]);
       }
-
-      await _refreshClients();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -663,161 +663,113 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.shade200,
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: widget.clients.isEmpty
             ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.people_outline,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No clients available',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'No clients available',
+                  style: TextStyle(color: Colors.grey.shade600),
                 ),
               )
             : filteredClients.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No matching clients found',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'No matching clients found',
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
                   )
-                : ListView.builder(
+                : ListView.separated(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     itemCount: filteredClients.length + (_hasMoreData ? 1 : 0),
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      color: Colors.grey.shade200,
+                    ),
                     itemBuilder: (context, index) {
                       if (index == filteredClients.length) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: CircularProgressIndicator(),
-                          ),
+                        return const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Center(child: CircularProgressIndicator()),
                         );
                       }
                       final client = filteredClients[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () async {
-                              if (!_isLoading) {
-                                String? routeName;
-                                if (selectedRouteId != null) {
-                                  try {
-                                    final routes = await ApiService.getRoutes();
-                                    final route = routes.firstWhere(
-                                      (r) => r['id'] == selectedRouteId,
-                                      orElse: () => <String, dynamic>{},
-                                    );
-                                    routeName = route['name'];
-                                  } catch (e) {
-                                    // Handle error silently
-                                  }
-                                }
-
-                                await _showConfirmationDialog(
-                                  context,
-                                  client,
-                                  selectedDate,
-                                  notes: notesController.text.trim(),
-                                  routeId: selectedRouteId,
-                                  routeName: routeName,
+                      return InkWell(
+                        onTap: () async {
+                          if (!_isLoading) {
+                            String? routeName;
+                            if (selectedRouteId != null) {
+                              try {
+                                final routes = await ApiService.getRoutes();
+                                final route = routes.firstWhere(
+                                  (r) => r['id'] == selectedRouteId,
+                                  orElse: () => <String, dynamic>{},
                                 );
+                                routeName = route['name'];
+                              } catch (e) {
+                                // Handle error silently
                               }
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Colors.grey.shade200,
-                                  width: 1,
+                            }
+
+                            await _showConfirmationDialog(
+                              context,
+                              client,
+                              selectedDate,
+                              notes: notesController.text.trim(),
+                              routeId: selectedRouteId,
+                              routeName: routeName,
+                            );
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.1),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 16,
+                                  color: Theme.of(context).primaryColor,
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context)
-                                          .primaryColor
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Icon(
-                                      Icons.person,
-                                      color: Theme.of(context).primaryColor,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        _buildHighlightedText(
-                                            client.name, searchQuery),
-                                        if (client.address != null &&
-                                            client.address!.isNotEmpty)
-                                          Padding(
-                                            padding:
-                                                const EdgeInsets.only(top: 4),
-                                            child: _buildHighlightedText(
-                                              client.address!,
-                                              searchQuery,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.arrow_forward_ios,
-                                    size: 16,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildHighlightedText(
+                                        client.name, searchQuery),
+                                    if (client.address != null &&
+                                        client.address!.isNotEmpty)
+                                      DefaultTextStyle(
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                        child: _buildHighlightedText(
+                                          client.address!,
+                                          searchQuery,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
+                              Icon(
+                                Icons.chevron_right,
+                                size: 16,
+                                color: Colors.grey.shade400,
+                              ),
+                            ],
                           ),
                         ),
                       );
@@ -1131,34 +1083,33 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                 ),
                 const SizedBox(height: 16),
                 Container(
+                  height: 40,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.shade200,
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
                   child: TextField(
                     controller: searchController,
                     onChanged: _onSearchChanged,
+                    style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
+                      isDense: true,
                       hintText: 'Search clients...',
                       hintStyle:
                           TextStyle(fontSize: 14, color: Colors.grey.shade500),
                       prefixIcon: Icon(
                         Icons.search,
-                        size: 20,
+                        size: 18,
                         color: Theme.of(context).primaryColor,
                       ),
                       suffixIcon: IconButton(
                         icon: Icon(
                           Icons.filter_list,
+                          size: 18,
                           color: Theme.of(context).primaryColor,
                         ),
+                        padding: EdgeInsets.zero,
                         onPressed: () {
                           showModalBottomSheet(
                             context: context,
@@ -1166,56 +1117,50 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                               borderRadius: BorderRadius.vertical(
                                   top: Radius.circular(16)),
                             ),
-                            builder: (context) => Container(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text(
-                                    'Search Filters',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                            builder: (context) => StatefulBuilder(
+                              builder: (context, setState) => Container(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Search Filters',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SwitchListTile(
-                                    title: const Text('Search by Name'),
-                                    value: _searchByName,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _searchByName = value;
+                                    const SizedBox(height: 8),
+                                    SwitchListTile.adaptive(
+                                      dense: true,
+                                      title: const Text('Search by Name'),
+                                      value: _searchByName,
+                                      onChanged: (value) {
+                                        setState(() => _searchByName = value);
                                         _updateFilteredClients();
-                                      });
-                                      Navigator.pop(context);
-                                    },
-                                  ),
-                                  SwitchListTile(
-                                    title: const Text('Search by Address'),
-                                    value: _searchByAddress,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _searchByAddress = value;
+                                      },
+                                    ),
+                                    SwitchListTile.adaptive(
+                                      dense: true,
+                                      title: const Text('Search by Address'),
+                                      value: _searchByAddress,
+                                      onChanged: (value) {
+                                        setState(
+                                            () => _searchByAddress = value);
                                         _updateFilteredClients();
-                                      });
-                                      Navigator.pop(context);
-                                    },
-                                  ),
-                                ],
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           );
                         },
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      fillColor: Colors.white,
-                      filled: true,
+                      border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
+                        vertical: 8,
+                        horizontal: 12,
                       ),
                     ),
                   ),

@@ -51,12 +51,94 @@ class TargetService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
+  // Get daily visit targets for a user
+  static Future<Map<String, dynamic>> getDailyVisitTargets({
+    required String userId,
+    String? date,
+  }) async {
+    final cacheKey = 'daily_visits_${userId}_$date';
+    final cachedData = _getCachedData(cacheKey);
+    if (cachedData != null) {
+      print('Debug - Using cached data for key: $cacheKey');
+      return cachedData;
+    }
+
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        print('Debug - No auth token found');
+        return {
+          'error': 'No authentication token found',
+          'visitTarget': 0,
+          'completedVisits': 0,
+          'remainingVisits': 0,
+          'progress': 0,
+          'status': 'Error'
+        };
+      }
+
+      final queryParams = date != null ? '?date=$date' : '';
+      final url = '$baseUrl/targets/daily-visits/$userId$queryParams';
+      print('Debug - Making API call to: $url');
+      print('Debug - Headers: ${await _headers()}');
+
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      print('Debug - Response status: ${response.statusCode}');
+      print('Debug - Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _cacheData(cacheKey, data);
+        return data;
+      } else if (response.statusCode == 404) {
+        return {
+          'error': 'Sales rep not found',
+          'visitTarget': 0,
+          'completedVisits': 0,
+          'remainingVisits': 0,
+          'progress': 0,
+          'status': 'Error'
+        };
+      } else {
+        return {
+          'error': 'Failed to fetch daily visit targets',
+          'details': response.body,
+          'visitTarget': 0,
+          'completedVisits': 0,
+          'remainingVisits': 0,
+          'progress': 0,
+          'status': 'Error'
+        };
+      }
+    } catch (e) {
+      print('Debug - Error in getDailyVisitTargets: $e');
+      return {
+        'error': 'Failed to fetch daily visit targets',
+        'details': e.toString(),
+        'visitTarget': 0,
+        'completedVisits': 0,
+        'remainingVisits': 0,
+        'progress': 0,
+        'status': 'Error'
+      };
+    }
+  }
+
   // Get all targets for the current user
   static Future<List<Target>> getTargets({
     int page = 1,
     int limit = 10,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
-    final cacheKey = 'targets_page_$page';
+    final cacheKey =
+        'targets_page_${page}_${startDate?.toIso8601String()}_${endDate?.toIso8601String()}';
     final cachedData = _getCachedData(cacheKey);
     if (cachedData != null) {
       return cachedData;
@@ -69,19 +151,31 @@ class TargetService {
         return [];
       }
 
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+
+      final uri =
+          Uri.parse('$baseUrl/targets').replace(queryParameters: queryParams);
       final response = await http
           .get(
-            Uri.parse('$baseUrl/targets?page=$page&limit=$limit'),
+            uri,
             headers: await _headers(),
           )
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Expect a list of targets with achievedValue and progress from backend
-        final targets = (data as List)
-            .map((item) => Target.fromJson(item))
-            .toList();
+        final targets =
+            (data as List).map((item) => Target.fromJson(item)).toList();
         _cacheData(cacheKey, targets);
         return targets;
       }
@@ -204,8 +298,11 @@ class TargetService {
   static Future<Map<String, dynamic>> getSalesData({
     int page = 1,
     int limit = 10,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
-    final cacheKey = 'sales_data_page_$page';
+    final cacheKey =
+        'sales_data_page_${page}_${startDate?.toIso8601String()}_${endDate?.toIso8601String()}';
     final cachedData = _getCachedData(cacheKey);
     if (cachedData != null) {
       return cachedData;
@@ -223,9 +320,22 @@ class TargetService {
         };
       }
 
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (startDate != null) {
+        queryParams['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        queryParams['endDate'] = endDate.toIso8601String();
+      }
+
+      final uri = Uri.parse('$baseUrl/orders/sales-summary')
+          .replace(queryParameters: queryParams);
       final response = await http.get(
-        Uri.parse(
-            '$baseUrl/orders/sales-summary?days=14&page=$page&limit=$limit'),
+        uri,
         headers: await _headers(),
       );
 
@@ -258,6 +368,26 @@ class TargetService {
         'recentOrders': <dynamic>[],
         'hasMore': false,
       };
+    }
+  }
+
+  static Future<List<dynamic>> getMonthlyVisits(
+      {required String userId}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/targets/monthly-visits/$userId'),
+        headers: await ApiService.getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      } else {
+        throw Exception(
+            'Failed to load monthly visits: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error getting monthly visits: $e');
+      rethrow;
     }
   }
 }

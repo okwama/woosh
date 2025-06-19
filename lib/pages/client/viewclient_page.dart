@@ -16,6 +16,10 @@ import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 
+enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
+
+enum DateFilter { all, today, thisWeek, thisMonth }
+
 class ViewClientPage extends StatefulWidget {
   final bool forOrderCreation;
   final bool forUpliftSale;
@@ -35,6 +39,7 @@ class ViewClientPage extends StatefulWidget {
 class _ViewClientPageState extends State<ViewClientPage> {
   bool _isLoading = false;
   bool _isLoadingMore = false;
+  bool _isSearching = false;
   bool _isOnline = true;
   List<Outlet> _outlets = [];
   String? _errorMessage;
@@ -46,6 +51,13 @@ class _ViewClientPageState extends State<ViewClientPage> {
   static const int _prefetchThreshold = 200;
   Timer? _debounce;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  // Filter options
+  SortOption _sortOption = SortOption.nameAsc;
+  bool _showFilters = false;
+  bool _showOnlyWithContact = false;
+  bool _showOnlyWithEmail = false;
+  DateFilter _dateFilter = DateFilter.all;
 
   @override
   void initState() {
@@ -94,9 +106,19 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
+    setState(() {
+      _isSearching = true;
+    });
     _debounce = Timer(const Duration(milliseconds: 500), () {
       if (mounted) {
-        setState(() {});
+        setState(() {
+          // If we have a search query and we haven't loaded all pages yet,
+          // load more pages until we find the result or reach the end
+          if (query.isNotEmpty && _hasMore) {
+            _loadMoreUntilFound(query);
+          }
+          _isSearching = false;
+        });
       }
     });
   }
@@ -274,6 +296,42 @@ class _ViewClientPageState extends State<ViewClientPage> {
     }
   }
 
+  Future<void> _loadMoreUntilFound(String query) async {
+    if (!_isOnline || _isLoadingMore) return;
+
+    final searchTerms = query.toLowerCase().split(' ');
+    bool foundMatch = _outlets.any((outlet) {
+      final name = outlet.name.toLowerCase();
+      final address = outlet.address.toLowerCase();
+      final contact = outlet.contact?.toLowerCase() ?? '';
+      final email = outlet.email?.toLowerCase() ?? '';
+
+      return searchTerms.every((term) =>
+          name.contains(term) ||
+          address.contains(term) ||
+          contact.contains(term) ||
+          email.contains(term));
+    });
+
+    // If we haven't found a match and there are more pages, load the next page
+    while (!foundMatch && _hasMore) {
+      await _loadMoreOutlets();
+
+      foundMatch = _outlets.any((outlet) {
+        final name = outlet.name.toLowerCase();
+        final address = outlet.address.toLowerCase();
+        final contact = outlet.contact?.toLowerCase() ?? '';
+        final email = outlet.email?.toLowerCase() ?? '';
+
+        return searchTerms.every((term) =>
+            name.contains(term) ||
+            address.contains(term) ||
+            contact.contains(term) ||
+            email.contains(term));
+      });
+    }
+  }
+
   void _showErrorDialog() {
     showDialog(
       context: context,
@@ -301,21 +359,79 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   List<Outlet> get _filteredOutlets {
     final query = _searchController.text.toLowerCase().trim();
-    if (query.isEmpty) return _outlets;
+    List<Outlet> filtered = _outlets;
 
-    return _outlets.where((outlet) {
-      final name = outlet.name.toLowerCase();
-      final address = outlet.address.toLowerCase();
-      final contact = outlet.contact?.toLowerCase() ?? '';
-      final email = outlet.email?.toLowerCase() ?? '';
+    // Apply text search filter
+    if (query.isNotEmpty) {
+      filtered = filtered.where((outlet) {
+        final name = outlet.name.toLowerCase();
+        final address = outlet.address.toLowerCase();
+        final contact = outlet.contact?.toLowerCase() ?? '';
+        final email = outlet.email?.toLowerCase() ?? '';
 
-      final searchTerms = query.split(' ');
-      return searchTerms.every((term) =>
-          name.contains(term) ||
-          address.contains(term) ||
-          contact.contains(term) ||
-          email.contains(term));
-    }).toList();
+        final searchTerms = query.split(' ');
+        return searchTerms.every((term) =>
+            name.contains(term) ||
+            address.contains(term) ||
+            contact.contains(term) ||
+            email.contains(term));
+      }).toList();
+    }
+
+    // Apply contact filter
+    if (_showOnlyWithContact) {
+      filtered = filtered
+          .where((outlet) => outlet.contact?.isNotEmpty == true)
+          .toList();
+    }
+
+    // Apply email filter
+    if (_showOnlyWithEmail) {
+      filtered =
+          filtered.where((outlet) => outlet.email?.isNotEmpty == true).toList();
+    }
+
+    // Apply date filter
+    if (_dateFilter != DateFilter.all) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+      final startOfMonth = DateTime(now.year, now.month, 1);
+
+      filtered = filtered.where((outlet) {
+        final outletDate = outlet.createdAt;
+        if (outletDate == null) return false;
+
+        switch (_dateFilter) {
+          case DateFilter.today:
+            return outletDate.isAfter(today);
+          case DateFilter.thisWeek:
+            return outletDate.isAfter(startOfWeek);
+          case DateFilter.thisMonth:
+            return outletDate.isAfter(startOfMonth);
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
+    // Apply sorting
+    switch (_sortOption) {
+      case SortOption.nameAsc:
+        filtered.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case SortOption.nameDesc:
+        filtered.sort((a, b) => b.name.compareTo(a.name));
+        break;
+      case SortOption.addressAsc:
+        filtered.sort((a, b) => a.address.compareTo(b.address));
+        break;
+      case SortOption.addressDesc:
+        filtered.sort((a, b) => b.address.compareTo(a.address));
+        break;
+    }
+
+    return filtered;
   }
 
   void _onClientSelected(Outlet outlet) {
@@ -405,15 +521,153 @@ class _ViewClientPageState extends State<ViewClientPage> {
     );
   }
 
+  Widget _buildFilterPanel() {
+    if (!_showFilters) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Sort by:',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    DropdownButton<SortOption>(
+                      value: _sortOption,
+                      isExpanded: true,
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black87),
+                      items: const [
+                        DropdownMenuItem(
+                            value: SortOption.nameAsc,
+                            child: Text('Name (A-Z)')),
+                        DropdownMenuItem(
+                            value: SortOption.nameDesc,
+                            child: Text('Name (Z-A)')),
+                        DropdownMenuItem(
+                            value: SortOption.addressAsc,
+                            child: Text('Address (A-Z)')),
+                        DropdownMenuItem(
+                            value: SortOption.addressDesc,
+                            child: Text('Address (Z-A)')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _sortOption = value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Date Range:',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    DropdownButton<DateFilter>(
+                      value: _dateFilter,
+                      isExpanded: true,
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black87),
+                      items: const [
+                        DropdownMenuItem(
+                            value: DateFilter.all, child: Text('All Time')),
+                        DropdownMenuItem(
+                            value: DateFilter.today, child: Text('Today')),
+                        DropdownMenuItem(
+                            value: DateFilter.thisWeek,
+                            child: Text('This Week')),
+                        DropdownMenuItem(
+                            value: DateFilter.thisMonth,
+                            child: Text('This Month')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _dateFilter = value!;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            children: [
+              FilterChip(
+                label:
+                    const Text('Has Contact', style: TextStyle(fontSize: 11)),
+                selected: _showOnlyWithContact,
+                onSelected: (value) {
+                  setState(() {
+                    _showOnlyWithContact = value;
+                  });
+                },
+                selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
+                checkmarkColor: Theme.of(context).primaryColor,
+              ),
+              const SizedBox(width: 8),
+              FilterChip(
+                label: const Text('Has Email', style: TextStyle(fontSize: 11)),
+                selected: _showOnlyWithEmail,
+                onSelected: (value) {
+                  setState(() {
+                    _showOnlyWithEmail = value;
+                  });
+                },
+                selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
+                checkmarkColor: Theme.of(context).primaryColor,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filteredCount = _filteredOutlets.length;
+    final totalCount = _outlets.length;
+
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'View Clients',
+        title: 'Clients ($totalCount)',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              _showFilters ? Icons.filter_list : Icons.filter_list_outlined,
+              size: 20,
+            ),
+            onPressed: () {
+              setState(() {
+                _showFilters = !_showFilters;
+              });
+            },
+            tooltip: 'Filters',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 20),
             onPressed: _loadOutlets,
             tooltip: 'Refresh',
           ),
@@ -423,46 +677,92 @@ class _ViewClientPageState extends State<ViewClientPage> {
         children: [
           // Search Bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search clients...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Stack(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search clients...',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onChanged: _onSearchChanged,
                 ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-              ),
-              onChanged: _onSearchChanged,
+                if (_isSearching)
+                  Positioned(
+                    right: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          // Network status indicator
-          if (!_isOnline)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              color: Colors.orange.shade100,
-              child: const Center(
-                child: Text(
-                  'Offline mode - showing cached data',
-                  style: TextStyle(color: Colors.orange),
-                ),
-              ),
+          // Filter Panel
+          _buildFilterPanel(),
+          if (_showFilters) const SizedBox(height: 6),
+          // Results count and network status
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                if (filteredCount != totalCount)
+                  Text(
+                    'Showing $filteredCount of $totalCount clients',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                const Spacer(),
+                if (!_isOnline)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Offline',
+                      style: TextStyle(color: Colors.orange, fontSize: 10),
+                    ),
+                  ),
+              ],
             ),
+          ),
           // Outlets List
           Expanded(
             child: _isLoading && _outlets.isEmpty
@@ -474,10 +774,10 @@ class _ViewClientPageState extends State<ViewClientPage> {
                           children: [
                             Icon(
                               Icons.error_outline,
-                              size: 48,
+                              size: 36,
                               color: Colors.red.shade300,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Padding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 32),
@@ -486,17 +786,21 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: Colors.red.shade700,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             ElevatedButton.icon(
                               onPressed: _loadOutlets,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Retry'),
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Retry',
+                                  style: TextStyle(fontSize: 12)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Theme.of(context).primaryColor,
                                 foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
                               ),
                             ),
                           ],
@@ -518,7 +822,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
                                 final outlet = _filteredOutlets[index];
                                 return Card(
-                                  margin: const EdgeInsets.only(bottom: 8),
+                                  margin: const EdgeInsets.only(bottom: 6),
                                   elevation: 1,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -527,26 +831,26 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                     onTap: () => _onClientSelected(outlet),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
-                                      padding: const EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(10),
                                       child: Row(
                                         children: [
                                           Container(
-                                            padding: const EdgeInsets.all(8),
+                                            padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
                                               color: Theme.of(context)
                                                   .primaryColor
                                                   .withOpacity(0.1),
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Icon(
                                               Icons.store,
                                               color: Theme.of(context)
                                                   .primaryColor,
-                                              size: 24,
+                                              size: 18,
                                             ),
                                           ),
-                                          const SizedBox(width: 12),
+                                          const SizedBox(width: 10),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment:
@@ -555,16 +859,16 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                 Text(
                                                   outlet.name,
                                                   style: const TextStyle(
-                                                    fontSize: 16,
+                                                    fontSize: 14,
                                                     fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 4),
+                                                const SizedBox(height: 2),
                                                 Text(
                                                   outlet.address,
                                                   style: TextStyle(
                                                     color: Colors.grey.shade600,
-                                                    fontSize: 13,
+                                                    fontSize: 11,
                                                   ),
                                                   maxLines: 1,
                                                   overflow:
@@ -573,14 +877,53 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                 if (outlet
                                                         .contact?.isNotEmpty ??
                                                     false) ...[
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    outlet.contact!,
-                                                    style: TextStyle(
-                                                      color:
-                                                          Colors.grey.shade600,
-                                                      fontSize: 13,
-                                                    ),
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.phone,
+                                                        size: 10,
+                                                        color: Colors
+                                                            .grey.shade500,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        outlet.contact!,
+                                                        style: TextStyle(
+                                                          color: Colors
+                                                              .grey.shade600,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                                if (outlet.email?.isNotEmpty ??
+                                                    false) ...[
+                                                  const SizedBox(height: 2),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.email,
+                                                        size: 10,
+                                                        color: Colors
+                                                            .grey.shade500,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Expanded(
+                                                        child: Text(
+                                                          outlet.email!,
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .grey.shade600,
+                                                            fontSize: 11,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ],
                                               ],
@@ -589,6 +932,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                           Icon(
                                             Icons.chevron_right,
                                             color: Colors.grey.shade400,
+                                            size: 18,
                                           ),
                                         ],
                                       ),

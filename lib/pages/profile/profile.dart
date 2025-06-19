@@ -208,6 +208,27 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         // Start session
         final response = await SessionService.recordLogin(userId);
         if (response['error'] != null) {
+          // Show dialog for early login attempt
+          if (response['error']
+              .toString()
+              .contains('Sessions can only be started from 9:00 AM')) {
+            await showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Cannot Start Session'),
+                content: const Text(
+                    'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
+                actions: [
+                  GoldGradientButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+          // Show snackbar for other errors
           Get.snackbar(
             'Cannot Start Session',
             response['error'],
@@ -259,10 +280,26 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       String errorMessage =
           'Failed to ${isSessionActive ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
-      if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
-        errorMessage = 'Sessions can only be started after 9:00 AM';
-        errorColor = Colors.orange;
+
+      // Show dialog for early login attempt
+      if (e.toString().contains('Sessions can only be started from 9:00 AM')) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Cannot Start Session'),
+            content: const Text(
+                'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
+            actions: [
+              GoldGradientButton(
+                onPressed: () => Get.back(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
+
       Get.snackbar(
         'Error',
         errorMessage,
@@ -435,8 +472,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   }
 
   Widget _buildRoleBadge() {
-    final String role =
-        controller.userRole.value.isEmpty ? '`User`' : controller.userRole.value;
+    final String role = controller.userRole.value.isEmpty
+        ? '`User`'
+        : controller.userRole.value;
 
     final Color badgeColor =
         role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin'
@@ -786,7 +824,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         Card(
           elevation: 1,
           margin: EdgeInsets.zero,
@@ -834,7 +872,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             ),
           ),
         ),
-       const SizedBox(height: 8),
+        const SizedBox(height: 8),
         // Session Control Button
         Card(
           elevation: 1,

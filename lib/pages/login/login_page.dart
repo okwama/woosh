@@ -192,7 +192,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 24),
 
                       // Don't have an account
-                       _buildSignUpRow(),
+                      _buildSignUpRow(),
                     ],
                   ),
                 ),
@@ -211,6 +211,7 @@ class _LoginPageState extends State<LoginPage> {
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
         labelText: 'Phone Number',
+        labelStyle: const TextStyle(color: Colors.black87),
         hintText: 'Enter your phone number',
         prefixIcon: const Icon(Icons.phone_outlined),
         border: OutlineInputBorder(
@@ -228,6 +229,7 @@ class _LoginPageState extends State<LoginPage> {
       obscureText: _obscurePassword,
       decoration: InputDecoration(
         labelText: 'Password',
+        labelStyle: const TextStyle(color: Colors.black87),
         hintText: 'Enter your password',
         prefixIcon: const Icon(Icons.lock_outline),
         suffixIcon: IconButton(
@@ -316,87 +318,4 @@ class _LoginPageState extends State<LoginPage> {
       ],
     );
   }
-
-  // Widget _buildPoweredByFooter(BuildContext context) {
-  //   final year = DateTime.now().year;
-
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-  //     color: appBackground,
-  //     child: Column(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: [
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.center,
-  //           children: [
-  //             const Text(
-  //               'Powered by ',
-  //               style: TextStyle(
-  //                 color: Colors.grey,
-  //                 fontSize: 12,
-  //               ),
-  //             ),
-  //             Container(
-  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-  //               decoration: BoxDecoration(
-  //                 gradient: LinearGradient(
-  //                   colors: [
-  //                     Theme.of(context).primaryColor,
-  //                     Colors.orange,
-  //                   ],
-  //                   begin: Alignment.topLeft,
-  //                   end: Alignment.bottomRight,
-  //                 ),
-  //                 borderRadius: BorderRadius.circular(4),
-  //               ),
-  //               child: const Text(
-  //                 'Cit Logistics',
-  //                 style: TextStyle(
-  //                   color: Colors.white,
-  //                   fontWeight: FontWeight.bold,
-  //                   fontSize: 14,
-  //                   letterSpacing: 1.5,
-  //                 ),
-  //               ),
-  //             ),
-  //             const SizedBox(width: 4),
-  //             const Icon(
-  //               Icons.verified,
-  //               size: 16,
-  //               color: Colors.orange,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.center,
-  //           children: [
-  //             Icon(
-  //               Icons.copyright,
-  //               size: 10,
-  //               color: Colors.grey[600],
-  //             ),
-  //             const SizedBox(width: 2),
-  //             Text(
-  //               '$year Management System',
-  //               style: TextStyle(
-  //                 color: Colors.grey[600],
-  //                 fontSize: 10,
-  //                 fontWeight: FontWeight.w500,
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 4),
-  //         Text(
-  //           'Version 1.0.0',
-  //           style: TextStyle(
-  //             color: Colors.grey[400],
-  //             fontSize: 9,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 }
