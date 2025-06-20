@@ -4,17 +4,14 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
 
 class ReportService {
   static const String baseUrl = '${Config.baseUrl}/api';
   static const Duration tokenExpirationDuration = Duration(hours: 5);
 
   static String? _getAuthToken() {
-    final box = GetStorage();
-    final token = box.read<String>('token');
-    print(
-        'Retrieved auth token: ${token != null ? 'Token exists' : 'Token is null'}');
-    return token;
+    return TokenService.getAccessToken();
   }
 
   static Future<Map<String, String>> _headers(

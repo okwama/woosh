@@ -1,30 +1,34 @@
 import 'package:get/get.dart';
 import '../services/hive/user_hive_service.dart' as hive;
 import '../services/api_service.dart';
+import '../services/token_service.dart';
 import '../models/hive/user_model.dart';
 
 class AuthController extends GetxController {
   final hive.UserHiveService _userHiveService = hive.UserHiveService();
   final _isLoggedIn = false.obs;
   final _currentUser = Rxn<UserModel>();
+  final _isInitialized = false.obs;
 
   RxBool get isLoggedIn => _isLoggedIn;
   UserModel? get currentUser => _currentUser.value;
+  RxBool get isInitialized => _isInitialized;
 
   @override
   void onInit() {
     super.onInit();
-    _initializeHive();
+    _initialize();
   }
 
-  Future<void> _initializeHive() async {
+  Future<void> _initialize() async {
     await _userHiveService.init();
     await _loadUserFromHive();
+    _isInitialized.value = true;
   }
 
   Future<void> _loadUserFromHive() async {
     final user = _userHiveService.getCurrentUser();
-    if (user != null) {
+    if (user != null && TokenService.isAuthenticated()) {
       _currentUser.value = user;
       _isLoggedIn.value = true;
     }
@@ -50,6 +54,10 @@ class AuthController extends GetxController {
 
   Future<void> logout() async {
     try {
+      // Clear tokens using TokenService
+      await TokenService.clearTokens();
+
+      // Clear user data
       await _userHiveService.clearUser();
       _currentUser.value = null;
       _isLoggedIn.value = false;
@@ -57,5 +65,10 @@ class AuthController extends GetxController {
       print('Logout error: $e');
       rethrow;
     }
+  }
+
+  // Check if user is authenticated
+  bool isAuthenticated() {
+    return TokenService.isAuthenticated();
   }
 }

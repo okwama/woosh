@@ -150,24 +150,25 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           TextButton(
             onPressed: () {
               Get.back(); // Close dialog
-              Get.offNamed('/home'); // Go to home
+              Get.offNamed('/orders'); // Go to orders page
             },
-            child: const Text('Back to Home'),
+            child: const Text('View Orders'),
           ),
           ElevatedButton(
             onPressed: () {
               Get.back(); // Close dialog
-              Get.offNamed('/orders'); // Go to orders page
+              // Navigate to products grid to add more items
+              Get.offNamed('/products');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
-            child: const Text('View Orders'),
+            child: const Text('Add More'),
           ),
         ],
       ),
-      barrierDismissible: false,
+      barrierDismissible: true,
     );
   }
 
@@ -345,6 +346,9 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     selectedImage.value = null;
     comment.value = ''; // Clear comment
     commentController.clear(); // Clear comment controller
+    // Navigate back to home first, then show success dialog
+    Get.offNamed('/home');
+    // Show success dialog with options after navigation
     _showOrderSuccessDialog();
   }
 

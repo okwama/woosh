@@ -3,13 +3,13 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/task_model.dart';
 import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
 
 class TaskService {
   static const String baseUrl = '${Config.baseUrl}/api/tasks';
 
   static Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -19,7 +19,8 @@ class TaskService {
   Future<List<Task>> getTasks() async {
     try {
       final box = GetStorage();
-      final salesRepId = box.read<String>('userId');
+      final salesRep = box.read('salesRep');
+      final salesRepId = salesRep?['id']?.toString();
 
       if (salesRepId == null) {
         throw Exception('User ID not found');
@@ -44,7 +45,8 @@ class TaskService {
   Future<List<Task>> getTaskHistory() async {
     try {
       final box = GetStorage();
-      final salesRepId = box.read<String>('userId');
+      final salesRep = box.read('salesRep');
+      final salesRepId = salesRep?['id']?.toString();
 
       if (salesRepId == null) {
         throw Exception('User ID not found');
@@ -140,4 +142,3 @@ class TaskService {
     }
   }
 }
- 

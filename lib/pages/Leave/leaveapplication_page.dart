@@ -9,7 +9,6 @@ import 'dart:typed_data';
 
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-
 class LeaveApplicationPage extends StatefulWidget {
   const LeaveApplicationPage({super.key});
 
@@ -30,8 +29,9 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
   String? _error;
   bool _isFileAttached = false;
 
-  DateTime _startDate = DateTime.now();
-  DateTime _endDate = DateTime.now().add(const Duration(days: 1));
+  DateTime _startDate = DateUtils.dateOnly(DateTime.now());
+  DateTime _endDate =
+      DateUtils.dateOnly(DateTime.now().add(const Duration(days: 1)));
 
   final List<String> _leaveTypes = ['Annual', 'Sick', 'Paternal'];
 
@@ -47,7 +47,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
@@ -56,10 +56,10 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       setState(() {
         if (isStartDate) {
           _startDateController.text = formattedDate;
-          _startDate = picked;
+          _startDate = DateUtils.dateOnly(picked);
         } else {
           _endDateController.text = formattedDate;
-          _endDate = picked;
+          _endDate = DateUtils.dateOnly(picked);
         }
       });
     }
@@ -117,8 +117,11 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
       setState(() => _error = 'End date cannot be before start date');
       return false;
     }
-    if (_startDate.isBefore(DateTime.now())) {
-      setState(() => _error = 'Start date cannot be in the past');
+    final yesterday =
+        DateUtils.addDaysToDate(DateUtils.dateOnly(DateTime.now()), -1);
+    if (_startDate.isBefore(yesterday)) {
+      setState(() => _error =
+          'The start date is too old. Please pick yesterday or a future date.');
       return false;
     }
     setState(() => _error = null);
@@ -182,7 +185,7 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
 
   @override
   Widget build(BuildContext context) {
-      return Scaffold(
+    return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
         title: 'Leave Application',
@@ -314,7 +317,6 @@ class _LeaveApplicationPageState extends State<LeaveApplicationPage> {
                     ],
                     GoldGradientButton(
                       onPressed: _submitLeaveApplication,
-
                       child: const Text('Submit Application'),
                     ),
                   ],

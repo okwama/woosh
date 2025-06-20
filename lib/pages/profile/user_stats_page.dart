@@ -13,6 +13,7 @@ import 'package:woosh/widgets/cream_gradient_card.dart';
 import 'package:woosh/controllers/profile_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:woosh/services/token_service.dart';
 
 class UserStatsPage extends StatefulWidget {
   const UserStatsPage({super.key});
@@ -600,8 +601,7 @@ class _UserStatsPageState extends State<UserStatsPage> {
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',

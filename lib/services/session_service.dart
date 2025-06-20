@@ -2,18 +2,31 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/token_service.dart';
 import 'package:woosh/utils/config.dart';
 
 class SessionService {
   static const String baseUrl = '${Config.baseUrl}/api';
 
   static Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
-    return {
+    final headers = {
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
     };
+
+    // Check if token is expired and refresh if needed
+    if (TokenService.isTokenExpired()) {
+      final refreshed = await ApiService.refreshAccessToken();
+      if (!refreshed) {
+        throw Exception('Authentication required');
+      }
+    }
+
+    final accessToken = TokenService.getAccessToken();
+    if (accessToken != null) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    }
+
+    return headers;
   }
 
   static void _updateToken(http.Response response) {

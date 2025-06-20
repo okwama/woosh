@@ -699,6 +699,24 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                       return InkWell(
                         onTap: () async {
                           if (!_isLoading) {
+                            // Add validation for selectedRouteId
+                            if (selectedRouteId == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: const [
+                                      Icon(Icons.warning_amber_rounded,
+                                          color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text('Please select a route first.'),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.orange.shade700,
+                                ),
+                              );
+                              return;
+                            }
+
                             String? routeName;
                             if (selectedRouteId != null) {
                               try {
@@ -968,7 +986,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                     ),
                                     const SizedBox(width: 4),
                                     const Text(
-                                      'Route (Optional)',
+                                      'Route',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
@@ -1043,26 +1061,19 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                               color: Colors.black54,
                                             ),
                                           ),
-                                          items: [
-                                            const DropdownMenuItem<int>(
-                                              value: null,
-                                              child: Text(
-                                                'No route',
-                                                style: TextStyle(fontSize: 14),
-                                              ),
-                                            ),
-                                            ...routes.map((route) =>
-                                                DropdownMenuItem<int>(
-                                                  value: route['id'],
-                                                  child: Text(
-                                                    route['name'],
-                                                    style: const TextStyle(
-                                                        fontSize: 14),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                )),
-                                          ],
+                                          items: routes
+                                              .map((route) =>
+                                                  DropdownMenuItem<int>(
+                                                    value: route['id'],
+                                                    child: Text(
+                                                      route['name'],
+                                                      style: const TextStyle(
+                                                          fontSize: 14),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ))
+                                              .toList(),
                                           onChanged: (value) {
                                             setState(() {
                                               selectedRouteId = value;

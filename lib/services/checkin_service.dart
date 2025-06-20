@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
 
 class CheckInService {
   static const String _baseUrl = '${Config.baseUrl}/api';
@@ -10,7 +11,7 @@ class CheckInService {
   static const _defaultTimeout = Duration(seconds: 15);
 
   static Future<Map<String, String>> _getAuthHeaders() async {
-    final token = _storage.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -21,10 +22,12 @@ class CheckInService {
 
   static Future<Map<String, double>> getOutletLocation(int outletId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl/outlets/$outletId/location'),
-        headers: await _getAuthHeaders(),
-      ).timeout(_defaultTimeout);
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/outlets/$outletId/location'),
+            headers: await _getAuthHeaders(),
+          )
+          .timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -35,7 +38,8 @@ class CheckInService {
       }
       throw _handleErrorResponse(response);
     } catch (e) {
-      throw Exception('Failed to fetch outlet location: ${_getErrorMessage(e)}');
+      throw Exception(
+          'Failed to fetch outlet location: ${_getErrorMessage(e)}');
     }
   }
 
@@ -56,11 +60,13 @@ class CheckInService {
         if (imagePath != null) 'imagePath': imagePath,
       };
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/manager/check-in'),
-        headers: await _getAuthHeaders(),
-        body: jsonEncode(request),
-      ).timeout(_defaultTimeout);
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/manager/check-in'),
+            headers: await _getAuthHeaders(),
+            body: jsonEncode(request),
+          )
+          .timeout(_defaultTimeout);
 
       if (response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -82,11 +88,13 @@ class CheckInService {
         'timestamp': DateTime.now().toIso8601String(),
       };
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/manager/check-out'),
-        headers: await _getAuthHeaders(),
-        body: jsonEncode(request),
-      ).timeout(_defaultTimeout);
+      final response = await http
+          .post(
+            Uri.parse('$_baseUrl/manager/check-out'),
+            headers: await _getAuthHeaders(),
+            body: jsonEncode(request),
+          )
+          .timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -107,10 +115,12 @@ class CheckInService {
     while (retries > 0) {
       try {
         final urlToUse = urls[retries % urls.length];
-        final response = await http.get(
-          Uri.parse(urlToUse),
-          headers: await _getAuthHeaders(),
-        ).timeout(Duration(seconds: 10));
+        final response = await http
+            .get(
+              Uri.parse(urlToUse),
+              headers: await _getAuthHeaders(),
+            )
+            .timeout(Duration(seconds: 10));
 
         if (response.statusCode == 200) {
           if (response.body.isEmpty) return CheckInStatus.empty();
@@ -143,10 +153,13 @@ class CheckInService {
         if (endDate != null) 'endDate': endDate.toIso8601String(),
       };
 
-      final response = await http.get(
-        Uri.parse('$_baseUrl/manager/history').replace(queryParameters: params),
-        headers: await _getAuthHeaders(),
-      ).timeout(_defaultTimeout);
+      final response = await http
+          .get(
+            Uri.parse('$_baseUrl/manager/history')
+                .replace(queryParameters: params),
+            headers: await _getAuthHeaders(),
+          )
+          .timeout(_defaultTimeout);
 
       if (response.statusCode == 200) {
         return PaginatedCheckIns.fromJson(
@@ -162,7 +175,8 @@ class CheckInService {
   static Exception _handleErrorResponse(http.Response response) {
     try {
       final error = jsonDecode(response.body) as Map<String, dynamic>;
-      return Exception(error['message'] ?? 'Request failed with status ${response.statusCode}');
+      return Exception(error['message'] ??
+          'Request failed with status ${response.statusCode}');
     } catch (_) {
       return Exception('Request failed with status ${response.statusCode}');
     }
@@ -198,7 +212,7 @@ class CheckInStatus {
   factory CheckInStatus.fromJson(Map<String, dynamic> json) {
     return CheckInStatus(
       isCheckedIn: json['isCheckedIn'] as bool? ?? false,
-      checkInTime: json['checkInTime'] != null 
+      checkInTime: json['checkInTime'] != null
           ? DateTime.parse(json['checkInTime'] as String)
           : null,
       checkOutTime: json['checkOutTime'] != null

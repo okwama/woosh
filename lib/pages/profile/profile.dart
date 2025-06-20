@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:woosh/pages/managers/stats_page.dart';
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/pages/profile/deleteaccount.dart';
 import 'package:woosh/pages/profile/targets/targets_page.dart';
@@ -581,57 +580,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        if (controller.userRole.value.toUpperCase() == 'MANAGER') ...[
-          Card(
-            elevation: 1,
-            margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: InkWell(
-              onTap: () {
-                Get.to(() => const ManagerStatsPage());
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.bar_chart,
-                        color: Theme.of(context).primaryColor,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'View Work Statistics',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: Colors.grey.shade600,
-                    )
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
         Card(
           elevation: 1,
           margin: EdgeInsets.zero,

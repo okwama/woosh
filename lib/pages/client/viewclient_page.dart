@@ -50,7 +50,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
   static const int _pageSize = 2000;
   static const int _prefetchThreshold = 200;
   Timer? _debounce;
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   // Filter options
   SortOption _sortOption = SortOption.nameAsc;
@@ -78,16 +78,16 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   Future<void> _initConnectivity() async {
     _connectivitySubscription = Connectivity()
-            .onConnectivityChanged
-            .listen((ConnectivityResult result) {
-              setState(() {
-                _isOnline = result != ConnectivityResult.none;
-              });
-              if (_isOnline && _outlets.isEmpty) {
-                _loadOutlets();
-              }
-            } as void Function(List<ConnectivityResult> event)?)
-        as StreamSubscription<ConnectivityResult>?;
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
+      setState(() {
+        _isOnline = results.isNotEmpty &&
+            results.any((result) => result != ConnectivityResult.none);
+      });
+      if (_isOnline && _outlets.isEmpty) {
+        _loadOutlets();
+      }
+    });
 
     final connectivityResult = await Connectivity().checkConnectivity();
     setState(() {

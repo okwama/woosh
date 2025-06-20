@@ -4,13 +4,13 @@ import 'package:woosh/models/report/productReport_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/config.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:woosh/services/token_service.dart';
 
 class ProductTransactionService {
   static const String baseUrl = '${Config.baseUrl}/api';
 
   static String? _getAuthToken() {
-    final box = GetStorage();
-    return box.read<String>('token');
+    return TokenService.getAccessToken();
   }
 
   static Future<Map<String, String>> _headers() async {

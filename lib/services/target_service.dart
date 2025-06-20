@@ -6,6 +6,7 @@ import 'package:woosh/models/target_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
 
 class TargetService {
   static const String baseUrl = '${Config.baseUrl}/api';
@@ -15,8 +16,7 @@ class TargetService {
 
   // Get auth token for API requests
   static String? _getAuthToken() {
-    final box = GetStorage();
-    return box.read<String>('token');
+    return TokenService.getAccessToken();
   }
 
   // Get headers for API requests
@@ -376,7 +376,7 @@ class TargetService {
     try {
       final response = await http.get(
         Uri.parse('${ApiService.baseUrl}/targets/monthly-visits/$userId'),
-        headers: await ApiService.getHeaders(),
+        headers: await _headers(),
       );
 
       if (response.statusCode == 200) {

@@ -24,17 +24,20 @@ class _TaskPageState extends State<TaskPage> {
 
   Future<void> _loadTasks() async {
     try {
+      if (!mounted) return;
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
       final tasks = await _taskService.getTasks();
+      if (!mounted) return;
       setState(() {
         _tasks = tasks;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load tasks: $e';
         _isLoading = false;
