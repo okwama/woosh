@@ -18,6 +18,7 @@ import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
+import 'package:woosh/controllers/version_controller.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -54,6 +55,12 @@ class _HomePageState extends State<HomePage> {
     _loadPendingJourneyPlans();
     _loadPendingTasks();
     _loadUnreadNotices();
+
+    // Check for app updates after a short delay
+    Future.delayed(const Duration(seconds: 2), () {
+      final versionController = Get.find<VersionController>();
+      versionController.showUpdateReminderIfNeeded();
+    });
   }
 
   void _loadUserData() {

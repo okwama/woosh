@@ -43,11 +43,17 @@ class Order {
       // Find the matching price option
       final priceOption = item.product!.priceOptions.firstWhere(
         (opt) => opt.id == item.priceOptionId,
-        orElse: () => PriceOption(id: 0, option: '', value: 0, categoryId: 0),
+        orElse: () => PriceOption(
+            id: 0,
+            option: '',
+            value: null,
+            value_tzs: null,
+            value_ngn: null,
+            categoryId: 0),
       );
 
       // Calculate the item price
-      return total + (priceOption.value * item.quantity);
+      return total + ((priceOption.value ?? 0) * item.quantity);
     });
   }
 

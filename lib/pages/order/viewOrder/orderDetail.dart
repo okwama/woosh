@@ -8,6 +8,8 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/utils/date_utils.dart' as custom_date;
+import 'package:woosh/utils/country_currency_labels.dart';
+import 'package:get_storage/get_storage.dart';
 
 class OrderDetailPage extends StatefulWidget {
   final OrderModel? order;
@@ -368,11 +370,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
   Widget _buildTotalRow(BuildContext context, String label, double amount,
       {bool isTotal = false}) {
-    final currencyFormat = NumberFormat.currency(
-      locale: 'en_KE',
-      symbol: 'Ksh ',
-      decimalDigits: 2,
-    );
+    // Get user's country ID for currency formatting
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+    final userCountryId = salesRep?['countryId'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -388,7 +389,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             ),
           ),
           Text(
-            currencyFormat.format(amount),
+            CountryCurrencyLabels.formatCurrency(amount, userCountryId),
             style: TextStyle(
               fontSize: isTotal ? 14 : 12,
               fontWeight: isTotal ? FontWeight.w600 : FontWeight.normal,

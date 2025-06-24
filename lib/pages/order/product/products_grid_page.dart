@@ -17,6 +17,7 @@ import 'package:woosh/models/hive/product_model.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
+import 'package:get_storage/get_storage.dart';
 
 class ProductsGridPage extends StatefulWidget {
   final Outlet outlet;
@@ -58,12 +59,12 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
     _initializeAndLoad();
     _scrollController.addListener(_onScroll);
   }
-  
+
   Future<void> _initializeAndLoad() async {
     try {
       // Ensure the adapter is registered
       ensureProductHiveAdapterRegistered();
-      
+
       // Try to get the ProductHiveService from Get
       if (Get.isRegistered<ProductHiveService>()) {
         _productHiveService = Get.find<ProductHiveService>();
@@ -75,7 +76,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
         Get.put(_productHiveService); // Register it for future use
         debugPrint('[ProductsGrid] Created new ProductHiveService instance');
       }
-      
+
       // Load data
       await _loadFromCacheAndApi();
     } catch (e) {
@@ -110,7 +111,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   Future<void> _loadFromCacheAndApi() async {
     // First try to load from cache
     await _loadFromCache();
-    
+
     // Then check connectivity before loading from API
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
@@ -123,19 +124,20 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
       });
     }
   }
-  
+
   Future<void> _loadFromCache() async {
     setState(() {
       if (_paginatedData == null) {
         _isLoading = true;
       }
     });
-    
+
     try {
       final cachedProducts = await _productHiveService.getAllProducts();
       if (cachedProducts.isNotEmpty) {
-        print('[ProductsGrid] Loaded ${cachedProducts.length} products from cache');
-        
+        print(
+            '[ProductsGrid] Loaded ${cachedProducts.length} products from cache');
+
         if (mounted) {
           setState(() {
             _paginatedData = PaginatedData<Product>(
@@ -171,24 +173,27 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
           _isLoading = false;
           print('[ProductsGrid] Loaded ${data.items.length} products from API');
         });
-        
+
         // Try to save products to local storage if possible
         try {
           ensureProductHiveAdapterRegistered();
-          
+
           if (Get.isRegistered<ProductHiveService>()) {
             _productHiveService = Get.find<ProductHiveService>();
             await _productHiveService.saveProducts(data.items);
-            debugPrint('[ProductsGrid] Saved ${data.items.length} products to local storage');
-            
+            debugPrint(
+                '[ProductsGrid] Saved ${data.items.length} products to local storage');
+
             // Update last update timestamp
             await _productHiveService.setLastUpdateTime(DateTime.now());
           } else {
-            debugPrint('[ProductsGrid] ProductHiveService not registered, skipping local storage');
+            debugPrint(
+                '[ProductsGrid] ProductHiveService not registered, skipping local storage');
           }
         } catch (storageError) {
           // Just log the error but don't fail the whole operation
-          debugPrint('[ProductsGrid] Error saving to local storage: $storageError');
+          debugPrint(
+              '[ProductsGrid] Error saving to local storage: $storageError');
         }
       }
     } catch (e) {
@@ -221,26 +226,28 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
           print(
               '[ProductsGrid] Loaded more products. Total: ${newData.items.length}');
         });
-        
+
         // Try to save new products to local storage
         try {
           ensureProductHiveAdapterRegistered();
-          
+
           if (Get.isRegistered<ProductHiveService>()) {
             _productHiveService = Get.find<ProductHiveService>();
             // Calculate the new products that were added
             final int previousCount = _paginatedData!.items.length;
             final int newCount = newData.items.length;
             final newProducts = newData.items.sublist(previousCount, newCount);
-            
+
             if (newProducts.isNotEmpty) {
               await _productHiveService.saveProducts(newProducts);
-              debugPrint('[ProductsGrid] Saved ${newProducts.length} more products to local storage');
+              debugPrint(
+                  '[ProductsGrid] Saved ${newProducts.length} more products to local storage');
             }
           }
         } catch (storageError) {
           // Just log the error but don't fail the whole operation
-          debugPrint('[ProductsGrid] Error saving more products to local storage: $storageError');
+          debugPrint(
+              '[ProductsGrid] Error saving more products to local storage: $storageError');
         }
       }
     } catch (e) {
@@ -270,6 +277,14 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
       ),
       child: InkWell(
         onTap: () {
+          // Pre-calculate stock data before navigation for better performance
+          final userData = GetStorage().read('salesRep');
+          final regionId = userData?['region_id'];
+          int? availableStock;
+          if (regionId != null) {
+            availableStock = product.getMaxQuantityInRegion(regionId);
+          }
+
           Get.to(
             () => ProductDetailPage(
               outlet: widget.outlet,
@@ -278,6 +293,7 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
             ),
             preventDuplicates: true,
             transition: Transition.rightToLeft,
+            duration: const Duration(milliseconds: 300),
           );
         },
         child: Column(
@@ -425,15 +441,15 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
   Widget build(BuildContext context) {
     final filteredProducts = _getFilteredProducts();
     final bool isInitialLoading = _isLoading && _paginatedData == null;
-    
+
     // Use FutureBuilder to handle the async lastUpdate
     return FutureBuilder<DateTime?>(
-      future: Get.isRegistered<ProductHiveService>() ? 
-              Get.find<ProductHiveService>().getLastUpdateTime() : 
-              Future.value(null),
+      future: Get.isRegistered<ProductHiveService>()
+          ? Get.find<ProductHiveService>().getLastUpdateTime()
+          : Future.value(null),
       builder: (context, snapshot) {
         final DateTime? lastUpdate = snapshot.data;
-        
+
         return Scaffold(
           backgroundColor: appBackground,
           appBar: GradientAppBar(
@@ -443,127 +459,128 @@ class _ProductsGridPageState extends State<ProductsGridPage> {
                 Padding(
                   padding: const EdgeInsets.only(right: 16.0),
                   child: Tooltip(
-                    message: 'Last updated: ${lastUpdate.toString().substring(0, 16)}',
+                    message:
+                        'Last updated: ${lastUpdate.toString().substring(0, 16)}',
                     child: const Icon(Icons.info_outline),
                   ),
                 ),
             ],
           ),
           body: isInitialLoading
-          ? GridView.builder(
-              padding: const EdgeInsets.all(8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: 6, // Show 6 skeleton cards while loading
-              itemBuilder: (context, index) => _buildSkeletonCard(),
-            )
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Card(
-                    elevation: 4,
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search products...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _currentSearchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _onSearchChanged('');
-                                },
-                              )
-                            : null,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+              ? GridView.builder(
+                  padding: const EdgeInsets.all(8),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.75,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: 6, // Show 6 skeleton cards while loading
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
+                )
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Card(
+                        elevation: 4,
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search products...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _currentSearchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _onSearchChanged('');
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          onChanged: _onSearchChanged,
                         ),
-                        filled: true,
-                        fillColor: Colors.white,
                       ),
-                      onChanged: _onSearchChanged,
                     ),
-                  ),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                Expanded(
-                  child: filteredProducts.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.inventory_2_outlined,
-                                size: 48,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No products found',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              if (_currentSearchQuery.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Try adjusting your search',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )
-                      : GridView.builder(
-                          controller: _scrollController,
-                          key: const PageStorageKey('products_grid'),
-                          padding: const EdgeInsets.all(8),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.75,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          itemCount: filteredProducts.length +
-                              (_paginatedData?.hasMore ?? false ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index == filteredProducts.length) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              );
-                            }
-                            return _buildProductCard(
-                                filteredProducts[index], index);
-                          },
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
                         ),
+                      ),
+                    Expanded(
+                      child: filteredProducts.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.inventory_2_outlined,
+                                    size: 48,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No products found',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  if (_currentSearchQuery.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Try adjusting your search',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            )
+                          : GridView.builder(
+                              controller: _scrollController,
+                              key: const PageStorageKey('products_grid'),
+                              padding: const EdgeInsets.all(8),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.75,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                              itemCount: filteredProducts.length +
+                                  (_paginatedData?.hasMore ?? false ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index == filteredProducts.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return _buildProductCard(
+                                    filteredProducts[index], index);
+                              },
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
         );
       },
     );

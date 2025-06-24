@@ -12,6 +12,7 @@ import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:woosh/utils/country_currency_labels.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Outlet outlet;
@@ -37,22 +38,55 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int? _regionId;
   final _storage = GetStorage();
 
+  // Performance optimizations
+  int? _cachedAvailableStock;
+  bool _isInitialized = false;
+  bool _isStockLoading = true; // Add loading state for stock
+
   @override
   void initState() {
     super.initState();
-    print('Product price options: ${widget.product.priceOptions}');
-    if (widget.product.priceOptions.isNotEmpty) {
-      _selectedPriceOption = widget.product.priceOptions.first;
-      print('Selected price option: $_selectedPriceOption');
-    }
+    _initializeData();
+  }
 
-    // Get region ID from user's authentication data
+  void _initializeData() async {
+    // Pre-calculate available stock to avoid repeated calculations
     final userData = _storage.read('salesRep');
     if (userData != null) {
       _regionId = userData['region_id'];
-      print('User region ID: $_regionId');
+      if (_regionId != null) {
+        // Calculate stock asynchronously to avoid blocking UI
+        _calculateStockAvailability();
+      } else {
+        setState(() {
+          _isStockLoading = false;
+        });
+      }
     } else {
-      print('Warning: No user data found in storage');
+      setState(() {
+        _isStockLoading = false;
+      });
+    }
+
+    // Set default price option
+    if (widget.product.priceOptions.isNotEmpty) {
+      _selectedPriceOption = widget.product.priceOptions.first;
+    }
+
+    setState(() {
+      _isInitialized = true;
+    });
+  }
+
+  void _calculateStockAvailability() async {
+    // Calculate stock in a separate microtask to avoid blocking UI
+    final stock = widget.product.getMaxQuantityInRegion(_regionId!);
+
+    if (mounted) {
+      setState(() {
+        _cachedAvailableStock = stock;
+        _isStockLoading = false;
+      });
     }
   }
 
@@ -70,7 +104,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     final currentValue = int.tryParse(_quantityController.text) ?? 0;
     final newValue = currentValue + delta;
-    final maxStock = widget.product.getMaxQuantityInRegion(_regionId!);
+    final maxStock = _cachedAvailableStock ?? 0;
 
     if (newValue > 0 && newValue <= maxStock) {
       _quantityController.text = newValue.toString();
@@ -89,9 +123,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return;
     }
 
-    print('Available price options: ${widget.product.priceOptions}');
-    print('Selected price option: $_selectedPriceOption');
-
     if (_selectedPriceOption == null) {
       Get.snackbar(
         'Error',
@@ -106,6 +137,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     final quantityText = _quantityController.text;
     final quantity = int.tryParse(quantityText) ?? 0;
     final packSize = widget.product.packSize;
+
     // Prevent partial packs
     if (packSize != null) {
       if (quantity <= 0 ||
@@ -133,8 +165,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       }
     }
 
-    // Check stock availability using region-based check
-    final availableStock = widget.product.getMaxQuantityInRegion(_regionId!);
+    // Check stock availability using cached value
+    final availableStock = _cachedAvailableStock ?? 0;
     if (quantity > availableStock) {
       Get.snackbar(
         'Error',
@@ -180,15 +212,103 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 
+  Widget _buildStockStatus() {
+    if (_isStockLoading) {
+      // Show loading state for stock
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.grey[600]!,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Checking stock...',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final availableStock = _cachedAvailableStock ?? 0;
+    final isOutOfStock = availableStock <= 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isOutOfStock ? const Color(0xFFFDEDED) : const Color(0xFFEDF7ED),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _regionId == null
+            ? 'No region assigned to your account'
+            : isOutOfStock
+                ? 'Out of stock'
+                : 'In stock',
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: _regionId == null
+              ? const Color(0xFFD93025)
+              : isOutOfStock
+                  ? const Color(0xFFD93025)
+                  : const Color(0xFF1E8E3E),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final availableStock = _regionId != null
-        ? widget.product.getMaxQuantityInRegion(_regionId!)
-        : 0;
-    final isOutOfStock = availableStock <= 0;
-    final theme = Theme.of(context);
+    if (!_isInitialized) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () => Get.back(),
+          ),
+          title: Text(
+            widget.product.name,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
-    print('Building UI with price options: ${widget.product.priceOptions}');
+    final availableStock = _cachedAvailableStock ?? 0;
+    final isOutOfStock = availableStock <= 0;
+
+    // Get user's country ID for currency formatting
+    final userData = _storage.read('salesRep');
+    final userCountryId = userData?['countryId'];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -250,38 +370,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
                 const SizedBox(height: 12),
 
-                // Stock Status
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isOutOfStock
-                        ? const Color(0xFFFDEDED)
-                        : const Color(0xFFEDF7ED),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _regionId == null
-                        ? 'No region assigned to your account'
-                        : isOutOfStock
-                            ? 'Out of stock'
-                            : 'In stock',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _regionId == null
-                          ? const Color(0xFFD93025)
-                          : isOutOfStock
-                              ? const Color(0xFFD93025)
-                              : const Color(0xFF1E8E3E),
-                    ),
-                  ),
-                ),
+                // Stock Status with loading state
+                _buildStockStatus(),
 
                 const SizedBox(height: 24),
 
-                // Quantity Selector
-                if (!isOutOfStock && availableStock > 0)
+                // Quantity Selector - only show when stock is loaded and available
+                if (!_isStockLoading && !isOutOfStock && availableStock > 0)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -289,8 +384,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         controller: _quantityController,
                         onDecrement: () => _adjustQuantity(-1),
                         onIncrement: () => _adjustQuantity(1),
-                        maxQuantity:
-                            widget.product.storeQuantities.first.quantity,
+                        maxQuantity: availableStock,
                       ),
                       if (widget.product.packSize != null)
                         Padding(
@@ -330,7 +424,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           return DropdownMenuItem<PriceOption>(
                             value: option,
                             child: Text(
-                              '${option.option} - Ksh ${option.value}',
+                              '${option.option} - ${CountryCurrencyLabels.formatCurrency(option.value?.toDouble(), userCountryId)}',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
@@ -399,7 +493,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: [
               if (_selectedPriceOption != null)
                 Text(
-                  'Selected Price: Ksh ${_selectedPriceOption!.value}',
+                  'Selected Price: ${CountryCurrencyLabels.formatCurrency(_selectedPriceOption!.value?.toDouble(), userCountryId)}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -408,7 +502,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: isOutOfStock ? null : _addToCart,
+                onPressed:
+                    (_isStockLoading || isOutOfStock) ? null : _addToCart,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -417,7 +512,11 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   minimumSize: Size(MediaQuery.of(context).size.width * 0.8, 0),
                 ),
                 child: Text(
-                  isOutOfStock ? 'Out of Stock' : 'Add to Cart',
+                  _isStockLoading
+                      ? 'Checking Stock...'
+                      : isOutOfStock
+                          ? 'Out of Stock'
+                          : 'Add to Cart',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

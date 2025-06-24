@@ -5,6 +5,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/outlet_service.dart';
+import 'package:woosh/utils/country_tax_labels.dart';
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -202,9 +203,9 @@ class _AddClientPageState extends State<AddClientPage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _kraPinController,
-                      decoration: const InputDecoration(
-                        labelText: 'TAX PIN',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: CountryTaxLabels.getTaxPinLabel(_countryId),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),

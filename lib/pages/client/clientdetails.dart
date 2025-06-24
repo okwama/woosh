@@ -10,6 +10,7 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:woosh/utils/country_tax_labels.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final Outlet outlet;
@@ -227,8 +228,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                   onPressed: uploading
                       ? null
                       : () async {
-                          final amount =
-                              double.tryParse(amountController.text);
+                          final amount = double.tryParse(amountController.text);
                           if (amount == null || pickedFile == null) {
                             setState(() {
                               errorMessage =
@@ -343,16 +343,22 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         outlet.name,
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         'Balance: Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}',
-                                        style: const TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
@@ -393,7 +399,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 Expanded(
                                   child: _detailSection(
                                     icon: Icons.badge,
-                                    label: 'KRA PIN',
+                                    label: CountryTaxLabels.getTaxPinLabel(
+                                        widget.outlet.countryId),
                                     value: outlet.taxPin ?? '-',
                                   ),
                                 ),
@@ -411,7 +418,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Expanded(child: SizedBox()), // Empty to keep layout
+                                  const Expanded(
+                                      child:
+                                          SizedBox()), // Empty to keep layout
                                 ],
                               ),
                             ],
@@ -424,8 +433,10 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 onPressed: _showAddPaymentDialog,
                                 style: ElevatedButton.styleFrom(
                                   shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor: Theme.of(context).primaryColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor:
+                                      Theme.of(context).primaryColor,
                                   foregroundColor: Colors.white,
                                   textStyle: const TextStyle(fontSize: 13),
                                 ),
@@ -546,7 +557,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   }
 
   // Helper widget for a compact detail section
-  Widget _detailSection({required IconData icon, required String label, required String value}) {
+  Widget _detailSection(
+      {required IconData icon, required String label, required String value}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -556,8 +568,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              Text(label,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -706,7 +721,8 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     )
                                 : null,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 4),
                               decoration: BoxDecoration(
                                 color: Colors.grey[50],
                                 borderRadius: BorderRadius.circular(4),
@@ -724,19 +740,22 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     ),
                                     child: p.imageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                             child: Image.network(
                                               p.imageUrl!,
                                               fit: BoxFit.cover,
                                             ),
                                           )
-                                        : const Icon(Icons.receipt_long, size: 20),
+                                        : const Icon(Icons.receipt_long,
+                                            size: 20),
                                   ),
                                   const SizedBox(width: 12),
                                   // Middle: Payment details
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           p.method ?? 'No Method',
@@ -747,10 +766,13 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                         ),
                                         const SizedBox(height: 4),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: _getStatusColor(p.status).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
+                                            color: _getStatusColor(p.status)
+                                                .withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             p.status,
@@ -770,7 +792,10 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        p.date.toLocal().toString().split(".")[0],
+                                        p.date
+                                            .toLocal()
+                                            .toString()
+                                            .split(".")[0],
                                         style: TextStyle(
                                           fontSize: 10,
                                           color: Colors.grey[600],

@@ -8,7 +8,6 @@ import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/hive/user_model.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -79,14 +78,24 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (result['success']) {
-        // Store user ID for later use
+        await _authController.login(
+            _phoneNumberController.text.trim(), _passwordController.text);
+
+        // Get user role from the result
         final salesRep = result['salesRep'];
+        final userRole = salesRep?['role'] ?? '';
+
+        // Store user ID for later use
         if (salesRep?['id'] != null) {
           GetStorage().write('userId', salesRep!['id'].toString());
         }
 
-        // Redirect to a single home screen regardless of role
-        Get.offAllNamed('/home');
+        // Redirect based on role
+        if (userRole.toString().toLowerCase() == 'manager') {
+          Get.offAllNamed('/manager-home');
+        } else {
+          Get.offAllNamed('/home');
+        }
 
         _showToast('Login successful', false);
       } else {

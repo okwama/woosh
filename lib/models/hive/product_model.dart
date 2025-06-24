@@ -42,13 +42,13 @@ class ProductHiveModel extends HiveObject {
   // So we'll store the first price option values for simplicity
   @HiveField(10)
   final int? defaultPriceOptionId;
-  
+
   @HiveField(11)
   final String? defaultPriceOption;
-  
+
   @HiveField(12)
   final double? defaultPriceValue;
-  
+
   @HiveField(13)
   final int? defaultPriceCategoryId;
 
@@ -76,12 +76,12 @@ class ProductHiveModel extends HiveObject {
     String? defaultPriceOption;
     double? defaultPriceValue;
     int? defaultPriceCategoryId;
-    
+
     if (product.priceOptions.isNotEmpty) {
       final firstOption = product.priceOptions.first;
       defaultPriceOptionId = firstOption.id;
       defaultPriceOption = firstOption.option;
-      defaultPriceValue = firstOption.value.toDouble();
+      defaultPriceValue = firstOption.value?.toDouble();
       defaultPriceCategoryId = firstOption.categoryId;
     }
 
@@ -106,17 +106,22 @@ class ProductHiveModel extends HiveObject {
   // Convert from Hive model to API Product model
   Product toProduct() {
     List<PriceOption> priceOptions = [];
-    
+
     // Create a price option if we have default price values
-    if (defaultPriceOptionId != null && defaultPriceOption != null && defaultPriceValue != null) {
+    if (defaultPriceOptionId != null &&
+        defaultPriceOption != null &&
+        defaultPriceValue != null) {
       priceOptions.add(PriceOption(
         id: defaultPriceOptionId!,
         option: defaultPriceOption!,
         value: defaultPriceValue!.toInt(),
-        categoryId: defaultPriceCategoryId ?? category_id, // Use the stored category ID or fall back to product's category_id
+        value_tzs: null, // Nullable value
+        value_ngn: null, // Nullable value
+        categoryId: defaultPriceCategoryId ??
+            category_id, // Use the stored category ID or fall back to product's category_id
       ));
     }
-    
+
     return Product(
       id: id,
       name: name,

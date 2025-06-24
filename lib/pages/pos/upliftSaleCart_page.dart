@@ -7,6 +7,8 @@ import 'package:woosh/controllers/uplift_cart_controller.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/utils/country_currency_labels.dart';
+import 'package:get_storage/get_storage.dart';
 
 class UpliftSaleCartPage extends StatefulWidget {
   final Outlet outlet;
@@ -30,11 +32,16 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
   Product? _selectedProduct;
   int _quantity = 1;
   double? _unitPrice;
+  int? _userCountryId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadProducts();
+    // Get user's country ID for currency formatting
+    final salesRep = GetStorage().read('salesRep');
+    _userCountryId = salesRep?['countryId'];
   }
 
   @override
@@ -350,7 +357,9 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Unit Price: ${item.unitPrice}',
+                    'Unit Price: ' +
+                        CountryCurrencyLabels.formatCurrency(
+                            item.unitPrice, _userCountryId),
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -419,7 +428,8 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                   ],
                 ),
                 Text(
-                  'Ksh ${item.total.toStringAsFixed(2)}',
+                  CountryCurrencyLabels.formatCurrency(
+                      item.total, _userCountryId),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
@@ -506,7 +516,8 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
                   ),
                 ),
                 Text(
-                  'Ksh ${totalAmount.toStringAsFixed(2)}',
+                  CountryCurrencyLabels.formatCurrency(
+                      totalAmount, _userCountryId),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -528,15 +539,15 @@ class _UpliftSaleCartPageState extends State<UpliftSaleCartPage>
         title: const Text('Uplift Sales'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.inventory_2_outlined),
-          tooltip: 'Uplift Sales Report',
-          onPressed: () {
-            Get.toNamed('/uplift-sales');
-          },
-        ),
-      ],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Uplift Sales Report',
+            onPressed: () {
+              Get.toNamed('/uplift-sales');
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

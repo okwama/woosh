@@ -73,6 +73,8 @@ class CartItemModel extends HiveObject {
             id: priceOptionId ?? 0,
             value: unitPrice.toInt(), // Convert to int as required
             option: 'Default', // Default value
+            value_tzs: null, // Nullable value
+            value_ngn: null, // Nullable value
             categoryId: 0, // Default value
           ),
         ],

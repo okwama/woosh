@@ -14,6 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
+import 'package:woosh/utils/country_currency_labels.dart';
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
@@ -363,7 +364,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Add any delivery information (e.g., KRA PIN, delivery instructions)',
+              'Add any delivery information (e.g., tax PIN, delivery instructions)',
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -505,6 +506,12 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   Widget _buildCartItem(int index, OrderItem item) {
     final packSize = item.product?.packSize;
     final totalPieces = (packSize != null) ? item.quantity * packSize : null;
+
+    // Get user's country ID for currency formatting
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+    final userCountryId = salesRep?['countryId'];
+
     return Card(
       key: ValueKey('cart_item_${index}_${item.productId}'),
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -621,7 +628,16 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ),
                 if (item.priceOptionId != null)
                   Text(
-                    'Ksh ${(item.product?.priceOptions.firstWhereOrNull((po) => po.id == item.priceOptionId)?.value ?? 0) * item.quantity}',
+                    CountryCurrencyLabels.formatCurrency(
+                      ((item.product?.priceOptions
+                                      .firstWhereOrNull(
+                                          (po) => po.id == item.priceOptionId)
+                                      ?.value ??
+                                  0) *
+                              item.quantity)
+                          .toDouble(),
+                      userCountryId,
+                    ),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
@@ -657,6 +673,12 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 ((item.product?.packSize != null)
                     ? item.quantity * item.product!.packSize!
                     : 0));
+
+        // Get user's country ID for currency formatting
+        final box = GetStorage();
+        final salesRep = box.read('salesRep');
+        final userCountryId = salesRep?['countryId'];
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -715,7 +737,8 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                 ),
                 Text(
-                  'Ksh ${totalAmount.toStringAsFixed(2)}',
+                  CountryCurrencyLabels.formatCurrency(
+                      totalAmount, userCountryId),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

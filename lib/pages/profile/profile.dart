@@ -13,6 +13,7 @@ import 'package:woosh/services/session_state.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:woosh/widgets/version_info_widget.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
@@ -389,6 +390,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             ),
                             const SizedBox(height: 16),
                             _buildActionButtons(),
+                            const SizedBox(height: 16),
+                            _buildVersionSection(),
                           ],
                         ),
                       ),
@@ -877,5 +880,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         const SizedBox(height: 16), // Add extra padding at the bottom
       ],
     );
+  }
+
+  Widget _buildVersionSection() {
+    return const VersionInfoWidget();
   }
 }

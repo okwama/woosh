@@ -10,6 +10,7 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/token_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/controllers/uplift_cart_controller.dart';
+import 'package:woosh/controllers/version_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/hive/hive_initializer.dart';
 import 'package:hive/hive.dart';
@@ -34,6 +35,8 @@ void main() async {
 
     Get.put(AuthController());
     Get.put(UpliftCartController());
+    Get.put(VersionController());
+
     runApp(MyApp());
   } catch (e) {
     print('Error initializing app: $e');
@@ -43,6 +46,7 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   final AuthController authController = Get.find<AuthController>();
+  final VersionController versionController = Get.find<VersionController>();
 
   MyApp({super.key});
 
