@@ -1,107 +1,226 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:woosh/controllers/version_controller.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:woosh/services/version_check_service.dart';
 
-class VersionInfoWidget extends StatelessWidget {
+class VersionInfoWidget extends StatefulWidget {
   const VersionInfoWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final versionController = Get.find<VersionController>();
+  State<VersionInfoWidget> createState() => _VersionInfoWidgetState();
+}
 
-    return Obx(() {
-      return Card(
-        margin: const EdgeInsets.all(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.info_outline, color: goldMiddle2),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'App Version',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (versionController.isCheckingUpdate.value)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text('Current Version: '),
-                  Text(
-                    versionController.currentVersion.value,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text('Status: '),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: versionController.hasUpdate.value
-                          ? Colors.orange.withOpacity(0.2)
-                          : Colors.green.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      versionController.updateStatus,
-                      style: TextStyle(
-                        color: versionController.hasUpdate.value
-                            ? Colors.orange.shade700
-                            : Colors.green.shade700,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: versionController.isCheckingUpdate.value
-                          ? null
-                          : () => versionController.forceCheckForUpdates(),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Check for Updates'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (versionController.hasUpdate.value)
-                    Expanded(
-                      child: GoldGradientButton(
-                        onPressed: () =>
-                            versionController.forceCheckForUpdates(),
-                        child: const Text('Update Now'),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
+class _VersionInfoWidgetState extends State<VersionInfoWidget>
+    with SingleTickerProviderStateMixin {
+  Map<String, String> _appInfo = {};
+  bool _isLoading = false;
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppInfo();
+
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.elasticOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAppInfo() async {
+    final info = await VersionCheckService().getAppInfo();
+    setState(() {
+      _appInfo = info;
     });
+  }
+
+  Future<void> _openAppStore() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    _animationController.forward().then((_) {
+      _animationController.reverse();
+    });
+
+    try {
+      await VersionCheckService().launchStore();
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: GestureDetector(
+              onTap: _openAppStore,
+              onTapDown: (_) => _animationController.forward(),
+              onTapUp: (_) => _animationController.reverse(),
+              onTapCancel: () => _animationController.reverse(),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _isLoading
+                        ? [
+                            Colors.grey.shade400.withOpacity(0.6),
+                            Colors.grey.shade500.withOpacity(0.6),
+                          ]
+                        : [
+                            theme.primaryColor.withOpacity(0.6),
+                            theme.primaryColor
+                                .withBlue(
+                                  (theme.primaryColor.blue * 0.8).round(),
+                                )
+                                .withOpacity(0.6),
+                          ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isLoading ? Colors.grey : theme.primaryColor)
+                          .withOpacity(0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 0,
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(isDark ? 0.05 : 0.25),
+                      blurRadius: 1,
+                      offset: const Offset(0, 1),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Version section
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.15),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tag,
+                            size: 12,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'v${_appInfo['version'] ?? '1.0.1'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withOpacity(0.7),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Divider
+                    Container(
+                      width: 1,
+                      height: 16,
+                      color: Colors.white.withOpacity(0.15),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Store section
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isLoading)
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white.withOpacity(0.6),
+                              ),
+                            ),
+                          )
+                        else
+                          Icon(
+                            Icons.store_rounded,
+                            size: 16,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _isLoading ? 'Opening...' : 'Check for updates',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.7),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

@@ -391,7 +391,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             const SizedBox(height: 16),
                             _buildActionButtons(),
                             const SizedBox(height: 16),
-                            _buildVersionSection(),
+                            // Version Info Widget
+                            const VersionInfoWidget(),
                           ],
                         ),
                       ),
@@ -880,9 +881,5 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         const SizedBox(height: 16), // Add extra padding at the bottom
       ],
     );
-  }
-
-  Widget _buildVersionSection() {
-    return const VersionInfoWidget();
   }
 }

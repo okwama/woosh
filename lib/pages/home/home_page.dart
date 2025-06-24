@@ -18,7 +18,6 @@ import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
-import 'package:woosh/controllers/version_controller.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -30,6 +29,7 @@ import 'package:woosh/services/session_state.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/session_model.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/services/version_check_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,16 +51,11 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    // VersionCheckService().checkForUpdate(context); // Disabled - no backend API
     _loadUserData();
     _loadPendingJourneyPlans();
     _loadPendingTasks();
     _loadUnreadNotices();
-
-    // Check for app updates after a short delay
-    Future.delayed(const Duration(seconds: 2), () {
-      final versionController = Get.find<VersionController>();
-      versionController.showUpdateReminderIfNeeded();
-    });
   }
 
   void _loadUserData() {
