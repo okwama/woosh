@@ -1,7 +1,7 @@
 class Config {
   static const String baseUrl = 'https://gq-server-nu.vercel.app';
   //static const String baseUrl = 'http://192.168.100.2:5000';
-
+    //static const String baseUrl = 'http://192.168.0.108:5000';
   static const String apiVersion = 'v1';
   static const String imageBaseUrl = 'https://gq-server-nu.vercel.app/uploads';
 

@@ -1,7 +1,7 @@
 ﻿name: glamour_queen
 description: "Glamour Queen - A Flutter project."
 # com.cit.glamourqueen
-version: 1.0.1+10  # Small fix/update
+version: 1.0.1+11  # Small fix/update
 
 
 environment:
