@@ -8,8 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:camera/camera.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:woosh/pages/managers/checkin_page.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/pages/managers/checkin_page.dart';
+import 'package:glamour_queen/services/api_service.dart';
 import 'dart:convert';
 
 

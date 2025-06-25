@@ -10,9 +10,10 @@ import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'dart:convert';
 
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/checkin_service.dart';
-import 'package:woosh/pages/managers/service/location_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/checkin_service.dart';
+import 'package:glamour_queen/pages/managers/service/location_service.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 // Constants
 class CheckInConstants {
@@ -152,7 +153,7 @@ class OutletService {
   }
 
   static Future<Map<String, String>> _getAuthHeaders() async {
-    final token = _storage.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -350,8 +351,7 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 
   Future<Map<String, String>> _getAuthHeaders([String? contentType]) async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': contentType ?? 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -420,6 +420,14 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
   void dispose() {
     _positionStream?.cancel();
     super.dispose();
+  }
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final token = TokenService.getAccessToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
   }
 
   Future<void> _loadCheckInStatus() async {
@@ -628,7 +636,7 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       var request = http.MultipartRequest(
           'POST', Uri.parse('${ApiService.baseUrl}/upload-image'));
 
-      final headers = await _getAuthHeaders('multipart/form-data');
+      final headers = await _getAuthHeaders();
       request.headers.addAll(headers);
 
       request.files.add(await http.MultipartFile.fromPath(
@@ -1125,15 +1133,6 @@ class _ManagerCheckInCardState extends State<ManagerCheckInCard> {
       ),
       child: const Text('Force Location Check', style: TextStyle(fontSize: 11)),
     );
-  }
-
-  Future<Map<String, String>> _getAuthHeaders([String? contentType]) async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
-    return {
-      'Content-Type': contentType ?? 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
   }
 
   void _handleNetworkError(dynamic error) {

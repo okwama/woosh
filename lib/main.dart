@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:woosh/pages/404/offlineToast.dart';
-import 'package:woosh/pages/home/home_page.dart';
-import 'package:woosh/pages/login/login_page.dart';
+import 'package:glamour_queen/pages/404/offlineToast.dart';
+import 'package:glamour_queen/pages/home/home_page.dart';
+import 'package:glamour_queen/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/routes/app_routes.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/controllers/auth_controller.dart';
-import 'package:woosh/controllers/uplift_cart_controller.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/utils/inactivity_timer.dart';
-import 'package:woosh/pages/managers/managerHome.dart';
-import 'package:woosh/utils/hive/hive_initializer.dart';
+import 'package:glamour_queen/routes/app_routes.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/controllers/uplift_cart_controller.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/utils/inactivity_timer.dart';
+import 'package:glamour_queen/pages/managers/managerHome.dart';
+import 'package:glamour_queen/utils/hive/hive_initializer.dart';
 import 'package:hive/hive.dart';
-import 'package:woosh/models/hive/session_model.dart';
-import 'package:woosh/services/hive/session_hive_service.dart';
-import 'package:woosh/services/permission_service.dart';
+import 'package:glamour_queen/models/hive/session_model.dart';
+import 'package:glamour_queen/services/hive/session_hive_service.dart';
+import 'package:glamour_queen/services/permission_service.dart';
+import 'package:glamour_queen/services/outlet_service.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,8 +31,15 @@ void main() async {
     // Request permissions at startup
     await PermissionService.requestInitialPermissions();
 
+    // Initialize services
+    Get.put(OutletService());
+
     Get.put(AuthController());
     Get.put(UpliftCartController());
+
+    // Debug token information on app start
+    TokenService.debugTokenInfo();
+
     runApp(MyApp());
   } catch (e) {
     print('Error initializing app: $e');

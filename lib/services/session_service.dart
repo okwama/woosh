@@ -1,15 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/utils/config.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/utils/config.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 class SessionService {
   static const String baseUrl = '${Config.baseUrl}/api';
 
   static Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -19,7 +19,14 @@ class SessionService {
   static void _updateToken(http.Response response) {
     final newToken = response.headers['x-new-token'];
     if (newToken != null) {
-      GetStorage().write('token', newToken);
+      // Update the access token in TokenService
+      final refreshToken = TokenService.getRefreshToken();
+      if (refreshToken != null) {
+        TokenService.storeTokens(
+          accessToken: newToken,
+          refreshToken: refreshToken,
+        );
+      }
     }
   }
 

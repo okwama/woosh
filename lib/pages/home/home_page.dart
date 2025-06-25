@@ -1,34 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/hive/session_model.dart';
-import 'package:woosh/pages/Leave/leaveapplication_page.dart';
-import 'package:woosh/pages/client/viewclient_page.dart';
-import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
-import 'package:woosh/pages/login/login_page.dart';
-import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
-import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
-import 'package:woosh/pages/pos/uplift_sales_page.dart';
-import 'package:woosh/pages/task/task.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/task_service.dart';
-import 'package:woosh/pages/profile/profile.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/controllers/cart_controller.dart';
+import 'package:glamour_queen/models/hive/session_model.dart';
+import 'package:glamour_queen/pages/Leave/leaveapplication_page.dart';
+import 'package:glamour_queen/pages/client/viewclient_page.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/pages/product_return_page.dart';
+import 'package:glamour_queen/pages/login/login_page.dart';
+import 'package:glamour_queen/pages/order/viewOrder/vieworder_page.dart';
+import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
+import 'package:glamour_queen/pages/task/task.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/task_service.dart';
+import 'package:glamour_queen/pages/profile/profile.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/controllers/cart_controller.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
-import 'package:woosh/services/session_service.dart';
-import 'package:woosh/services/session_state.dart';
-import 'package:woosh/services/hive/session_hive_service.dart';
-import 'package:woosh/models/session_model.dart';
-import 'package:woosh/controllers/auth_controller.dart';
+import 'package:glamour_queen/services/session_service.dart';
+import 'package:glamour_queen/services/session_state.dart';
+import 'package:glamour_queen/services/hive/session_hive_service.dart';
+import 'package:glamour_queen/models/session_model.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -211,7 +210,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'Woosh',
+        title: 'Glamour Queen',
         actions: [
           Obx(() {
             final cartItems = _cartController.totalItems;
@@ -343,13 +342,13 @@ class _HomePageState extends State<HomePage> {
                       title: 'Journey Plans',
                       icon: Icons.map,
                       badgeCount: _isLoading ? null : _pendingJourneyPlans,
-                      onTap: () {
-                        Get.to(
-                          () => const JourneyPlansPage(),
-                          preventDuplicates: true,
-                          transition: Transition.rightToLeft,
-                        )?.then((_) => _loadPendingJourneyPlans());
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const JourneyPlansLoadingScreen(),
+                        ),
+                      ),
                     ),
                     MenuTile(
                       title: 'View Client',
@@ -441,6 +440,13 @@ class _HomePageState extends State<HomePage> {
                             );
                           }
                         });
+                      },
+                    ),
+                    MenuTile(
+                      title: 'Uplift Sales History',
+                      icon: Icons.history,
+                      onTap: () {
+                        Get.toNamed('/uplift-sales');
                       },
                     ),
                     MenuTile(

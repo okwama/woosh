@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/controllers/auth_controller.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -18,15 +18,21 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController(text: 'Kenya');
-  final TextEditingController _countryIdController = TextEditingController(text: '1');
-  final TextEditingController _regionIdController = TextEditingController(text: '1');
-  final TextEditingController _regionController = TextEditingController(text: 'Nairobi');
-  final TextEditingController _routeIdController = TextEditingController(text: '1');
-  final TextEditingController _routeController = TextEditingController(text: 'Kilimani');
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final TextEditingController _countryIdController =
+      TextEditingController(text: '1');
+  final TextEditingController _regionIdController =
+      TextEditingController(text: '1');
+  final TextEditingController _regionController =
+      TextEditingController(text: 'Nairobi');
+  final TextEditingController _routeIdController =
+      TextEditingController(text: '1');
+  final TextEditingController _routeController =
+      TextEditingController(text: 'Kilimani');
   String? _selectedRole = 'SALES_REP';
-  final TextEditingController _departmentController = TextEditingController();
+  String? _selectedCountry = 'Kenya';
+  int _selectedCountryId = 1;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthController _authController = Get.find<AuthController>();
   final ApiService _apiService = ApiService();
@@ -41,13 +47,11 @@ class _SignUpPageState extends State<SignUpPage> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _countryController.dispose();
     _countryIdController.dispose();
     _regionIdController.dispose();
     _regionController.dispose();
     _routeIdController.dispose();
     _routeController.dispose();
-    _departmentController.dispose();
     super.dispose();
   }
 
@@ -120,14 +124,13 @@ class _SignUpPageState extends State<SignUpPage> {
         'email': _emailController.text.trim(),
         'phoneNumber': _phoneController.text.trim(),
         'password': _passwordController.text,
-        'country': _countryController.text,
-        'countryId': int.tryParse(_countryIdController.text) ?? 1,
+        'country': _selectedCountry,
+        'countryId': _selectedCountryId,
         'region_id': int.tryParse(_regionIdController.text) ?? 1,
         'region': _regionController.text,
         'route_id': int.tryParse(_routeIdController.text) ?? 1,
         'route': _routeController.text,
         'role': _selectedRole,
-        'department': _selectedRole == 'MANAGER' ? _departmentController.text : null,
       };
 
       final response = await _apiService.register(userData);
@@ -181,8 +184,8 @@ class _SignUpPageState extends State<SignUpPage> {
                           shape: BoxShape.circle,
                         ),
                         padding: const EdgeInsets.all(15),
-                        child: Image.asset('assets/images/svg.png',
-                            fit: BoxFit.contain),
+                        child:
+                            Image.asset('assets/glam.png', fit: BoxFit.contain),
                       ),
                     ),
                   ),
@@ -243,7 +246,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -269,7 +274,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -316,13 +323,16 @@ class _SignUpPageState extends State<SignUpPage> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16, horizontal: 12),
                     ),
-                    items: ['SALES_REP', 'MANAGER'].map((String role) {
+                    items: ['SALES_REP', 'RELIEVER'].map((String role) {
                       return DropdownMenuItem(
                         value: role,
                         child: Text(
-                          role == 'SALES_REP' ? 'Sales Representative' : '',
+                          role == 'SALES_REP'
+                              ? 'Sales Representative'
+                              : 'Reliever',
                         ),
                       );
                     }).toList(),
@@ -334,39 +344,46 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Department Field (only shown for Manager role)
-                  if (_selectedRole == 'MANAGER')
-                    TextFormField(
-                      controller: _departmentController,
-                      decoration: InputDecoration(
-                        labelText: 'Department',
-                        prefixIcon: const Icon(Icons.business_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      validator: _selectedRole == 'MANAGER' 
-                          ? (value) => value?.isEmpty ?? true ? 'Department is required for manager' : null
-                          : null,
-                    ),
-                  if (_selectedRole == 'MANAGER') const SizedBox(height: 16),
-
                   // Country and Region Fields
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
-                          controller: _countryController,
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedCountry,
                           decoration: InputDecoration(
                             labelText: 'Country',
                             prefixIcon: const Icon(Icons.flag_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 12),
                           ),
-                          readOnly: true,
+                          items: [
+                            DropdownMenuItem(
+                                value: 'Kenya', child: Text('Kenya')),
+                            DropdownMenuItem(
+                                value: 'Tanzania', child: Text('Tanzania')),
+                            DropdownMenuItem(
+                                value: 'Nigeria', child: Text('Nigeria')),
+                          ],
+                          onChanged: (String? value) {
+                            setState(() {
+                              _selectedCountry = value;
+                              // Update country ID based on selection
+                              switch (value) {
+                                case 'Kenya':
+                                  _selectedCountryId = 1;
+                                  break;
+                                case 'Tanzania':
+                                  _selectedCountryId = 2;
+                                  break;
+                                case 'Nigeria':
+                                  _selectedCountryId = 3;
+                                  break;
+                              }
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -378,10 +395,14 @@ class _SignUpPageState extends State<SignUpPage> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 16),
                           ),
                           keyboardType: TextInputType.number,
                           readOnly: true,
+                          onChanged: (value) {
+                            _selectedCountryId = int.tryParse(value) ?? 1;
+                          },
                         ),
                       ),
                     ],
@@ -399,7 +420,8 @@ class _SignUpPageState extends State<SignUpPage> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 16),
                           ),
                           readOnly: true,
                         ),
@@ -413,7 +435,8 @@ class _SignUpPageState extends State<SignUpPage> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 16),
                           ),
                           keyboardType: TextInputType.number,
                           readOnly: true,
@@ -435,7 +458,8 @@ class _SignUpPageState extends State<SignUpPage> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 16),
                           ),
                           readOnly: true,
                         ),
@@ -449,7 +473,8 @@ class _SignUpPageState extends State<SignUpPage> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 16),
                           ),
                           keyboardType: TextInputType.number,
                           readOnly: true,

@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 class CheckInHistoryPage extends StatefulWidget {
   const CheckInHistoryPage({super.key});
@@ -132,8 +133,7 @@ class _CheckInHistoryPageState extends State<CheckInHistoryPage> {
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',

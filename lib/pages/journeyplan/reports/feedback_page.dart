@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/feedbackReport_model.dart';
-import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
+import 'package:glamour_queen/models/journeyplan_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/models/report/feedbackReport_model.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/base_report_page.dart';
 
 class FeedbackPage extends BaseReportPage {
   const FeedbackPage({
@@ -79,3 +79,4 @@ class _FeedbackPageState extends State<FeedbackPage> with BaseReportPageMixin {
     );
   }
 }
+

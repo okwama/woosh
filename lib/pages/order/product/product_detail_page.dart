@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/hive/order_model.dart';
-import 'package:woosh/models/price_option_model.dart';
-import 'package:woosh/models/orderitem_model.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/controllers/cart_controller.dart';
-import 'package:woosh/pages/order/cart_page.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/utils/image_utils.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/hive/order_model.dart';
+import 'package:glamour_queen/models/price_option_model.dart';
+import 'package:glamour_queen/models/orderitem_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/controllers/cart_controller.dart';
+import 'package:glamour_queen/pages/order/cart_page.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/utils/image_utils.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
 import 'package:get_storage/get_storage.dart';
 
 class ProductDetailPage extends StatefulWidget {
@@ -37,6 +37,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   int? _regionId;
   final _storage = GetStorage();
 
+  // Cache for stock calculation
+  int? _cachedAvailableStock;
+  bool _isCalculatingStock = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +58,36 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     } else {
       print('Warning: No user data found in storage');
     }
+
+    // Pre-calculate stock availability
+    _calculateStockAvailability();
   }
+
+  void _calculateStockAvailability() {
+    if (_regionId == null) return;
+
+    setState(() {
+      _isCalculatingStock = true;
+    });
+
+    // Use Future.microtask to avoid blocking the UI
+    Future.microtask(() {
+      final stock = widget.product.getMaxQuantityInRegion(_regionId!);
+      if (mounted) {
+        setState(() {
+          _cachedAvailableStock = stock;
+          _isCalculatingStock = false;
+        });
+      }
+    });
+  }
+
+  int get _availableStock {
+    if (_regionId == null) return 0;
+    return _cachedAvailableStock ?? 0;
+  }
+
+  bool get _isOutOfStock => _availableStock <= 0;
 
   void _adjustQuantity(int delta) {
     if (_regionId == null) {
@@ -70,7 +103,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     final currentValue = int.tryParse(_quantityController.text) ?? 0;
     final newValue = currentValue + delta;
-    final maxStock = widget.product.getMaxQuantityInRegion(_regionId!);
+    final maxStock = _availableStock;
 
     if (newValue > 0 && newValue <= maxStock) {
       _quantityController.text = newValue.toString();
@@ -92,7 +125,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     print('Available price options: ${widget.product.priceOptions}');
     print('Selected price option: $_selectedPriceOption');
 
-    if (_selectedPriceOption == null) {
+    // Only require price option selection if price options are available
+    if (widget.product.priceOptions.isNotEmpty &&
+        _selectedPriceOption == null) {
       Get.snackbar(
         'Error',
         'Please select a price option',
@@ -134,7 +169,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     }
 
     // Check stock availability using region-based check
-    final availableStock = widget.product.getMaxQuantityInRegion(_regionId!);
+    final availableStock = _availableStock;
     if (quantity > availableStock) {
       Get.snackbar(
         'Error',
@@ -151,7 +186,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         productId: widget.product.id,
         quantity: quantity,
         product: widget.product,
-        priceOptionId: _selectedPriceOption?.id,
+        priceOptionId:
+            _selectedPriceOption?.id, // Can be null for fallback pricing
       ),
     );
 
@@ -182,10 +218,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final availableStock = _regionId != null
-        ? widget.product.getMaxQuantityInRegion(_regionId!)
-        : 0;
-    final isOutOfStock = availableStock <= 0;
     final theme = Theme.of(context);
 
     print('Building UI with price options: ${widget.product.priceOptions}');
@@ -255,42 +287,106 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isOutOfStock
+                    color: _isOutOfStock
                         ? const Color(0xFFFDEDED)
                         : const Color(0xFFEDF7ED),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    _regionId == null
-                        ? 'No region assigned to your account'
-                        : isOutOfStock
-                            ? 'Out of stock'
-                            : 'In stock',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _regionId == null
-                          ? const Color(0xFFD93025)
-                          : isOutOfStock
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isCalculatingStock) ...[
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.grey),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Checking stock...',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ] else ...[
+                        Icon(
+                          _regionId == null
+                              ? Icons.error_outline
+                              : _isOutOfStock
+                                  ? Icons.cancel_outlined
+                                  : Icons.check_circle_outline,
+                          size: 16,
+                          color: _regionId == null
                               ? const Color(0xFFD93025)
-                              : const Color(0xFF1E8E3E),
-                    ),
+                              : _isOutOfStock
+                                  ? const Color(0xFFD93025)
+                                  : const Color(0xFF1E8E3E),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _regionId == null
+                              ? 'No region assigned'
+                              : _isOutOfStock
+                                  ? 'Out of stock'
+                                  : 'In stock (${_availableStock} available)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: _regionId == null
+                                ? const Color(0xFFD93025)
+                                : _isOutOfStock
+                                    ? const Color(0xFFD93025)
+                                    : const Color(0xFF1E8E3E),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
                 // Quantity Selector
-                if (!isOutOfStock && availableStock > 0)
+                if (!_isOutOfStock && _availableStock > 0)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_isCalculatingStock)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.grey),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Loading quantity options...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       _QuantitySelector(
                         controller: _quantityController,
                         onDecrement: () => _adjustQuantity(-1),
                         onIncrement: () => _adjustQuantity(1),
-                        maxQuantity:
-                            widget.product.storeQuantities.first.quantity,
+                        maxQuantity: _availableStock,
                       ),
                       if (widget.product.packSize != null)
                         Padding(
@@ -408,7 +504,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: isOutOfStock ? null : _addToCart,
+                onPressed: _isOutOfStock ? null : _addToCart,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -417,7 +513,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   minimumSize: Size(MediaQuery.of(context).size.width * 0.8, 0),
                 ),
                 child: Text(
-                  isOutOfStock ? 'Out of Stock' : 'Add to Cart',
+                  _isOutOfStock ? 'Out of Stock' : 'Add to Cart',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

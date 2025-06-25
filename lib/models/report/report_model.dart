@@ -1,13 +1,13 @@
 import 'dart:convert';
-import 'package:woosh/models/report/feedbackReport_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
-import 'package:woosh/models/report/product_return_item_model.dart';
-import 'package:woosh/models/report/product_sample_item_model.dart';
-import 'package:woosh/models/report/visibilityReport_model.dart';
-import 'package:woosh/models/report/productReturn_model.dart';
-import 'package:woosh/models/report/productSample_model.dart';
-import 'package:woosh/models/user_model.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:glamour_queen/models/report/feedbackReport_model.dart';
+import 'package:glamour_queen/models/report/productReport_model.dart';
+import 'package:glamour_queen/models/report/product_return_item_model.dart';
+import 'package:glamour_queen/models/report/product_sample_item_model.dart';
+import 'package:glamour_queen/models/report/visibilityReport_model.dart';
+import 'package:glamour_queen/models/report/productReturn_model.dart';
+import 'package:glamour_queen/models/report/productSample_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
+import 'package:glamour_queen/models/client_model.dart';
 
 enum ReportType {
   PRODUCT_AVAILABILITY,
@@ -541,3 +541,4 @@ class Report {
     }
   }
 }
+

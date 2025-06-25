@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
 
 // API Configuration
 const String _baseUrl = 'https://woosh-api.vercel.app/api';

@@ -1,4 +1,4 @@
-import 'package:woosh/models/report/product_return_item_model.dart';
+import 'package:glamour_queen/models/report/product_return_item_model.dart';
 
 class ProductReturn {
   final int reportId;
@@ -105,3 +105,4 @@ class ProductReturn {
         '}';
   }
 }
+

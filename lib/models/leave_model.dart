@@ -1,4 +1,4 @@
-import 'package:woosh/models/user_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
 
 enum LeaveStatus { PENDING, APPROVED, DECLINED }
 
@@ -120,3 +120,4 @@ class Leave {
     return 'Leave{id: $id, leaveType: $leaveType, status: $status, startDate: $startDate, endDate: $endDate}';
   }
 }
+

@@ -1,21 +1,21 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:woosh/models/hive/client_model.dart';
-import 'package:woosh/models/hive/journey_plan_model.dart';
-import 'package:woosh/models/hive/order_model.dart';
-import 'package:woosh/models/hive/user_model.dart';
-import 'package:woosh/models/hive/session_model.dart';
-import 'package:woosh/models/hive/route_model.dart';
-import 'package:woosh/models/hive/pending_journey_plan_model.dart';
-import 'package:woosh/models/hive/product_report_hive_model.dart';
-import 'package:woosh/models/hive/product_model.dart';
+import 'package:glamour_queen/models/hive/client_model.dart';
+import 'package:glamour_queen/models/hive/journey_plan_model.dart';
+import 'package:glamour_queen/models/hive/order_model.dart';
+import 'package:glamour_queen/models/hive/user_model.dart';
+import 'package:glamour_queen/models/hive/session_model.dart';
+import 'package:glamour_queen/models/hive/route_model.dart';
+import 'package:glamour_queen/models/hive/pending_journey_plan_model.dart';
+import 'package:glamour_queen/models/hive/product_report_hive_model.dart';
+import 'package:glamour_queen/models/hive/product_model.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/hive/client_hive_service.dart';
-import 'package:woosh/services/hive/journey_plan_hive_service.dart';
-import 'package:woosh/services/hive/route_hive_service.dart';
-import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
-import 'package:woosh/services/hive/product_report_hive_service.dart';
-import 'package:woosh/services/hive/product_hive_service.dart';
-import 'package:woosh/services/hive/order_hive_service.dart';
+import 'package:glamour_queen/services/hive/client_hive_service.dart';
+import 'package:glamour_queen/services/hive/journey_plan_hive_service.dart';
+import 'package:glamour_queen/services/hive/route_hive_service.dart';
+import 'package:glamour_queen/services/hive/pending_journey_plan_hive_service.dart';
+import 'package:glamour_queen/services/hive/product_report_hive_service.dart';
+import 'package:glamour_queen/services/hive/product_hive_service.dart';
+import 'package:glamour_queen/services/hive/order_hive_service.dart';
 
 class HiveInitializer {
   static Future<void> initialize() async {
@@ -78,3 +78,4 @@ class HiveInitializer {
     Get.put(orderHiveService);
   }
 }
+

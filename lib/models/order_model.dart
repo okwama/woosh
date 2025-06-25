@@ -1,8 +1,8 @@
-import 'package:woosh/models/orderitem_model.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/models/user_model.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/models/price_option_model.dart';
+import 'package:glamour_queen/models/orderitem_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:glamour_queen/models/price_option_model.dart';
 
 enum OrderStatus { PENDING, COMPLETED, CANCELLED }
 
@@ -188,3 +188,4 @@ class Order {
     };
   }
 }
+

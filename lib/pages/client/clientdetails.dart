@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart' as ptr;
-import 'package:woosh/models/outlet_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:woosh/utils/app_theme.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:woosh/models/clientPayment_model.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/models/clientPayment_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:glamour_queen/pages/client/client_stock_page.dart';
+import 'package:glamour_queen/services/client_stock_service.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final Outlet outlet;
@@ -26,12 +28,14 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   bool _loadingPayments = false;
   String? _errorMessage;
   final ptr.RefreshController _refreshController = ptr.RefreshController();
+  bool _clientStockEnabled = true; // Track if client stock feature is enabled
 
   @override
   void initState() {
     super.initState();
     _decodeLocation();
     _fetchPayments();
+    _checkClientStockFeature();
   }
 
   Future<void> _decodeLocation() async {
@@ -78,6 +82,28 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     }
   }
 
+  Future<void> _checkClientStockFeature() async {
+    try {
+      final isEnabled = await ClientStockService.isFeatureEnabled();
+      setState(() {
+        _clientStockEnabled = isEnabled;
+      });
+    } catch (e) {
+      print('Error checking client stock feature status: $e');
+      // Default to enabled if we can't check the status or endpoint doesn't exist
+      setState(() {
+        _clientStockEnabled = true;
+      });
+    }
+  }
+
+  Future<void> _refreshData() async {
+    await Future.wait([
+      _fetchPayments(),
+      _checkClientStockFeature(),
+    ]);
+  }
+
   void _showErrorDialog() {
     if (mounted) {
       showDialog(
@@ -90,9 +116,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
             children: [
               const Text('Unable to load payments. This could be due to:'),
               const SizedBox(height: 8),
-              const Text('• No internet connection'),
-              const Text('• Server is temporarily unavailable'),
-              const Text('• Database connection issues'),
+              const Text('� No internet connection'),
+              const Text('� Server is temporarily unavailable'),
+              const Text('� Database connection issues'),
               const SizedBox(height: 16),
               const Text('Would you like to retry?'),
             ],
@@ -227,8 +253,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                   onPressed: uploading
                       ? null
                       : () async {
-                          final amount =
-                              double.tryParse(amountController.text);
+                          final amount = double.tryParse(amountController.text);
                           if (amount == null || pickedFile == null) {
                             setState(() {
                               errorMessage =
@@ -343,16 +368,22 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         outlet.name,
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         'Balance: Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}',
-                                        style: const TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
@@ -411,7 +442,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Expanded(child: SizedBox()), // Empty to keep layout
+                                  const Expanded(
+                                      child:
+                                          SizedBox()), // Empty to keep layout
                                 ],
                               ),
                             ],
@@ -424,13 +457,44 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 onPressed: _showAddPaymentDialog,
                                 style: ElevatedButton.styleFrom(
                                   shape: const StadiumBorder(),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor: Theme.of(context).primaryColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 10),
+                                  backgroundColor:
+                                      Theme.of(context).primaryColor,
                                   foregroundColor: Colors.white,
                                   textStyle: const TextStyle(fontSize: 13),
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            if (_clientStockEnabled) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.inventory),
+                                  label: const Text('Manage Stock'),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ClientStockPage(
+                                          clientId: widget.outlet.id,
+                                          clientName: widget.outlet.name,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    shape: const StadiumBorder(),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                    backgroundColor: Colors.orange,
+                                    foregroundColor: Colors.white,
+                                    textStyle: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -546,7 +610,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   }
 
   // Helper widget for a compact detail section
-  Widget _detailSection({required IconData icon, required String label, required String value}) {
+  Widget _detailSection(
+      {required IconData icon, required String label, required String value}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -556,8 +621,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              Text(label,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -661,11 +729,11 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                         style: TextStyle(fontSize: 11, color: Colors.black))),
                 DropdownMenuItem(
                     value: 'AMOUNT_HIGH',
-                    child: Text('Amount ↓',
+                    child: Text('Amount ?',
                         style: TextStyle(fontSize: 11, color: Colors.black))),
                 DropdownMenuItem(
                     value: 'AMOUNT_LOW',
-                    child: Text('Amount ↑',
+                    child: Text('Amount ?',
                         style: TextStyle(fontSize: 11, color: Colors.black))),
               ],
               onChanged: (val) {
@@ -706,7 +774,8 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     )
                                 : null,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 4),
                               decoration: BoxDecoration(
                                 color: Colors.grey[50],
                                 borderRadius: BorderRadius.circular(4),
@@ -724,19 +793,22 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     ),
                                     child: p.imageUrl != null
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                             child: Image.network(
                                               p.imageUrl!,
                                               fit: BoxFit.cover,
                                             ),
                                           )
-                                        : const Icon(Icons.receipt_long, size: 20),
+                                        : const Icon(Icons.receipt_long,
+                                            size: 20),
                                   ),
                                   const SizedBox(width: 12),
                                   // Middle: Payment details
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           p.method ?? 'No Method',
@@ -747,10 +819,13 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                         ),
                                         const SizedBox(height: 4),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: _getStatusColor(p.status).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
+                                            color: _getStatusColor(p.status)
+                                                .withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             p.status,
@@ -770,7 +845,10 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        p.date.toLocal().toString().split(".")[0],
+                                        p.date
+                                            .toLocal()
+                                            .toString()
+                                            .split(".")[0],
                                         style: TextStyle(
                                           fontSize: 10,
                                           color: Colors.grey[600],

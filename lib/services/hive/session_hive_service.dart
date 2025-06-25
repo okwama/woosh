@@ -1,5 +1,5 @@
 import 'package:hive/hive.dart';
-import 'package:woosh/models/hive/session_model.dart';
+import 'package:glamour_queen/models/hive/session_model.dart';
 
 class SessionHiveService {
   static const String _boxName = 'sessionBox';
@@ -38,3 +38,4 @@ class SessionHiveService {
     return false;
   }
 }
+

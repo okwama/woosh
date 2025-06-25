@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
-import 'package:woosh/models/hive/product_model.dart';
-import 'package:woosh/models/product_model.dart';
+import 'package:glamour_queen/models/hive/product_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
@@ -248,3 +248,4 @@ class ProductHiveService {
     }
   }
 }
+

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 
 import 'package:geolocator/geolocator.dart';
-import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/models/journeyplan_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
 
 mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
   TextEditingController get commentController => _commentController;
@@ -239,3 +239,4 @@ class _BaseReportPageState extends State<BaseReportPage>
     // Base implementation does nothing
   }
 }
+

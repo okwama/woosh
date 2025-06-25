@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
-import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/hive/product_hive_service.dart';
+import 'package:glamour_queen/models/journeyplan_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/models/report/productReport_model.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/base_report_page.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/hive/product_hive_service.dart';
 
 class ProductAvailabilityPage extends BaseReportPage {
   const ProductAvailabilityPage({
@@ -289,3 +289,4 @@ class _ProductAvailabilityPageState extends State<ProductAvailabilityPage>
     );
   }
 }
+

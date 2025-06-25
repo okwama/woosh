@@ -1,4 +1,4 @@
-import 'package:woosh/models/outlet_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
 
 class Client extends Outlet {
   Client({
@@ -61,3 +61,4 @@ class Client extends Outlet {
     };
   }
 }
+

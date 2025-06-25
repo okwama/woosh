@@ -1,7 +1,7 @@
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/user_model.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
 
 class SalesRepReportService {
   final _apiService = ApiService();
@@ -78,3 +78,4 @@ class SalesRepReportService {
     );
   }
 }
+

@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
-import 'package:woosh/utils/app_theme.dart' hide CreamGradientCard;
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
-import 'package:woosh/widgets/cream_gradient_card.dart';
+import 'package:glamour_queen/utils/app_theme.dart' hide CreamGradientCard;
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/widgets/cream_gradient_card.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 class ManagerStatsPage extends StatefulWidget {
   const ManagerStatsPage({super.key});
@@ -67,8 +68,7 @@ class _ManagerStatsPageState extends State<ManagerStatsPage> {
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
-    final box = GetStorage();
-    final token = box.read<String>('token');
+    final token = TokenService.getAccessToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',

@@ -11,35 +11,36 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart'
     hide FormData, MultipartFile; // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
-import 'package:woosh/models/hive/pending_journey_plan_model.dart';
-import 'package:woosh/models/hive/route_model.dart';
+import 'package:glamour_queen/models/hive/pending_journey_plan_model.dart';
+import 'package:glamour_queen/models/hive/route_model.dart';
 // Generated files cannot be directly imported
-import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/noticeboard_model.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/user_model.dart';
-import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
-import 'package:woosh/services/hive/route_hive_service.dart';
-import 'package:woosh/utils/config.dart';
-import 'package:woosh/utils/image_utils.dart';
-import 'package:woosh/models/order_model.dart';
-import 'package:woosh/models/target_model.dart';
-import 'package:woosh/models/leave_model.dart';
-import 'package:woosh/controllers/auth_controller.dart';
+import 'package:glamour_queen/models/journeyplan_model.dart';
+import 'package:glamour_queen/models/noticeboard_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
+import 'package:glamour_queen/services/hive/pending_journey_plan_hive_service.dart';
+import 'package:glamour_queen/services/hive/route_hive_service.dart';
+import 'package:glamour_queen/utils/config.dart';
+import 'package:glamour_queen/utils/image_utils.dart';
+import 'package:glamour_queen/models/order_model.dart';
+import 'package:glamour_queen/models/target_model.dart';
+import 'package:glamour_queen/models/leave_model.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
-import 'package:woosh/services/target_service.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/models/clientPayment_model.dart';
-import 'package:woosh/models/uplift_sale_model.dart';
-import 'package:woosh/models/store_model.dart';
+import 'package:glamour_queen/services/target_service.dart';
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:glamour_queen/models/clientPayment_model.dart';
+import 'package:glamour_queen/models/uplift_sale_model.dart';
+import 'package:glamour_queen/models/store_model.dart';
 // Handle platform-specific imports
 import 'image_upload.dart';
 import 'package:image/image.dart' as img;
-import 'package:woosh/services/offline_toast_service.dart';
+import 'package:glamour_queen/services/offline_toast_service.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 // API Caching System
 class ApiCache {
@@ -113,11 +114,7 @@ class ApiService {
 
   static String? _getAuthToken() {
     try {
-      final box = GetStorage();
-      final token = box.read<String>('token');
-      print(
-          'Retrieved token from storage: ${token != null ? 'Present' : 'Missing'}');
-      return token;
+      return TokenService.getAccessToken();
     } catch (e) {
       print('Error reading token from storage: $e');
       return null;
@@ -126,32 +123,46 @@ class ApiService {
 
   static Future<bool> _shouldRefreshToken() async {
     try {
-      final token = _getAuthToken();
-      if (token == null) {
-        print('No token available for refresh check');
-        return false;
-      }
-
-      final parts = token.split('.');
-      if (parts.length != 3) {
-        print('Invalid token format');
-        return false;
-      }
-
-      final payload = parts[1];
-      final normalized = base64Url.normalize(payload);
-      final decoded = utf8.decode(base64Url.decode(normalized));
-      final Map<String, dynamic> decodedMap = json.decode(decoded);
-
-      final exp = DateTime.fromMillisecondsSinceEpoch(decodedMap['exp'] * 1000);
-      final shouldRefresh =
-          exp.difference(DateTime.now()) < const Duration(minutes: 30);
-      print(
-          'Token expires in: ${exp.difference(DateTime.now()).inMinutes} minutes');
-      print('Should refresh: $shouldRefresh');
-      return shouldRefresh;
+      return TokenService.isTokenExpired();
     } catch (e) {
       print('Error checking token expiration: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> refreshAccessToken() async {
+    try {
+      final refreshToken = TokenService.getRefreshToken();
+      if (refreshToken == null) {
+        print('No refresh token available');
+        return false;
+      }
+
+      print('Attempting to refresh token');
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'refreshToken': refreshToken}),
+      );
+
+      print('Refresh response status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Store new access token while keeping refresh token
+        await TokenService.storeTokens(
+          accessToken: data['accessToken'],
+          refreshToken: refreshToken, // Keep existing refresh token
+          expiresIn: data['expiresIn'],
+        );
+
+        print('Token refreshed successfully');
+        return true;
+      }
+      print('Token refresh failed: ${response.body}');
+      return false;
+    } catch (e) {
+      print('Error refreshing token: $e');
       return false;
     }
   }
@@ -166,34 +177,8 @@ class ApiService {
     _isRefreshing = true;
     _refreshFuture = Future<bool>(() async {
       try {
-        final oldToken = _getAuthToken();
-        if (oldToken == null) {
-          print('No token available for refresh');
-          return false;
-        }
-
-        print('Attempting to refresh token');
-        final response = await http.post(
-          Uri.parse('$baseUrl/auth/refresh'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $oldToken'
-          },
-        );
-
-        print('Refresh response status: ${response.statusCode}');
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final box = GetStorage();
-          box.write('token', data['token']);
-          print('Token refreshed successfully');
-          return true;
-        }
-        print('Token refresh failed: ${response.body}');
-        return false;
-      } catch (e) {
-        print('Error refreshing token: $e');
-        return false;
+        final refreshed = await refreshAccessToken();
+        return refreshed;
       } finally {
         _isRefreshing = false;
       }
@@ -255,6 +240,8 @@ class ApiService {
       errorMessage = "You're offline. Please check your internet connection.";
     } else if (error.toString().contains('TimeoutException')) {
       errorMessage = "Request timed out. Please try again.";
+    } else if (error.toString().contains('500')) {
+      errorMessage = "Server error. Please try again later.";
     }
 
     // Always show the offline toast instead of raw error
@@ -269,17 +256,25 @@ class ApiService {
 
   static Future<dynamic> _handleResponse(http.Response response) async {
     if (response.statusCode == 401) {
-      // Clear all stored data
-      final box = GetStorage();
-      await box.remove('token');
-      await box.remove('salesRep');
+      // Try to refresh token first
+      final refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        // Refresh failed, clear all tokens and logout
+        await TokenService.clearTokens();
 
-      // Force logout and redirect to login
-      final authController = Get.find<AuthController>();
-      await authController.logout();
-      Get.offAllNamed('/login');
+        // Clear other stored data
+        final box = GetStorage();
+        await box.remove('salesRep');
 
-      throw Exception("Session expired. Please log in again.");
+        // Force logout and redirect to login
+        final authController = Get.find<AuthController>();
+        await authController.logout();
+        Get.offAllNamed('/login');
+
+        throw Exception("Session expired. Please log in again.");
+      }
+      // If refresh succeeded, the original request should be retried
+      throw Exception("Token refreshed, retry request");
     }
     return response;
   }
@@ -306,7 +301,7 @@ class ApiService {
   static Future<PaginatedResponse<Client>> fetchClients({
     int? routeId,
     int page = 1,
-    int limit = 2000,
+    int limit = 20000,
   }) async {
     try {
       final token = _getAuthToken();
@@ -422,6 +417,7 @@ class ApiService {
     int page = 1,
     int limit = 20000,
     int? routeId,
+    DateTime? createdAfter,
   }) async {
     try {
       final token = _getAuthToken();
@@ -429,9 +425,9 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
-      // Generate cache key based on page, limit and route
+      // Generate cache key based on page, limit, route and createdAfter
       final cacheKey =
-          'outlets_page_${page}_limit_$limit${routeId != null ? '_route_$routeId' : ''}';
+          'outlets_page_${page}_limit_$limit${routeId != null ? '_route_$routeId' : ''}${createdAfter != null ? '_after_${createdAfter.toIso8601String()}' : ''}';
 
       // Try to get from cache first
       final cachedData = ApiCache.get(cacheKey);
@@ -445,6 +441,8 @@ class ApiService {
         'page': page.toString(),
         'limit': limit.toString(),
         if (routeId != null) 'route_id': routeId.toString(),
+        if (createdAfter != null)
+          'created_after': createdAfter.toIso8601String(),
       };
 
       final uri =
@@ -541,6 +539,42 @@ class ApiService {
     } catch (e) {
       print('Error in createJourneyPlan: $e');
       throw Exception('An error occurred while creating the journey plan: $e');
+    }
+  }
+
+  // Delete Journey Plan
+  static Future<void> deleteJourneyPlan(int journeyId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+
+      print('Deleting journey plan: $journeyId');
+      print('URL: $url');
+
+      final response = await http.delete(
+        url,
+        headers: await _headers(),
+      );
+
+      print('Delete journey plan response status: ${response.statusCode}');
+      print('Delete journey plan response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decodedJson = jsonDecode(response.body);
+        print('Journey plan deleted successfully: ${decodedJson['message']}');
+        return;
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to delete journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error in deleteJourneyPlan: $e');
+      throw Exception('An error occurred while deleting the journey plan: $e');
     }
   }
 
@@ -850,35 +884,10 @@ class ApiService {
 
       // Handle mobile platform
       if (!kIsWeb) {
-        if (imageFile is XFile) {
+        if (imageFile is File) {
           // Optimize image before upload
           final bytes = await _optimizeImage(
-            await imageFile.readAsBytes(),
-            maxWidth: maxWidth,
-            quality: quality,
-          );
-          final fileName = imageFile.name;
-          final fileExtension = fileName.split('.').last.toLowerCase();
-
-          // Validate file type
-          final allowedTypes = ['jpg', 'jpeg', 'png', 'pdf'];
-          if (!allowedTypes.contains(fileExtension)) {
-            throw Exception(
-                'Invalid file type. Only JPG, JPEG, PNG, and PDF files are allowed.');
-          }
-
-          request.files.add(
-            http.MultipartFile.fromBytes(
-              'attachment',
-              bytes,
-              filename: fileName,
-              contentType: MediaType('image', fileExtension),
-            ),
-          );
-        } else if (imageFile is File) {
-          // Optimize image before upload
-          final bytes = await _optimizeImage(
-            await imageFile.readAsBytes(),
+            await File(imageFile.path).readAsBytes(),
             maxWidth: maxWidth,
             quality: quality,
           );
@@ -902,7 +911,7 @@ class ApiService {
           );
         } else {
           throw Exception(
-              'Invalid file type for mobile platform. Expected XFile or File.');
+              'Invalid file type for mobile platform. Expected File.');
         }
       } else {
         // Handle web platform
@@ -951,8 +960,22 @@ class ApiService {
           );
 
           if (response.statusCode == 200) {
-            final decodedJson = jsonDecode(response.body);
-            completer.complete(decodedJson['imageUrl']);
+            try {
+              final decodedJson = jsonDecode(response.body);
+              print('Upload response: $decodedJson'); // Debug log
+
+              // Handle the actual response format from your server
+              if (decodedJson['attachment'] != null &&
+                  decodedJson['attachment']['main'] != null &&
+                  decodedJson['attachment']['main']['url'] != null) {
+                completer.complete(decodedJson['attachment']['main']['url']);
+              } else {
+                throw Exception('Invalid response format from server');
+              }
+            } catch (e) {
+              print('Error parsing response: $e');
+              completer.completeError(e);
+            }
           } else {
             completer.completeError(
               Exception('Failed to upload image: ${response.statusCode}'),
@@ -960,6 +983,7 @@ class ApiService {
           }
         },
         onError: (error) {
+          print('Upload stream error: $error');
           completer.completeError(error);
         },
         cancelOnError: true,
@@ -1023,12 +1047,29 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
+        // Store tokens using TokenService
+        print('🔐 Storing tokens from login response');
+        print('🔐 Access token present: ${data['accessToken'] != null}');
+        print('🔐 Refresh token present: ${data['refreshToken'] != null}');
+        print('🔐 Expires in: ${data['expiresIn']} seconds');
+        
+        await TokenService.storeTokens(
+          accessToken: data['accessToken'],
+          refreshToken: data['refreshToken'],
+          expiresIn: data['expiresIn'],
+        );
+        
+        print('🔐 Tokens stored successfully');
+        TokenService.debugTokenInfo();
+
+        // Store user data
         final box = GetStorage();
-        box.write('token', data['token']);
         box.write('salesRep', data['salesRep']);
+
         return {
           'success': true,
-          'token': data['token'],
+          'token': data['accessToken'],
           'salesRep': data['salesRep']
         };
       } else {
@@ -1124,6 +1165,7 @@ class ApiService {
     int page = 1,
     int limit = 200,
     String? search,
+    int? clientId,
   }) async {
     try {
       await _initDioHeaders();
@@ -1133,6 +1175,7 @@ class ApiService {
           'page': page,
           'limit': limit,
           if (search != null && search.isNotEmpty) 'search': search,
+          if (clientId != null) 'clientId': clientId,
         },
       );
 
@@ -1143,7 +1186,8 @@ class ApiService {
       throw Exception('Failed to load products');
     } catch (e) {
       print('Error fetching products: $e');
-      rethrow;
+      // Return empty list instead of rethrowing to handle silently
+      return [];
     }
   }
 
@@ -1727,8 +1771,7 @@ class ApiService {
 
   // Check if the user is authenticated
   static bool isAuthenticated() {
-    final token = _getAuthToken();
-    return token != null;
+    return TokenService.isAuthenticated();
   }
 
   static Future<Leave> submitLeaveApplication({
@@ -2225,9 +2268,11 @@ class ApiService {
 
   static Future<void> logout() async {
     try {
+      await TokenService.clearTokens();
+
       final box = GetStorage();
-      await box.remove('token');
       await box.remove('salesRep');
+
       final authController = Get.find<AuthController>();
       await authController.logout();
     } catch (e) {
@@ -2540,7 +2585,8 @@ class ApiService {
           : null;
 
       if (userId == null) {
-        throw Exception('User ID not found. Please login again.');
+        print('User ID not found. Please login again.');
+        return null;
       }
 
       print('[UpliftSale] Creating sale with data:');
@@ -2567,7 +2613,7 @@ class ApiService {
       return null;
     } catch (e) {
       print('Error creating uplift sale: $e');
-      rethrow;
+      return null; // Return null instead of rethrowing
     }
   }
 
@@ -2974,5 +3020,84 @@ class ApiService {
       {Map<String, String>? headers, Object? body}) async {
     return _safeHttpCall(
         () => http.patch(Uri.parse(url), headers: headers, body: body));
+  }
+
+  // Request order void
+  static Future<Map<String, dynamic>> requestOrderVoid({
+    required int orderId,
+    String? reason,
+  }) async {
+    try {
+      await _initDioHeaders();
+
+      final requestBody = {
+        if (reason != null) 'reason': reason,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/$orderId/void-request'),
+        headers: await _headers(),
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return {
+            'success': true,
+            'message': responseData['message'] ?? 'Void request submitted',
+            'orderId': responseData['orderId'] ?? orderId,
+          };
+        } else {
+          throw Exception(
+              responseData['error'] ?? 'Failed to submit void request');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to submit void request: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error requesting order void: $e');
+      throw Exception('Failed to request order void: $e');
+    }
+  }
+
+  // Check void status
+  static Future<Map<String, dynamic>> checkVoidStatus({
+    required int orderId,
+  }) async {
+    try {
+      await _initDioHeaders();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders/$orderId/void-status'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return {
+            'success': true,
+            'orderId': responseData['orderId'] ?? orderId,
+            'status': responseData['status'] ?? 0,
+            'statusMessage': responseData['statusMessage'] ?? 'Unknown Status',
+            'canRequestVoid': responseData['canRequestVoid'] ?? false,
+            'reason': responseData['reason'],
+          };
+        } else {
+          throw Exception(
+              responseData['error'] ?? 'Failed to check void status');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to check void status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error checking void status: $e');
+      throw Exception('Failed to check void status: $e');
+    }
   }
 }

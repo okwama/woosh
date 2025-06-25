@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/controllers/profile_controller.dart';
+import 'package:glamour_queen/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:woosh/pages/managers/stats_page.dart';
-import 'package:woosh/pages/profile/ChangePasswordPage.dart';
-import 'package:woosh/pages/profile/deleteaccount.dart';
-import 'package:woosh/pages/profile/targets/targets_page.dart';
-import 'package:woosh/pages/profile/user_stats_page.dart';
-import 'package:woosh/pages/profile/session_history_page.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/session_service.dart';
-import 'package:woosh/services/session_state.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/pages/managers/stats_page.dart';
+import 'package:glamour_queen/pages/profile/ChangePasswordPage.dart';
+import 'package:glamour_queen/pages/profile/deleteaccount.dart';
+import 'package:glamour_queen/pages/profile/targets/targets_page.dart';
+import 'package:glamour_queen/pages/profile/user_stats_page.dart';
+import 'package:glamour_queen/pages/profile/session_history_page.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/session_service.dart';
+import 'package:glamour_queen/services/session_state.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
 import 'dart:async';
-import 'package:woosh/services/hive/session_hive_service.dart';
-import 'package:woosh/models/hive/session_model.dart';
+import 'package:glamour_queen/services/hive/session_hive_service.dart';
+import 'package:glamour_queen/models/hive/session_model.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -208,6 +208,27 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         // Start session
         final response = await SessionService.recordLogin(userId);
         if (response['error'] != null) {
+          // Show dialog for early login attempt
+          if (response['error']
+              .toString()
+              .contains('Sessions can only be started from 9:00 AM')) {
+            await showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Cannot Start Session'),
+                content: const Text(
+                    'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
+                actions: [
+                  GoldGradientButton(
+                    onPressed: () => Get.back(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+          // Show snackbar for other errors
           Get.snackbar(
             'Cannot Start Session',
             response['error'],
@@ -259,10 +280,26 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       String errorMessage =
           'Failed to ${isSessionActive ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
-      if (e.toString().contains('Sessions can only be started after 9:00 AM')) {
-        errorMessage = 'Sessions can only be started after 9:00 AM';
-        errorColor = Colors.orange;
+
+      // Show dialog for early login attempt
+      if (e.toString().contains('Sessions can only be started from 9:00 AM')) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Cannot Start Session'),
+            content: const Text(
+                'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
+            actions: [
+              GoldGradientButton(
+                onPressed: () => Get.back(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
+
       Get.snackbar(
         'Error',
         errorMessage,
@@ -435,8 +472,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   }
 
   Widget _buildRoleBadge() {
-    final String role =
-        controller.userRole.value.isEmpty ? '`User`' : controller.userRole.value;
+    final String role = controller.userRole.value.isEmpty
+        ? '`User`'
+        : controller.userRole.value;
 
     final Color badgeColor =
         role.toLowerCase() == 'supervisor' || role.toLowerCase() == 'admin'
@@ -786,7 +824,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         Card(
           elevation: 1,
           margin: EdgeInsets.zero,
@@ -834,7 +872,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             ),
           ),
         ),
-       const SizedBox(height: 8),
+        const SizedBox(height: 8),
         // Session Control Button
         Card(
           elevation: 1,
@@ -893,3 +931,4 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 }
+

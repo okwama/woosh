@@ -1,4 +1,4 @@
-import 'package:woosh/models/outlet_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
 
 class ManagerCheckin {
   final int id;
@@ -43,3 +43,4 @@ class ManagerCheckin {
     );
   }
 }
+

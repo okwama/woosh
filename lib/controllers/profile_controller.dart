@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/models/user_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/models/user_model.dart';
 
 class ProfileController extends GetxController {
   final storage = GetStorage();
@@ -195,3 +195,4 @@ class ProfileController extends GetxController {
     }
   }
 }
+

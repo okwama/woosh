@@ -1,6 +1,6 @@
-name: woosh
-description: "A new Flutter project."
-
+﻿name: glamour_queen
+description: "Glamour Queen - A Flutter project."
+# com.cit.glamourqueen
 version: 1.0.1+10  # Small fix/update
 
 
@@ -39,6 +39,7 @@ dependencies:
   connectivity_plus: ^6.1.4
   flutter_riverpod: ^2.6.1
   url_launcher: ^6.2.5
+  flutter_image_compress: ^2.4.0
 
 dev_dependencies:
   flutter_test:
@@ -51,7 +52,7 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#ffffff"
-  image: assets/splash.jpeg
+  image: assets/logo.jpeg
   android: true
   ios: true
   android_gravity: center
@@ -60,11 +61,11 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/splash.jpeg"
+  image_path: "assets/logo.jpeg"
   remove_alpha_ios: true 
   web:
     generate: true
-    image_path: "assets/logg.png"
+    image_path: "assets/logo.jpeg"
     background_color: "#FFFFFF"
   # Optional for Android adaptive icons:
   # adaptive_icon_background: "#FFFFFF"
@@ -74,7 +75,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    - assets/ben.png
-    - assets/images/
-    - assets/images/gold.png
- 
+    - assets/logo.jpeg #splash
+
+

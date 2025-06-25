@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/utils/pagination_utils.dart';
+import 'package:glamour_queen/utils/pagination_utils.dart';
 
 class PaginatedListView<T> extends StatefulWidget {
   final List<T> items;
@@ -82,3 +82,4 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
     );
   }
 }
+

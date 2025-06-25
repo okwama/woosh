@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/pages/managers/teamRepor/SalesRepReportDetailPage.dart';
-import 'package:woosh/pages/managers/service/salesRepReport_service.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/pages/managers/teamRepor/SalesRepReportDetailPage.dart';
+import 'package:glamour_queen/pages/managers/service/salesRepReport_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 
 class SalesRepReportsPage extends StatefulWidget {
   const SalesRepReportsPage({super.key});
@@ -247,3 +247,4 @@ class _SalesRepReportsPageState extends State<SalesRepReportsPage> {
     );
   }
 }
+

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/session_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/session_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:woosh/controllers/auth_controller.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -71,6 +72,9 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
+    // Set login in progress flag
+    TokenService.setLoginInProgress(true);
+
     try {
       final result = await _apiService.login(
         _phoneNumberController.text.trim(),
@@ -78,8 +82,11 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (result['success']) {
-        await _authController.login(
-            _phoneNumberController.text.trim(), _passwordController.text);
+        // Pass the result to auth controller instead of calling login again
+        await _authController.handleLoginResult(result);
+
+        // Debug token information after successful login
+        TokenService.debugTokenInfo();
 
         // Get user role from the result
         final salesRep = result['salesRep'];
@@ -104,6 +111,8 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       _showToast(e.toString(), true);
     } finally {
+      // Clear login in progress flag
+      TokenService.setLoginInProgress(false);
       setState(() {
         _isLoading = false;
       });
@@ -136,15 +145,15 @@ class _LoginPageState extends State<LoginPage> {
                         shape: BoxShape.circle,
                       ),
                       padding: const EdgeInsets.all(15),
-                      child: Image.asset('assets/images/svg.png',
-                          fit: BoxFit.contain),
+                      child:
+                          Image.asset('assets/glam.png', fit: BoxFit.contain),
                     ),
                   ),
                 ),
 
                 // Welcome Text
                 GradientText(
-                  'Woosh',
+                  'Glamour Queen',
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -192,7 +201,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 24),
 
                       // Don't have an account
-                       _buildSignUpRow(),
+                      _buildSignUpRow(),
                     ],
                   ),
                 ),
@@ -316,87 +325,4 @@ class _LoginPageState extends State<LoginPage> {
       ],
     );
   }
-
-  // Widget _buildPoweredByFooter(BuildContext context) {
-  //   final year = DateTime.now().year;
-
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-  //     color: appBackground,
-  //     child: Column(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: [
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.center,
-  //           children: [
-  //             const Text(
-  //               'Powered by ',
-  //               style: TextStyle(
-  //                 color: Colors.grey,
-  //                 fontSize: 12,
-  //               ),
-  //             ),
-  //             Container(
-  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-  //               decoration: BoxDecoration(
-  //                 gradient: LinearGradient(
-  //                   colors: [
-  //                     Theme.of(context).primaryColor,
-  //                     Colors.orange,
-  //                   ],
-  //                   begin: Alignment.topLeft,
-  //                   end: Alignment.bottomRight,
-  //                 ),
-  //                 borderRadius: BorderRadius.circular(4),
-  //               ),
-  //               child: const Text(
-  //                 'Cit Logistics',
-  //                 style: TextStyle(
-  //                   color: Colors.white,
-  //                   fontWeight: FontWeight.bold,
-  //                   fontSize: 14,
-  //                   letterSpacing: 1.5,
-  //                 ),
-  //               ),
-  //             ),
-  //             const SizedBox(width: 4),
-  //             const Icon(
-  //               Icons.verified,
-  //               size: 16,
-  //               color: Colors.orange,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.center,
-  //           children: [
-  //             Icon(
-  //               Icons.copyright,
-  //               size: 10,
-  //               color: Colors.grey[600],
-  //             ),
-  //             const SizedBox(width: 2),
-  //             Text(
-  //               '$year Management System',
-  //               style: TextStyle(
-  //                 color: Colors.grey[600],
-  //                 fontSize: 10,
-  //                 fontWeight: FontWeight.w500,
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 4),
-  //         Text(
-  //           'Version 1.0.0',
-  //           style: TextStyle(
-  //             color: Colors.grey[400],
-  //             fontSize: 9,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 }

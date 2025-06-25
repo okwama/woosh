@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/pages/Leave/leaveapplication_page.dart';
-import 'package:woosh/pages/client/viewclient_page.dart';
-import 'package:woosh/pages/login/login_page.dart';
-import 'package:woosh/pages/managers/history_page.dart';
-import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/pages/profile/profile.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/pages/Leave/leaveapplication_page.dart';
+import 'package:glamour_queen/pages/client/viewclient_page.dart';
+import 'package:glamour_queen/pages/login/login_page.dart';
+import 'package:glamour_queen/pages/managers/history_page.dart';
+import 'package:glamour_queen/pages/order/viewOrder/vieworder_page.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/pages/profile/profile.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -18,7 +18,7 @@ import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
 import 'checkin_page.dart';
-import 'package:woosh/pages/managers/teamRepor/salesrep_reports_page.dart';
+import 'package:glamour_queen/pages/managers/teamRepor/salesrep_reports_page.dart';
 
 class ManagerHomePage extends StatefulWidget {
   const ManagerHomePage({super.key});
@@ -331,3 +331,4 @@ class _ManagerHomePageState extends State<ManagerHomePage> {
     );
   }
 }
+

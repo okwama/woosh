@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/controllers/auth_controller.dart';
-import 'package:woosh/services/session_service.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/services/session_service.dart';
 
 class InactivityTimer extends StatefulWidget {
   final Widget child;
@@ -133,3 +133,4 @@ class _InactivityTimerState extends State<InactivityTimer> {
     return widget.child;
   }
 }
+

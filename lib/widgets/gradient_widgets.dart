@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/utils/app_theme.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
 
 // A FloatingActionButton with gold gradient
 class GradientFAB extends StatelessWidget {
@@ -174,3 +174,4 @@ class GradientWrapper extends StatelessWidget {
     );
   }
 }
+
