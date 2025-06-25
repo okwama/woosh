@@ -59,7 +59,7 @@ class MyApp extends StatelessWidget {
       enableLogging: false, // Set to true for debugging
       child: GetMaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Whoosh',
+        title: 'Glamour Queen',
         defaultTransition: Transition.cupertino,
         transitionDuration: const Duration(milliseconds: 200),
         theme: ThemeData(
@@ -84,7 +84,7 @@ class MyApp extends StatelessWidget {
             foregroundColor: Color.fromARGB(255, 255, 255, 255),
             elevation: 0,
           ),
-          cardTheme: CardTheme(
+          cardTheme: CardThemeData(
             color: const Color.fromARGB(255, 255, 255, 255),
             elevation: 2,
             shape: RoundedRectangleBorder(
