@@ -61,4 +61,3 @@ class Client extends Outlet {
     };
   }
 }
-

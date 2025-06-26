@@ -28,6 +28,10 @@ import 'package:glamour_queen/services/session_state.dart';
 import 'package:glamour_queen/services/hive/session_hive_service.dart';
 import 'package:glamour_queen/models/session_model.dart';
 import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/services/hive/client_hive_service.dart';
+import 'package:glamour_queen/services/hive/product_hive_service.dart';
+import 'package:glamour_queen/services/hive/order_hive_service.dart';
+import 'package:glamour_queen/services/hive/route_hive_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -128,12 +132,105 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isLoading = true;
     });
-    await Future.wait([
-      _loadPendingJourneyPlans(),
-      _loadPendingTasks(),
-      _loadUnreadNotices(),
-    ]);
-    _loadUserData();
+
+    try {
+      // Clear all app caches
+      print('🧹 Clearing app cache...');
+      ApiService.clearCache();
+
+      // Clear specific caches that might be stale
+      ApiService.clearOutletsCache();
+      ApiService.clearProductCache();
+
+      // Clear Hive caches if services are available
+      try {
+        // Clear client cache
+        final clientHiveService = Get.find<ClientHiveService>();
+        await clientHiveService.clearAllClients();
+        print('🧹 Cleared client Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear client Hive cache: $e');
+      }
+
+      try {
+        // Clear product cache
+        final productHiveService = Get.find<ProductHiveService>();
+        await productHiveService.clearAllProducts();
+        print('🧹 Cleared product Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear product Hive cache: $e');
+      }
+
+      try {
+        // Clear order cache
+        final orderHiveService = Get.find<OrderHiveService>();
+        await orderHiveService.clearAllOrders();
+        print('🧹 Cleared order Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear order Hive cache: $e');
+      }
+
+      try {
+        // Clear route cache
+        final routeHiveService = Get.find<RouteHiveService>();
+        await routeHiveService.clearAllRoutes();
+        print('🧹 Cleared route Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear route Hive cache: $e');
+      }
+
+      // Clear any other cached data
+      final box = GetStorage();
+      final keys = box.getKeys();
+      for (final key in keys) {
+        if (key.startsWith('cache_') ||
+            key.startsWith('outlets_') ||
+            key.startsWith('products_') ||
+            key.startsWith('routes_') ||
+            key.startsWith('notices_') ||
+            key.startsWith('clients_') ||
+            key.startsWith('orders_')) {
+          box.remove(key);
+          print('🧹 Cleared cache key: $key');
+        }
+      }
+
+      print('🧹 Cache cleared successfully');
+
+      // Reload all data
+      await Future.wait([
+        _loadPendingJourneyPlans(),
+        _loadPendingTasks(),
+        _loadUnreadNotices(),
+      ]);
+      _loadUserData();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Dashboard refreshed and all caches cleared'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error during refresh: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Refresh completed with some errors: $e'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _logout() async {
@@ -255,17 +352,33 @@ class _HomePageState extends State<HomePage> {
             );
           }),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () {
-              _refreshData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refreshing dashboard...'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+            tooltip: 'Refresh & Clear Cache',
+            onPressed: _isLoading
+                ? null
+                : () {
+                    // Show immediate feedback
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            '🔄 Refreshing dashboard and clearing cache...'),
+                        duration: Duration(seconds: 1),
+                        backgroundColor: Colors.blue,
+                      ),
+                    );
+
+                    // Start the refresh process
+                    _refreshData();
+                  },
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),

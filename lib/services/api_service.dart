@@ -134,35 +134,87 @@ class ApiService {
     try {
       final refreshToken = TokenService.getRefreshToken();
       if (refreshToken == null) {
-        print('No refresh token available');
+        print('🔄 No refresh token available');
         return false;
       }
 
-      print('Attempting to refresh token');
+      print('🔄 Attempting to refresh token');
       final response = await http.post(
         Uri.parse('$baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'refreshToken': refreshToken}),
       );
 
-      print('Refresh response status: ${response.statusCode}');
+      print('🔄 Refresh response status: ${response.statusCode}');
+      print('🔄 Refresh response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        // Debug the response structure
+        print('🔄 Refresh response structure:');
+        print('🔄 Data type: ${data.runtimeType}');
+        print('🔄 Access token type: ${data['accessToken']?.runtimeType}');
+        print('🔄 Expires in type: ${data['expiresIn']?.runtimeType}');
+
+        // Extract access token with proper type checking
+        String? newAccessToken;
+        int? expiresIn;
+
+        // Handle access token
+        if (data['accessToken'] is String) {
+          newAccessToken = data['accessToken'] as String;
+          print(
+              '🔄 Access token extracted as String (length: ${newAccessToken.length})');
+        } else if (data['accessToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['accessToken'] as Map<String, dynamic>;
+          print('🔄 Access token is Map, keys: ${tokenMap.keys.toList()}');
+          newAccessToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔄 Access token extracted from Map: ${newAccessToken != null ? 'success' : 'failed'}');
+        } else if (data['accessToken'] != null) {
+          newAccessToken = data['accessToken'].toString();
+          print(
+              '🔄 Access token converted to String (length: ${newAccessToken.length})');
+        } else {
+          print('🔄 WARNING: Access token is null in refresh response');
+        }
+
+        // Handle expiresIn
+        if (data['expiresIn'] is int) {
+          expiresIn = data['expiresIn'] as int;
+          print('🔄 Expires in extracted as int: $expiresIn');
+        } else if (data['expiresIn'] is String) {
+          expiresIn = int.tryParse(data['expiresIn'] as String);
+          print('🔄 Expires in parsed from String: $expiresIn');
+        } else {
+          print('🔄 WARNING: Expires in is null or invalid type');
+        }
+
+        // Validate that we have the required access token
+        if (newAccessToken == null || newAccessToken.isEmpty) {
+          print(
+              '🔄 ERROR: Access token is missing or invalid in refresh response');
+          return false;
+        }
+
         // Store new access token while keeping refresh token
         await TokenService.storeTokens(
-          accessToken: data['accessToken'],
+          accessToken: newAccessToken,
           refreshToken: refreshToken, // Keep existing refresh token
-          expiresIn: data['expiresIn'],
+          expiresIn: expiresIn,
         );
 
-        print('Token refreshed successfully');
+        print('🔄 Token refreshed successfully');
         return true;
       }
-      print('Token refresh failed: ${response.body}');
+      print('🔄 Token refresh failed: ${response.body}');
       return false;
     } catch (e) {
-      print('Error refreshing token: $e');
+      print('🔄 Error refreshing token: $e');
+      print('🔄 Error type: ${e.runtimeType}');
       return false;
     }
   }
@@ -340,12 +392,40 @@ class ApiService {
           final List<dynamic> data = responseData['data'];
           return PaginatedResponse<Client>(
             data: data.map((json) {
+              // Handle latitude and longitude type conversion
+              double? latitude;
+              double? longitude;
+
+              if (json['latitude'] != null) {
+                if (json['latitude'] is int) {
+                  latitude = (json['latitude'] as int).toDouble();
+                } else if (json['latitude'] is double) {
+                  latitude = json['latitude'] as double;
+                } else if (json['latitude'] is String) {
+                  latitude = double.tryParse(json['latitude'] as String);
+                } else {
+                  latitude = null;
+                }
+              }
+
+              if (json['longitude'] != null) {
+                if (json['longitude'] is int) {
+                  longitude = (json['longitude'] as int).toDouble();
+                } else if (json['longitude'] is double) {
+                  longitude = json['longitude'] as double;
+                } else if (json['longitude'] is String) {
+                  longitude = double.tryParse(json['longitude'] as String);
+                } else {
+                  longitude = null;
+                }
+              }
+
               return Client(
                   id: json['id'],
                   name: json['name'],
                   address: json['address'] ?? '',
-                  latitude: json['latitude'],
-                  longitude: json['longitude'],
+                  latitude: latitude,
+                  longitude: longitude,
                   regionId: json['region_id'] ?? 0,
                   region: json['region'] ?? '',
                   countryId: json['country_id'] ?? 0);
@@ -655,8 +735,11 @@ class ApiService {
           .replace(queryParameters: queryParams);
       final response = await http.get(uri, headers: await _headers());
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseBody = jsonDecode(response.body);
+      final handledResponse = await _handleResponse(response);
+
+      if (handledResponse.statusCode == 200) {
+        final Map<String, dynamic> responseBody =
+            jsonDecode(handledResponse.body);
         if (responseBody.containsKey('data') && responseBody['data'] is List) {
           final List<dynamic> journeyPlansJson = responseBody['data'];
           return journeyPlansJson
@@ -667,7 +750,8 @@ class ApiService {
               'Unexpected response format: missing data field or not a list');
         }
       } else {
-        throw Exception('Failed to load journey plans: ${response.statusCode}');
+        throw Exception(
+            'Failed to load journey plans: ${handledResponse.statusCode}');
       }
     } catch (e) {
       print('Error in fetchJourneyPlans: $e');
@@ -1036,6 +1120,8 @@ class ApiService {
   Future<Map<String, dynamic>> login(
       String phoneNumber, String password) async {
     try {
+      print('🔐 Starting login process for phone: $phoneNumber');
+
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
@@ -1045,21 +1131,102 @@ class ApiService {
         }),
       );
 
+      print('🔐 Login response status: ${response.statusCode}');
+      print('🔐 Login response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Store tokens using TokenService
-        print('🔐 Storing tokens from login response');
+        // Debug the response structure
+        print('🔐 Login response structure:');
+        print('🔐 Data type: ${data.runtimeType}');
+        print('🔐 Access token type: ${data['accessToken']?.runtimeType}');
+        print('🔐 Refresh token type: ${data['refreshToken']?.runtimeType}');
         print('🔐 Access token present: ${data['accessToken'] != null}');
         print('🔐 Refresh token present: ${data['refreshToken'] != null}');
         print('🔐 Expires in: ${data['expiresIn']} seconds');
-        
+
+        // Extract tokens with proper type checking
+        String? accessToken;
+        String? refreshToken;
+        int? expiresIn;
+
+        // Handle access token
+        if (data['accessToken'] is String) {
+          accessToken = data['accessToken'] as String;
+          print(
+              '🔐 Access token extracted as String (length: ${accessToken.length})');
+        } else if (data['accessToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['accessToken'] as Map<String, dynamic>;
+          print('🔐 Access token is Map, keys: ${tokenMap.keys.toList()}');
+          accessToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔐 Access token extracted from Map: ${accessToken != null ? 'success' : 'failed'}');
+        } else if (data['accessToken'] != null) {
+          accessToken = data['accessToken'].toString();
+          print(
+              '🔐 Access token converted to String (length: ${accessToken.length})');
+        } else {
+          print('🔐 WARNING: Access token is null in response');
+        }
+
+        // Handle refresh token
+        if (data['refreshToken'] is String) {
+          refreshToken = data['refreshToken'] as String;
+          print(
+              '🔐 Refresh token extracted as String (length: ${refreshToken.length})');
+        } else if (data['refreshToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['refreshToken'] as Map<String, dynamic>;
+          print('🔐 Refresh token is Map, keys: ${tokenMap.keys.toList()}');
+          refreshToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔐 Refresh token extracted from Map: ${refreshToken != null ? 'success' : 'failed'}');
+        } else if (data['refreshToken'] != null) {
+          refreshToken = data['refreshToken'].toString();
+          print(
+              '🔐 Refresh token converted to String (length: ${refreshToken.length})');
+        } else {
+          print('🔐 WARNING: Refresh token is null in response');
+        }
+
+        // Handle expiresIn
+        if (data['expiresIn'] is int) {
+          expiresIn = data['expiresIn'] as int;
+          print('🔐 Expires in extracted as int: $expiresIn');
+        } else if (data['expiresIn'] is String) {
+          expiresIn = int.tryParse(data['expiresIn'] as String);
+          print('🔐 Expires in parsed from String: $expiresIn');
+        } else {
+          print('🔐 WARNING: Expires in is null or invalid type');
+        }
+
+        // Validate that we have the required tokens
+        if (accessToken == null || accessToken.isEmpty) {
+          print('🔐 ERROR: Access token is missing or invalid in response');
+          throw Exception('Access token is missing or invalid in response');
+        }
+
+        if (refreshToken == null || refreshToken.isEmpty) {
+          print('🔐 ERROR: Refresh token is missing or invalid in response');
+          throw Exception('Refresh token is missing or invalid in response');
+        }
+
+        // Store tokens using TokenService
+        print('🔐 Storing tokens from login response');
+        print('🔐 Access token length: ${accessToken.length}');
+        print('🔐 Refresh token length: ${refreshToken.length}');
+        print('🔐 Expires in: ${expiresIn ?? 'not set'} seconds');
+
         await TokenService.storeTokens(
-          accessToken: data['accessToken'],
-          refreshToken: data['refreshToken'],
-          expiresIn: data['expiresIn'],
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiresIn: expiresIn,
         );
-        
+
         print('🔐 Tokens stored successfully');
         TokenService.debugTokenInfo();
 
@@ -1069,18 +1236,21 @@ class ApiService {
 
         return {
           'success': true,
-          'token': data['accessToken'],
+          'token': accessToken,
           'salesRep': data['salesRep']
         };
       } else {
         final error = jsonDecode(response.body);
+        print(
+            '🔐 Login failed with status ${response.statusCode}: ${error['error'] ?? 'Unknown error'}');
         return {
           'success': false,
           'message': error['error'] ?? 'Login failed',
         };
       }
     } catch (e) {
-      print('Login error: $e');
+      print('🔐 Login error: $e');
+      print('🔐 Error type: ${e.runtimeType}');
       return {
         'success': false,
         'message': 'Network error occurred',
@@ -1160,15 +1330,29 @@ class ApiService {
     };
   }
 
-  // Get products (independent of outlets)
+  // Get products (independent of outlets) with caching and performance optimizations
   static Future<List<Product>> getProducts({
     int page = 1,
     int limit = 200,
     String? search,
     int? clientId,
+    bool forceRefresh = false,
   }) async {
     try {
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cacheKey =
+            'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+        final cachedData = ApiCache.get(cacheKey);
+        if (cachedData != null) {
+          print('📦 Returning cached products data');
+          return List<Product>.from(cachedData);
+        }
+      }
+
       await _initDioHeaders();
+
+      // Add timeout for better performance
       final response = await _dio.get(
         '/products',
         queryParameters: {
@@ -1177,15 +1361,37 @@ class ApiService {
           if (search != null && search.isNotEmpty) 'search': search,
           if (clientId != null) 'clientId': clientId,
         },
+        options: Options(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data['data'];
-        return data.map((json) => Product.fromJson(json)).toList();
+        final products = data.map((json) => Product.fromJson(json)).toList();
+
+        // Cache the results for 5 minutes
+        final cacheKey =
+            'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+        ApiCache.set(cacheKey, products, validity: const Duration(minutes: 5));
+
+        print('📦 Fetched ${products.length} products from API');
+        return products;
       }
       throw Exception('Failed to load products');
     } catch (e) {
       print('Error fetching products: $e');
+
+      // Try to return cached data if available
+      final cacheKey =
+          'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+      final cachedData = ApiCache.get(cacheKey);
+      if (cachedData != null) {
+        print('📦 Returning cached products due to API error');
+        return List<Product>.from(cachedData);
+      }
+
       // Return empty list instead of rethrowing to handle silently
       return [];
     }
@@ -2516,13 +2722,20 @@ class ApiService {
 
   static Future<JourneyPlan?> getActiveVisit() async {
     try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
       final response = await http.get(
         Uri.parse('$baseUrl/journey-plans?status=in_progress'),
         headers: await _headers(),
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final handledResponse = await _handleResponse(response);
+
+      if (handledResponse.statusCode == 200) {
+        final data = json.decode(handledResponse.body);
         if (data != null && data['data'] != null && data['data'].isNotEmpty) {
           // Return the first in-progress visit
           return JourneyPlan.fromJson(data['data'][0]);
@@ -2779,14 +2992,43 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+
+        // Handle latitude and longitude type conversion
+        double? latitude;
+        double? longitude;
+
+        if (responseData['latitude'] != null) {
+          if (responseData['latitude'] is int) {
+            latitude = (responseData['latitude'] as int).toDouble();
+          } else if (responseData['latitude'] is double) {
+            latitude = responseData['latitude'] as double;
+          } else if (responseData['latitude'] is String) {
+            latitude = double.tryParse(responseData['latitude'] as String);
+          } else {
+            latitude = null;
+          }
+        }
+
+        if (responseData['longitude'] != null) {
+          if (responseData['longitude'] is int) {
+            longitude = (responseData['longitude'] as int).toDouble();
+          } else if (responseData['longitude'] is double) {
+            longitude = responseData['longitude'] as double;
+          } else if (responseData['longitude'] is String) {
+            longitude = double.tryParse(responseData['longitude'] as String);
+          } else {
+            longitude = null;
+          }
+        }
+
         // Add null checks and default values
         return Client(
           id: responseData['id'] ?? 0,
           name: responseData['name'] ?? '',
           address: responseData['address'] ?? '',
           balance: responseData['balance']?.toString() ?? '0',
-          latitude: responseData['latitude']?.toDouble() ?? 0.0,
-          longitude: responseData['longitude']?.toDouble() ?? 0.0,
+          latitude: latitude,
+          longitude: longitude,
           email: responseData['email'] ?? '',
           contact: responseData['contact'] ?? '',
           taxPin: responseData['tax_pin'] ?? '',
@@ -3099,5 +3341,36 @@ class ApiService {
       print('Error checking void status: $e');
       throw Exception('Failed to check void status: $e');
     }
+  }
+
+  // Clear product cache
+  static void clearProductCache() {
+    final keysToRemove = <String>[];
+    ApiCache._cache.keys.forEach((key) {
+      if (key.startsWith('products_')) {
+        keysToRemove.add(key);
+      }
+    });
+
+    for (final key in keysToRemove) {
+      ApiCache.remove(key);
+    }
+    print('📦 Cleared ${keysToRemove.length} product cache entries');
+  }
+
+  // Get products with force refresh
+  static Future<List<Product>> getProductsWithRefresh({
+    int page = 1,
+    int limit = 200,
+    String? search,
+    int? clientId,
+  }) async {
+    return getProducts(
+      page: page,
+      limit: limit,
+      search: search,
+      clientId: clientId,
+      forceRefresh: true,
+    );
   }
 }
