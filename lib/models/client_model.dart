@@ -28,8 +28,12 @@ class Client extends Outlet {
       name: json['name'] as String,
       address: json['address'] as String,
       balance: json['balance']?.toString(),
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
+      latitude: json['latitude'] != null
+          ? (json['latitude'] as num).toDouble()
+          : null,
+      longitude: json['longitude'] != null
+          ? (json['longitude'] as num).toDouble()
+          : null,
       email: json['email'] as String?,
       contact: json['contact'] as String?,
       taxPin: json['tax_pin'] as String?,

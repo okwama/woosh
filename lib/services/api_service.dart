@@ -365,8 +365,12 @@ class ApiService {
                   id: json['id'],
                   name: json['name'],
                   address: json['address'] ?? '',
-                  latitude: json['latitude'],
-                  longitude: json['longitude'],
+                  latitude: json['latitude'] != null
+                      ? (json['latitude'] as num).toDouble()
+                      : null,
+                  longitude: json['longitude'] != null
+                      ? (json['longitude'] as num).toDouble()
+                      : null,
                   regionId: json['region_id'] ?? 0,
                   region: json['region'] ?? '',
                   countryId: json['country_id'] ?? 0);
@@ -2855,8 +2859,12 @@ class ApiService {
           name: responseData['name'] ?? '',
           address: responseData['address'] ?? '',
           balance: responseData['balance']?.toString() ?? '0',
-          latitude: responseData['latitude']?.toDouble() ?? 0.0,
-          longitude: responseData['longitude']?.toDouble() ?? 0.0,
+          latitude: responseData['latitude'] != null
+              ? (responseData['latitude'] as num).toDouble()
+              : null,
+          longitude: responseData['longitude'] != null
+              ? (responseData['longitude'] as num).toDouble()
+              : null,
           email: responseData['email'] ?? '',
           contact: responseData['contact'] ?? '',
           taxPin: responseData['tax_pin'] ?? '',

@@ -1,4 +1,3 @@
-
 class Office {
   final int id;
   final String name;

@@ -82,12 +82,20 @@ class JourneyPlanModel extends HiveObject {
       checkInTime: json['checkInTime'] != null
           ? DateTime.parse(json['checkInTime'])
           : null,
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
+      latitude: json['latitude'] != null
+          ? (json['latitude'] as num).toDouble()
+          : null,
+      longitude: json['longitude'] != null
+          ? (json['longitude'] as num).toDouble()
+          : null,
       imageUrl: json['imageUrl'],
       notes: json['notes'],
-      checkoutLatitude: json['checkoutLatitude']?.toDouble(),
-      checkoutLongitude: json['checkoutLongitude']?.toDouble(),
+      checkoutLatitude: json['checkoutLatitude'] != null
+          ? (json['checkoutLatitude'] as num).toDouble()
+          : null,
+      checkoutLongitude: json['checkoutLongitude'] != null
+          ? (json['checkoutLongitude'] as num).toDouble()
+          : null,
       checkoutTime: json['checkoutTime'] != null
           ? DateTime.parse(json['checkoutTime'])
           : null,

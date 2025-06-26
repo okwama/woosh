@@ -47,8 +47,11 @@ class ClientModel extends HiveObject {
       address: json['address'],
       phone: json['phone'],
       email: json['email'],
-      latitude: json['latitude'].toDouble(),
-      longitude: json['longitude'].toDouble(),
+      latitude:
+          json['latitude'] != null ? (json['latitude'] as num).toDouble() : 0.0,
+      longitude: json['longitude'] != null
+          ? (json['longitude'] as num).toDouble()
+          : 0.0,
       status: json['status'],
     );
   }

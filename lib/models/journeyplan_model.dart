@@ -176,28 +176,20 @@ class JourneyPlan {
       checkInTime:
           json['checkInTime'] != null ? parseDate(json['checkInTime']) : null,
       latitude: json['latitude'] != null
-          ? (json['latitude'] is double
-              ? json['latitude']
-              : double.tryParse(json['latitude'].toString()))
+          ? (json['latitude'] as num).toDouble()
           : null,
       longitude: json['longitude'] != null
-          ? (json['longitude'] is double
-              ? json['longitude']
-              : double.tryParse(json['longitude'].toString()))
+          ? (json['longitude'] as num).toDouble()
           : null,
       imageUrl: json['imageUrl'],
       client: Client.fromJson(json['client']),
       checkoutTime:
           json['checkoutTime'] != null ? parseDate(json['checkoutTime']) : null,
       checkoutLatitude: json['checkoutLatitude'] != null
-          ? (json['checkoutLatitude'] is double
-              ? json['checkoutLatitude']
-              : double.tryParse(json['checkoutLatitude'].toString()))
+          ? (json['checkoutLatitude'] as num).toDouble()
           : null,
       checkoutLongitude: json['checkoutLongitude'] != null
-          ? (json['checkoutLongitude'] is double
-              ? json['checkoutLongitude']
-              : double.tryParse(json['checkoutLongitude'].toString()))
+          ? (json['checkoutLongitude'] as num).toDouble()
           : null,
       showUpdateLocation:
           json['showUpdateLocation'] ?? true, // Parse the new flag
