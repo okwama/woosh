@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/models/noticeboard_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/models/noticeboard_model.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart'; // Import for date formatting
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart'; // Import for date formatting
 
 class NoticeBoardPage extends StatefulWidget {
   const NoticeBoardPage({super.key});
@@ -303,3 +303,4 @@ class _NoticeBoardPageState extends State<NoticeBoardPage> {
     );
   }
 }
+

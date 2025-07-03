@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
-import 'package:woosh/models/hive/cart_item_model.dart';
-import 'package:woosh/models/orderitem_model.dart';
+import 'package:glamour_queen/models/hive/cart_item_model.dart';
+import 'package:glamour_queen/models/orderitem_model.dart';
 
 class CartHiveService {
   static const String _boxName = 'cartBox';
@@ -44,3 +44,4 @@ class CartHiveService {
   bool get isEmpty => _cartBox.isEmpty;
   int get length => _cartBox.length;
 }
+

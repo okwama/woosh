@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:glamour_queen/models/client_model.dart';
 
 class ClientListItem extends StatelessWidget {
   final Client client;
@@ -63,3 +63,4 @@ class ClientListItem extends StatelessWidget {
     );
   }
 }
+

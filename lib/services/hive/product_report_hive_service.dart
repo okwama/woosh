@@ -1,8 +1,8 @@
 import 'package:hive/hive.dart';
-import 'package:woosh/models/hive/product_report_hive_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
-import 'package:woosh/models/report/report_model.dart';
+import 'package:glamour_queen/models/hive/product_report_hive_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/report/productReport_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
 
 class ProductReportHiveService {
   static const String _boxName = 'productReports';
@@ -109,3 +109,4 @@ class ProductReportHiveService {
     await _productReportBox.clear();
   }
 }
+

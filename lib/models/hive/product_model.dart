@@ -1,12 +1,12 @@
 import 'package:hive/hive.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/price_option_model.dart';
-import 'package:woosh/models/store_quantity_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/price_option_model.dart';
+import 'package:glamour_queen/models/store_quantity_model.dart';
 
 // This part reference will be generated after running build_runner
 part 'product_model.g.dart';
 
-@HiveType(typeId: 12) // Using typeId 12 which is available
+@HiveType(typeId: 2)
 class ProductHiveModel extends HiveObject {
   @HiveField(0)
   final int id;
@@ -24,22 +24,21 @@ class ProductHiveModel extends HiveObject {
   final String? description;
 
   @HiveField(5)
-  final String? imageUrl;
-
-  @HiveField(6)
-  final int? clientId;
-
-  @HiveField(7)
-  final int? packSize;
-
-  @HiveField(8)
   final String createdAt;
 
-  @HiveField(9)
+  @HiveField(6)
   final String updatedAt;
 
-  // We can't store complex objects like PriceOption in Hive directly
-  // So we'll store the first price option values for simplicity
+  @HiveField(7)
+  final String? imageUrl;
+
+  @HiveField(8)
+  final int? clientId;
+
+  @HiveField(9)
+  final int? packSize;
+
+  // Price option fields
   @HiveField(10)
   final int? defaultPriceOptionId;
 
@@ -51,6 +50,10 @@ class ProductHiveModel extends HiveObject {
 
   @HiveField(13)
   final int? defaultPriceCategoryId;
+
+  // Store quantities for stock information
+  @HiveField(14)
+  final List<Map<String, dynamic>> storeQuantitiesData;
 
   ProductHiveModel({
     required this.id,
@@ -67,11 +70,11 @@ class ProductHiveModel extends HiveObject {
     this.defaultPriceOption,
     this.defaultPriceValue,
     this.defaultPriceCategoryId,
+    this.storeQuantitiesData = const [],
   });
 
   // Convert from API Product model to Hive model
-  factory ProductHiveModel.fromProduct(Product product) {
-    // Get the default price option details if available
+  static ProductHiveModel fromProduct(Product product) {
     int? defaultPriceOptionId;
     String? defaultPriceOption;
     double? defaultPriceValue;
@@ -84,6 +87,10 @@ class ProductHiveModel extends HiveObject {
       defaultPriceValue = firstOption.value?.toDouble();
       defaultPriceCategoryId = firstOption.categoryId;
     }
+
+    // Convert store quantities to serializable format
+    final storeQuantitiesData =
+        product.storeQuantities.map((sq) => sq.toJson()).toList();
 
     return ProductHiveModel(
       id: product.id,
@@ -100,6 +107,7 @@ class ProductHiveModel extends HiveObject {
       defaultPriceOption: defaultPriceOption,
       defaultPriceValue: defaultPriceValue,
       defaultPriceCategoryId: defaultPriceCategoryId,
+      storeQuantitiesData: storeQuantitiesData,
     );
   }
 
@@ -114,14 +122,31 @@ class ProductHiveModel extends HiveObject {
       priceOptions.add(PriceOption(
         id: defaultPriceOptionId!,
         option: defaultPriceOption!,
+<<<<<<< HEAD
         value: defaultPriceValue!.toInt(),
         value_tzs: null, // Nullable value
         value_ngn: null, // Nullable value
+=======
+        value: defaultPriceValue!,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         categoryId: defaultPriceCategoryId ??
             category_id, // Use the stored category ID or fall back to product's category_id
       ));
     }
 
+<<<<<<< HEAD
+=======
+    // Convert store quantities data back to StoreQuantity objects
+    List<StoreQuantity> storeQuantities = [];
+    try {
+      storeQuantities = storeQuantitiesData
+          .map((data) => StoreQuantity.fromJson(data))
+          .toList();
+    } catch (e) {
+      print('Error parsing store quantities: $e');
+    }
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     return Product(
       id: id,
       name: name,
@@ -134,7 +159,7 @@ class ProductHiveModel extends HiveObject {
       clientId: clientId,
       packSize: packSize,
       priceOptions: priceOptions,
-      storeQuantities: [],
+      storeQuantities: storeQuantities,
     );
   }
 }

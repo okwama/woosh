@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
@@ -21,18 +22,48 @@ import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/services/hive/pending_session_hive_service.dart';
+=======
+import 'package:glamour_queen/models/hive/session_model.dart';
+import 'package:glamour_queen/pages/Leave/leaveapplication_page.dart';
+import 'package:glamour_queen/pages/client/viewclient_page.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/pages/product_return_page.dart';
+import 'package:glamour_queen/pages/login/login_page.dart';
+import 'package:glamour_queen/pages/order/viewOrder/vieworder_page.dart';
+import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
+import 'package:glamour_queen/pages/task/task.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/task_service.dart';
+import 'package:glamour_queen/pages/profile/profile.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/controllers/cart_controller.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
+<<<<<<< HEAD
 import 'package:woosh/services/session_service.dart';
 import 'package:woosh/services/session_state.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/session_model.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/services/version_check_service.dart';
+=======
+import 'package:glamour_queen/services/session_service.dart';
+import 'package:glamour_queen/services/session_state.dart';
+import 'package:glamour_queen/services/hive/session_hive_service.dart';
+import 'package:glamour_queen/models/session_model.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/services/hive/client_hive_service.dart';
+import 'package:glamour_queen/services/hive/product_hive_service.dart';
+import 'package:glamour_queen/services/hive/order_hive_service.dart';
+import 'package:glamour_queen/services/hive/route_hive_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -134,12 +165,105 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isLoading = true;
     });
-    await Future.wait([
-      _loadPendingJourneyPlans(),
-      _loadPendingTasks(),
-      _loadUnreadNotices(),
-    ]);
-    _loadUserData();
+
+    try {
+      // Clear all app caches
+      print('🧹 Clearing app cache...');
+      ApiService.clearCache();
+
+      // Clear specific caches that might be stale
+      ApiService.clearOutletsCache();
+      ApiService.clearProductCache();
+
+      // Clear Hive caches if services are available
+      try {
+        // Clear client cache
+        final clientHiveService = Get.find<ClientHiveService>();
+        await clientHiveService.clearAllClients();
+        print('🧹 Cleared client Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear client Hive cache: $e');
+      }
+
+      try {
+        // Clear product cache
+        final productHiveService = Get.find<ProductHiveService>();
+        await productHiveService.clearAllProducts();
+        print('🧹 Cleared product Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear product Hive cache: $e');
+      }
+
+      try {
+        // Clear order cache
+        final orderHiveService = Get.find<OrderHiveService>();
+        await orderHiveService.clearAllOrders();
+        print('🧹 Cleared order Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear order Hive cache: $e');
+      }
+
+      try {
+        // Clear route cache
+        final routeHiveService = Get.find<RouteHiveService>();
+        await routeHiveService.clearAllRoutes();
+        print('🧹 Cleared route Hive cache');
+      } catch (e) {
+        print('⚠️ Could not clear route Hive cache: $e');
+      }
+
+      // Clear any other cached data
+      final box = GetStorage();
+      final keys = box.getKeys();
+      for (final key in keys) {
+        if (key.startsWith('cache_') ||
+            key.startsWith('outlets_') ||
+            key.startsWith('products_') ||
+            key.startsWith('routes_') ||
+            key.startsWith('notices_') ||
+            key.startsWith('clients_') ||
+            key.startsWith('orders_')) {
+          box.remove(key);
+          print('🧹 Cleared cache key: $key');
+        }
+      }
+
+      print('🧹 Cache cleared successfully');
+
+      // Reload all data
+      await Future.wait([
+        _loadPendingJourneyPlans(),
+        _loadPendingTasks(),
+        _loadUnreadNotices(),
+      ]);
+      _loadUserData();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Dashboard refreshed and all caches cleared'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error during refresh: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Refresh completed with some errors: $e'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _logout() async {
@@ -295,7 +419,11 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
+<<<<<<< HEAD
         title: 'WOOSH',
+=======
+        title: 'Glamour Queen',
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         actions: [
           Obx(() {
             final cartItems = _cartController.totalItems;
@@ -340,17 +468,33 @@ class _HomePageState extends State<HomePage> {
             );
           }),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () {
-              _refreshData();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refreshing dashboard...'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+            tooltip: 'Refresh & Clear Cache',
+            onPressed: _isLoading
+                ? null
+                : () {
+                    // Show immediate feedback
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            '🔄 Refreshing dashboard and clearing cache...'),
+                        duration: Duration(seconds: 1),
+                        backgroundColor: Colors.blue,
+                      ),
+                    );
+
+                    // Start the refresh process
+                    _refreshData();
+                  },
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -527,6 +671,13 @@ class _HomePageState extends State<HomePage> {
                             );
                           }
                         });
+                      },
+                    ),
+                    MenuTile(
+                      title: 'Uplift Sales History',
+                      icon: Icons.history,
+                      onTap: () {
+                        Get.toNamed('/uplift-sales');
                       },
                     ),
                     MenuTile(

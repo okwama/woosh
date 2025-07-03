@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/target_model.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:woosh/services/target_service.dart';
+=======
+import 'package:glamour_queen/models/order_model.dart';
+import 'package:glamour_queen/models/target_model.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:glamour_queen/services/target_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 import 'package:get_storage/get_storage.dart';
 
 class AllTargetsTab extends StatefulWidget {
@@ -605,3 +614,7 @@ class _AllTargetsTabState extends State<AllTargetsTab> {
         ),
       );
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

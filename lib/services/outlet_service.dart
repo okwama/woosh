@@ -1,9 +1,17 @@
 import 'package:get/get.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:woosh/models/hive/client_model.dart';
 import 'package:woosh/services/outlet_search.dart';
+=======
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/hive/client_hive_service.dart';
+import 'package:glamour_queen/models/hive/client_model.dart';
+import 'package:glamour_queen/services/outlet_search.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 // Helper classes for search functionality
 class _Match {
@@ -110,7 +118,11 @@ class OutletService extends GetxService {
       // Then fetch fresh data
       await _loadNextPage(reset: true);
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error in initial data load: $e');
+=======
+      print('? Error in initial data load: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(_state.value.copyWith(
         error: e.toString(),
         isLoading: false,
@@ -126,7 +138,11 @@ class OutletService extends GetxService {
     try {
       await _loadNextPage();
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error loading more outlets: $e');
+=======
+      print('? Error loading more outlets: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(_state.value.copyWith(
         error: e.toString(),
         isLoadingMore: false,
@@ -145,7 +161,11 @@ class OutletService extends GetxService {
     try {
       await _loadNextPage(reset: true);
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error refreshing outlets: $e');
+=======
+      print('? Error refreshing outlets: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(_state.value.copyWith(
         error: e.toString(),
         isLoading: false,
@@ -176,7 +196,11 @@ class OutletService extends GetxService {
 
         final hasMore = pageOutlets.length == _pageSize;
         print(
+<<<<<<< HEAD
             '📊 Loaded ${pageOutlets.length} outlets for page $pageToLoad. Total: ${_allOutlets.length}');
+=======
+            '?? Loaded ${pageOutlets.length} outlets for page $pageToLoad. Total: ${_allOutlets.length}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
         // Only update state once with accumulated results
         _updateState(currentState.copyWith(
@@ -203,7 +227,11 @@ class OutletService extends GetxService {
         ));
       }
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error loading page $pageToLoad: $e');
+=======
+      print('? Error loading page $pageToLoad: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       throw Exception('Failed to load outlets: $e');
     }
   }
@@ -223,7 +251,11 @@ class OutletService extends GetxService {
         lastUpdateTime: DateTime.now(),
       ));
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error adding outlet: $e');
+=======
+      print('? Error adding outlet: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(currentState.copyWith(
         error: 'Failed to add outlet: $e',
       ));
@@ -244,7 +276,11 @@ class OutletService extends GetxService {
         lastUpdateTime: DateTime.now(),
       ));
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error loading from cache: $e');
+=======
+      print('? Error loading from cache: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     }
   }
 
@@ -254,7 +290,11 @@ class OutletService extends GetxService {
       final clientModels = outlets.map(_mapOutletToClient).toList();
       await clientHiveService.saveClients(clientModels);
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Error caching outlets: $e');
+=======
+      print('? Error caching outlets: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     }
   }
 
@@ -265,7 +305,11 @@ class OutletService extends GetxService {
     );
     _state.value = updatedState;
     print(
+<<<<<<< HEAD
         '📊 State updated: ${updatedState.outlets.length} outlets, page ${updatedState.currentPage}');
+=======
+        '?? State updated: ${updatedState.outlets.length} outlets, page ${updatedState.currentPage}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   }
 
   ClientModel _mapOutletToClient(Outlet outlet) {
@@ -309,7 +353,11 @@ class OutletService extends GetxService {
     final scoredOutlets = <_ScoredOutlet>[];
     final searchQuery = patternWords.join(' ').trim().toLowerCase();
 
+<<<<<<< HEAD
     print('🔍 Matching outlets with query: "$searchQuery"');
+=======
+    print('?? Matching outlets with query: "$searchQuery"');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
     for (final outlet in outlets) {
       final name = outlet.name.trim().toLowerCase();
@@ -326,7 +374,11 @@ class OutletService extends GetxService {
       // Exact full string match
       if (name == searchQuery || address == searchQuery) {
         score = 1000.0;
+<<<<<<< HEAD
         print('💯 Exact match found for: ${outlet.name}');
+=======
+        print('?? Exact match found for: ${outlet.name}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
       // Contains exact search query as a substring
       else if (name.contains(searchQuery) || address.contains(searchQuery)) {
@@ -335,12 +387,20 @@ class OutletService extends GetxService {
         if (name.split(' ').any((word) => word == searchQuery) ||
             address.split(' ').any((word) => word == searchQuery)) {
           score = 900.0;
+<<<<<<< HEAD
           print('🎯 Word boundary match found for: ${outlet.name}');
+=======
+          print('?? Word boundary match found for: ${outlet.name}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         }
         // Boost score if it matches at start
         if (name.startsWith(searchQuery) || address.startsWith(searchQuery)) {
           score += 50.0;
+<<<<<<< HEAD
           print('⭐ Start match found for: ${outlet.name}');
+=======
+          print('? Start match found for: ${outlet.name}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         }
       }
       // Partial word match
@@ -359,7 +419,11 @@ class OutletService extends GetxService {
 
         if (matchedWords > 0) {
           score = 500.0 * (matchedWords / searchWords.length);
+<<<<<<< HEAD
           print('✨ Partial match found for: ${outlet.name} (Score: $score)');
+=======
+          print('? Partial match found for: ${outlet.name} (Score: $score)');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         }
       }
 
@@ -375,7 +439,11 @@ class OutletService extends GetxService {
   List<Outlet> _getFilteredOutlets() {
     var filteredOutlets = List<Outlet>.from(_allOutlets);
     print(
+<<<<<<< HEAD
         '🔄 Starting filtration with ${filteredOutlets.length} total outlets');
+=======
+        '?? Starting filtration with ${filteredOutlets.length} total outlets');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
     // Apply search filter if exists
     if (_state.value.searchQuery?.isNotEmpty == true) {
@@ -384,17 +452,29 @@ class OutletService extends GetxService {
       if (_searchCache.containsKey(query)) {
         filteredOutlets = _searchCache[query]!;
         print(
+<<<<<<< HEAD
             '🎯 Using cached search results: ${filteredOutlets.length} matches');
       } else {
         filteredOutlets = OutletSearch.searchOutlets(filteredOutlets, query);
         _searchCache[query] = filteredOutlets;
         print('🎯 Search results: ${filteredOutlets.length} matches found');
+=======
+            '?? Using cached search results: ${filteredOutlets.length} matches');
+      } else {
+        filteredOutlets = OutletSearch.searchOutlets(filteredOutlets, query);
+        _searchCache[query] = filteredOutlets;
+        print('?? Search results: ${filteredOutlets.length} matches found');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     }
 
     // Apply time filter if exists
     if (_state.value.timeFilter != null) {
+<<<<<<< HEAD
       print('⏰ Applying time filter: ${_state.value.timeFilter}');
+=======
+      print('? Applying time filter: ${_state.value.timeFilter}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final beforeCount = filteredOutlets.length;
       final now = DateTime.now();
       final cutoffDate = switch (_state.value.timeFilter) {
@@ -409,11 +489,19 @@ class OutletService extends GetxService {
             .where((outlet) => outlet.createdAt?.isAfter(cutoffDate) ?? false)
             .toList();
         print(
+<<<<<<< HEAD
             '📅 Time filter results: ${filteredOutlets.length} matches out of $beforeCount outlets');
       }
     }
 
     print('✅ Final filtered results: ${filteredOutlets.length} outlets');
+=======
+            '?? Time filter results: ${filteredOutlets.length} matches out of $beforeCount outlets');
+      }
+    }
+
+    print('? Final filtered results: ${filteredOutlets.length} outlets');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     return filteredOutlets;
   }
 
@@ -430,10 +518,17 @@ class OutletService extends GetxService {
   }
 
   Future<void> search(String query) async {
+<<<<<<< HEAD
     print('\n🔎 Starting search operation with query: "${query}"');
 
     if (query.isEmpty) {
       print('🔄 Empty query - resetting to normal pagination mode');
+=======
+    print('\n?? Starting search operation with query: "${query}"');
+
+    if (query.isEmpty) {
+      print('?? Empty query - resetting to normal pagination mode');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(_state.value.copyWith(
         searchQuery: null,
         isLoading: true,
@@ -442,7 +537,11 @@ class OutletService extends GetxService {
       return;
     }
 
+<<<<<<< HEAD
     print('⏳ Setting loading state and preparing search...');
+=======
+    print('? Setting loading state and preparing search...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     _updateState(_state.value.copyWith(
       isLoading: true,
       error: null,
@@ -452,10 +551,17 @@ class OutletService extends GetxService {
     try {
       // If we don't have all outlets yet, load them
       if (_allOutlets.length < _state.value.currentPage * _pageSize) {
+<<<<<<< HEAD
         print('📥 Loading all outlets for comprehensive search...');
         await _loadAllOutlets();
       } else {
         print('✓ Using existing ${_allOutlets.length} outlets for search');
+=======
+        print('?? Loading all outlets for comprehensive search...');
+        await _loadAllOutlets();
+      } else {
+        print('? Using existing ${_allOutlets.length} outlets for search');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
 
       // Update state with filtered results
@@ -466,9 +572,15 @@ class OutletService extends GetxService {
         lastUpdateTime: DateTime.now(),
       ));
 
+<<<<<<< HEAD
       print('🏁 Search operation completed');
     } catch (e) {
       print('❌ Search operation failed: $e');
+=======
+      print('?? Search operation completed');
+    } catch (e) {
+      print('? Search operation failed: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       _updateState(_state.value.copyWith(
         error: 'Search failed: ${e.toString()}',
         isLoading: false,
@@ -488,10 +600,20 @@ class OutletService extends GetxService {
       _allOutlets.clear();
       _allOutlets.addAll(allOutlets);
 
+<<<<<<< HEAD
       print('📊 Loaded ${allOutlets.length} total outlets');
     } catch (e) {
       print('❌ Error loading all outlets: $e');
+=======
+      print('?? Loaded ${allOutlets.length} total outlets');
+    } catch (e) {
+      print('? Error loading all outlets: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       throw e;
     }
   }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

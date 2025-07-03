@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
+<<<<<<< HEAD
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/widgets/cream_gradient_card.dart';
+=======
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/widgets/cream_gradient_card.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class VisitsTab extends StatelessWidget {
   final Map<String, dynamic> dailyVisitTargets;
@@ -225,3 +231,7 @@ class VisitsTab extends StatelessWidget {
     );
   }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

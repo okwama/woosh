@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
 
 class UpliftCartItem {
   final Product product;
@@ -90,4 +90,7 @@ void addItem(Product product, int quantity, double unitPrice) {
   bool get isEmpty => items.isEmpty;
 
   bool get isNotEmpty => items.isNotEmpty;
+
+  void clearCart() {}
 }
+

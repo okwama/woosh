@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/session_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/services/session_service.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:woosh/controllers/auth_controller.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:glamour_queen/services/token_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -71,6 +72,9 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
+    // Set login in progress flag
+    TokenService.setLoginInProgress(true);
+
     try {
       final result = await _apiService.login(
         _phoneNumberController.text.trim(),
@@ -78,8 +82,11 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (result['success']) {
-        await _authController.login(
-            _phoneNumberController.text.trim(), _passwordController.text);
+        // Pass the result to auth controller instead of calling login again
+        await _authController.handleLoginResult(result);
+
+        // Debug token information after successful login
+        TokenService.debugTokenInfo();
 
         // Get user role from the result
         final salesRep = result['salesRep'];
@@ -104,6 +111,8 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       _showToast(e.toString(), true);
     } finally {
+      // Clear login in progress flag
+      TokenService.setLoginInProgress(false);
       setState(() {
         _isLoading = false;
       });
@@ -121,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: appBackground,
       body: SafeArea(
+<<<<<<< HEAD
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -130,6 +140,61 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+=======
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Logo
+                Center(
+                  child: Container(
+                    height: 120,
+                    width: 120,
+                    margin: const EdgeInsets.only(bottom: 40),
+                    decoration: GradientDecoration.goldCircular(),
+                    padding: const EdgeInsets.all(2.0),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(15),
+                      child:
+                          Image.asset('assets/glam.png', fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+
+                // Welcome Text
+                GradientText(
+                  'Glamour Queen',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Sign in to continue',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF666666),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 40),
+
+                // Login Form
+                Form(
+                  key: _formKey,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -232,6 +297,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                     const SizedBox(height: 16),
 
+<<<<<<< HEAD
                                     // Password Field
                                     _buildModernTextField(
                                       controller: _passwordController,
@@ -261,6 +327,10 @@ class _LoginPageState extends State<LoginPage> {
 
                       // Reduced bottom spacer
                       SizedBox(height: screenHeight * 0.03),
+=======
+                      // Don't have an account
+                      _buildSignUpRow(),
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                     ],
                   ),
                 ),

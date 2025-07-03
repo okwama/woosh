@@ -4,16 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
-import 'package:woosh/utils/app_theme.dart' hide CreamGradientCard;
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/gradient_widgets.dart';
-import 'package:woosh/widgets/cream_gradient_card.dart';
-import 'package:woosh/controllers/profile_controller.dart';
+import 'package:glamour_queen/utils/app_theme.dart' hide CreamGradientCard;
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:glamour_queen/widgets/cream_gradient_card.dart';
+import 'package:glamour_queen/controllers/profile_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+<<<<<<< HEAD
 import 'package:woosh/services/token_service.dart';
+=======
+import 'package:glamour_queen/services/token_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class UserStatsPage extends StatefulWidget {
   const UserStatsPage({super.key});

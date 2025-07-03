@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/uplift_sale_model.dart';
 import 'package:woosh/controllers/uplift_sale_controller.dart';
 import 'package:woosh/utils/date_utils.dart' as custom_date;
 import 'package:woosh/utils/currency_utils.dart';
 import 'package:woosh/utils/country_currency_labels.dart';
 import 'package:get_storage/get_storage.dart';
+=======
+import 'package:glamour_queen/models/uplift_sale_model.dart';
+import 'package:glamour_queen/controllers/uplift_sale_controller.dart';
+import 'package:glamour_queen/utils/date_utils.dart' as custom_date;
+import 'package:glamour_queen/utils/currency_utils.dart';
+import 'package:glamour_queen/pages/client/viewclient_page.dart';
+import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class UpliftSalesPage extends StatefulWidget {
   const UpliftSalesPage({super.key});
@@ -65,69 +75,80 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
 
   Widget _buildFilterSection() {
     return Card(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(8.0),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Filters',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            Obx(
+              () => DropdownButtonFormField<String>(
+                value: _selectedStatus.value,
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+                items: [
+                  'all',
+                  'pending',
+                  'completed',
+                  'cancelled',
+                ].map((status) {
+                  return DropdownMenuItem<String>(
+                    value: status,
+                    child: Text(status.capitalizeFirst!),
+                  );
+                }).toList(),
+                onChanged: (String? value) {
+                  if (value != null) {
+                    _selectedStatus.value = value;
+                    _loadSales();
+                  }
+                },
               ),
             ),
-            const SizedBox(height: 16),
-            Obx(() => DropdownButtonFormField<String>(
-                  value: _selectedStatus.value,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    'all',
-                    'pending',
-                    'completed',
-                    'cancelled',
-                  ].map((status) {
-                    return DropdownMenuItem<String>(
-                      value: status,
-                      child: Text(status.capitalizeFirst!),
-                    );
-                  }).toList(),
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      _selectedStatus.value = value;
-                      _loadSales();
-                    }
-                  },
-                )),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: Obx(() => TextButton(
-                        onPressed: () => _selectDate(context, true),
+                  child: Obx(
+                    () => TextButton.icon(
+                      onPressed: () => _selectDate(context, true),
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Flexible(
                         child: Text(
                           _startDate.value != null
                               ? custom_date.DateUtils.formatDate(
                                   _startDate.value!)
-                              : 'Select Start Date',
+                              : 'Start Date',
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      )),
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: Obx(() => TextButton(
-                        onPressed: () => _selectDate(context, false),
+                  child: Obx(
+                    () => TextButton.icon(
+                      onPressed: () => _selectDate(context, false),
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Flexible(
                         child: Text(
                           _endDate.value != null
                               ? custom_date.DateUtils.formatDate(
                                   _endDate.value!)
-                              : 'Select End Date',
+                              : 'End Date',
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      )),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -139,13 +160,13 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
 
   Widget _buildSaleItem(UpliftSale sale) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: InkWell(
         onTap: () {
-          // TODO: Navigate to sale details
+          _showSaleDetails(sale);
         },
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -153,31 +174,32 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Sale #${sale.id}',
+                    'Sale #${sale.id} - ${sale.client?.name ?? 'No Client'}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 15,
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 6,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: _getStatusColor(sale.status),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       sale.status.capitalizeFirst!,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                     ),
                   ),
                 ],
               ),
+<<<<<<< HEAD
               const SizedBox(height: 8),
               if (sale.client != null) ...[
                 Text(
@@ -197,12 +219,30 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
+=======
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Items: ${sale.items.length}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  Text(
+                    'Total: ${CurrencyUtils.format(sale.totalAmount)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
               ),
               const SizedBox(height: 4),
               Text(
                 'Date: ${custom_date.DateUtils.formatDateTime(sale.createdAt)}',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: Colors.grey,
                 ),
               ),
@@ -226,6 +266,54 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
     }
   }
 
+  void _showSaleDetails(UpliftSale sale) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Sale #${sale.id}'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Status: ${sale.status.capitalizeFirst}'),
+              const SizedBox(height: 8),
+              if (sale.client != null) ...[
+                Text('Client: ${sale.client!.name}'),
+                const SizedBox(height: 8),
+              ],
+              Text('Total Amount: ${CurrencyUtils.format(sale.totalAmount)}'),
+              const SizedBox(height: 8),
+              Text(
+                  'Date: ${custom_date.DateUtils.formatDateTime(sale.createdAt)}'),
+              const SizedBox(height: 16),
+              const Text(
+                'Items:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...sale.items.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• ${item.product?.name ?? 'Product #${item.productId}'} - '
+                      'Qty: ${item.quantity}, '
+                      'Price: ${CurrencyUtils.format(item.unitPrice)}, '
+                      'Total: ${CurrencyUtils.format(item.total)}',
+                    ),
+                  )),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,6 +321,14 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
         title: const Text('Uplift Sales'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () {
+              Get.offAllNamed('/home');
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -271,6 +367,27 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
             }),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Get.to(
+            () => const ViewClientPage(forUpliftSale: true),
+            preventDuplicates: true,
+            transition: Transition.rightToLeft,
+          )?.then((selectedOutlet) {
+            if (selectedOutlet != null && selectedOutlet is Outlet) {
+              Get.off(
+                () => UpliftSaleCartPage(
+                  outlet: selectedOutlet,
+                ),
+                transition: Transition.rightToLeft,
+              );
+            }
+          });
+        },
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
     );
   }

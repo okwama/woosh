@@ -1,9 +1,9 @@
 import 'package:get/get.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
 import 'package:dio/dio.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
 
 class UpliftSaleItem {
   final int id;
@@ -28,13 +28,14 @@ class UpliftSaleItem {
 
   factory UpliftSaleItem.fromJson(Map<String, dynamic> json) {
     return UpliftSaleItem(
-      id: json['id'] as int,
-      upliftSaleId: json['upliftSaleId'] as int,
-      productId: json['productId'] as int,
-      quantity: json['quantity'] as int,
-      unitPrice: (json['unitPrice'] as num).toDouble(),
-      total: (json['total'] as num).toDouble(),
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      id: json['id'] as int? ?? 0,
+      upliftSaleId: json['upliftSaleId'] as int? ?? 0,
+      productId: json['productId'] as int? ?? 0,
+      quantity: json['quantity'] as int? ?? 0,
+      unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0.0,
+      total: (json['total'] as num?)?.toDouble() ?? 0.0,
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
       product: json['product'] != null
           ? Product.fromJson(json['product'] as Map<String, dynamic>)
           : null,
@@ -76,16 +77,20 @@ class UpliftSale {
 
   factory UpliftSale.fromJson(Map<String, dynamic> json) {
     return UpliftSale(
-      id: json['id'] as int,
-      clientId: json['clientId'] as int,
-      userId: json['userId'] as int,
-      status: json['status'] as String,
-      totalAmount: (json['totalAmount'] as num).toDouble(),
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
-      items: (json['items'] as List<dynamic>)
-          .map((item) => UpliftSaleItem.fromJson(item as Map<String, dynamic>))
-          .toList(),
+      id: json['id'] as int? ?? 0,
+      clientId: json['clientId'] as int? ?? 0,
+      userId: json['userId'] as int? ?? 0,
+      status: json['status'] as String? ?? 'pending',
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ??
+          DateTime.now(),
+      items: (json['items'] as List<dynamic>?)
+              ?.map((item) =>
+                  UpliftSaleItem.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          [],
       client: json['client'] != null
           ? Client.fromJson(json['client'] as Map<String, dynamic>)
           : null,

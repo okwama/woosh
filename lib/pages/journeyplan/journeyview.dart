@@ -3,24 +3,27 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/models/journeyplan_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/pages/journeyplan/reports/reportMain_page.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/reportMain_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 // ignore: unnecessary_import
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:math';
-import 'package:woosh/services/universal_file.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/services/universal_file.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:get/get.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+<<<<<<< HEAD
 import 'package:woosh/services/jouneyplan_service.dart';
 import 'package:woosh/utils/safe_error_handler.dart';
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -188,26 +191,42 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
 
     try {
+<<<<<<< HEAD
       print('🔵 Starting optimistic check-in process...');
+=======
+      print('?? Starting optimistic check-in process...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       setState(() {
         _isCheckingIn = true;
       });
 
       // Validation checks
       if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
+<<<<<<< HEAD
         print('⚠️ Already checked in to this visit');
+=======
+        print('?? Already checked in to this visit');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         return;
       }
 
       // Get location with fallback
       if (_currentPosition == null) {
+<<<<<<< HEAD
         print('📍 Getting current position...');
+=======
+        print('?? Getting current position...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         await _getCurrentPosition();
         // _getCurrentPosition now handles all fallbacks silently
       }
 
       // Take photo
+<<<<<<< HEAD
       print('📸 Opening camera...');
+=======
+      print('?? Opening camera...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
@@ -217,6 +236,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       );
 
       if (image == null) {
+<<<<<<< HEAD
         print('❌ No image captured');
         return;
       }
@@ -224,6 +244,15 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       // Show brief loading indicator for photo processing
       print('⌛ Showing brief loading indicator...');
+=======
+        print('? No image captured');
+        return;
+      }
+      print('?? Image captured: ${image.path}');
+
+      // Show brief loading indicator for photo processing
+      print('? Showing brief loading indicator...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -286,12 +315,20 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       // Update parent immediately with optimistic data
       if (widget.onCheckInSuccess != null) {
+<<<<<<< HEAD
         print('📢 Optimistic UI update - notifying parent immediately');
+=======
+        print('?? Optimistic UI update - notifying parent immediately');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         widget.onCheckInSuccess!(optimisticPlan);
       }
 
       // Navigate immediately to reports page
+<<<<<<< HEAD
       print('🔄 Navigating to reports page immediately (optimistic)');
+=======
+      print('?? Navigating to reports page immediately (optimistic)');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -303,10 +340,17 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       );
 
       // Process background sync
+<<<<<<< HEAD
       print('🔄 Starting background sync...');
       _processCheckInInBackground(File(image.path), optimisticPlan);
     } catch (e) {
       print('❌ Check-in error: $e');
+=======
+      print('?? Starting background sync...');
+      _processCheckInInBackground(File(image.path), optimisticPlan);
+    } catch (e) {
+      print('? Check-in error: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       // Silent error handling - continue with optimistic data
     } finally {
       if (mounted) {
@@ -321,7 +365,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   Future<void> _processCheckInInBackground(
       File imageFile, JourneyPlan optimisticPlan) async {
     try {
+<<<<<<< HEAD
       print('🔄 Background: Starting API sync...');
+=======
+      print('?? Background: Starting API sync...');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
       // Check network and session
       if (!_isNetworkAvailable) {
@@ -351,16 +399,26 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           maxWidth: 800,
           quality: 60,
         );
+<<<<<<< HEAD
         print('Background: ✅ Image uploaded successfully');
       } catch (e) {
         print('Background: ❌ Image upload failed: $e');
+=======
+        print('Background: ? Image uploaded successfully');
+      } catch (e) {
+        print('Background: ? Image upload failed: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         imageUrl = null;
       }
 
       // Update journey plan in background
       try {
         print('Background: Updating journey plan...');
+<<<<<<< HEAD
         final updatedPlan = await JourneyPlanService.updateJourneyPlan(
+=======
+        final updatedPlan = await ApiService.updateJourneyPlan(
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           journeyId: optimisticPlan.id!,
           clientId: optimisticPlan.client.id,
           status: JourneyPlan.statusInProgress,
@@ -369,7 +427,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           longitude: _currentPosition?.longitude,
           checkInTime: optimisticPlan.checkInTime,
         );
+<<<<<<< HEAD
         print('Background: ✅ Journey plan updated successfully');
+=======
+        print('Background: ? Journey plan updated successfully');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         _resetRetry();
 
         // Update parent with real data (silently)
@@ -377,6 +439,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           widget.onCheckInSuccess!(updatedPlan);
         }
       } catch (e) {
+<<<<<<< HEAD
         print('Background: ❌ Journey plan update failed: $e');
         // Only schedule retry for non-server errors (server errors are handled by the service)
         if (!(e.toString().contains('500') ||
@@ -393,6 +456,16 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       }
     } catch (e) {
       print('Background: ❌ Error in background sync: $e');
+=======
+        print('Background: ? Journey plan update failed: $e');
+        // Schedule retry for background sync
+        _scheduleRetry(
+            () => _processCheckInInBackground(imageFile, optimisticPlan),
+            operationName: 'background-journey-update');
+      }
+    } catch (e) {
+      print('Background: ? Error in background sync: $e');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       // Schedule retry
       _scheduleRetry(
           () => _processCheckInInBackground(imageFile, optimisticPlan),
@@ -681,7 +754,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       }
 
       // 2. Submit completion with minimal data
+<<<<<<< HEAD
       final completedPlan = await JourneyPlanService.updateJourneyPlan(
+=======
+      final completedPlan = await ApiService.updateJourneyPlan(
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         journeyId: widget.journeyPlan.id!,
         clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,
@@ -714,6 +791,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
+<<<<<<< HEAD
         SafeErrorHandler.showSnackBar(
           context,
           e,
@@ -723,6 +801,18 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
             label: 'Retry',
             textColor: Colors.white,
             onPressed: _handleAllReportsSubmitted,
+=======
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not complete visit: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _handleAllReportsSubmitted,
+            ),
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           ),
         );
       }
@@ -1659,3 +1749,4 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     _retryTimer?.cancel();
   }
 }
+

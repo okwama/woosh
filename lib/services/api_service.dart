@@ -11,6 +11,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart'
     hide FormData, MultipartFile; // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/hive/route_model.dart';
 // Generated files cannot be directly imported
 import 'package:woosh/models/noticeboard_model.dart';
@@ -25,20 +26,44 @@ import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/target_model.dart';
 import 'package:woosh/models/leave_model.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+=======
+import 'package:glamour_queen/models/hive/pending_journey_plan_model.dart';
+import 'package:glamour_queen/models/hive/route_model.dart';
+// Generated files cannot be directly imported
+import 'package:glamour_queen/models/journeyplan_model.dart';
+import 'package:glamour_queen/models/noticeboard_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:glamour_queen/models/user_model.dart';
+import 'package:glamour_queen/services/hive/pending_journey_plan_hive_service.dart';
+import 'package:glamour_queen/services/hive/route_hive_service.dart';
+import 'package:glamour_queen/utils/config.dart';
+import 'package:glamour_queen/utils/image_utils.dart';
+import 'package:glamour_queen/models/order_model.dart';
+import 'package:glamour_queen/models/target_model.dart';
+import 'package:glamour_queen/models/leave_model.dart';
+import 'package:glamour_queen/controllers/auth_controller.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
-import 'package:woosh/services/target_service.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/models/clientPayment_model.dart';
-import 'package:woosh/models/uplift_sale_model.dart';
-import 'package:woosh/models/store_model.dart';
+import 'package:glamour_queen/services/target_service.dart';
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:glamour_queen/models/clientPayment_model.dart';
+import 'package:glamour_queen/models/uplift_sale_model.dart';
+import 'package:glamour_queen/models/store_model.dart';
 // Handle platform-specific imports
 import 'image_upload.dart';
 import 'package:image/image.dart' as img;
+<<<<<<< HEAD
 import 'package:woosh/services/offline_toast_service.dart';
 import 'package:woosh/utils/error_handler.dart';
 import 'package:woosh/services/token_service.dart';
+=======
+import 'package:glamour_queen/services/offline_toast_service.dart';
+import 'package:glamour_queen/services/token_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 // API Caching System
 class ApiCache {
@@ -112,7 +137,10 @@ class ApiService {
 
   static String? _getAuthToken() {
     try {
+<<<<<<< HEAD
       // Use new TokenService for access token
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       return TokenService.getAccessToken();
     } catch (e) {
       print('Error reading token from storage: $e');
@@ -165,10 +193,102 @@ class ApiService {
 
   static Future<bool> _shouldRefreshToken() async {
     try {
+<<<<<<< HEAD
       // Use new TokenService to check if token is expired
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       return TokenService.isTokenExpired();
     } catch (e) {
       print('Error checking token expiration: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> refreshAccessToken() async {
+    try {
+      final refreshToken = TokenService.getRefreshToken();
+      if (refreshToken == null) {
+        print('🔄 No refresh token available');
+        return false;
+      }
+
+      print('🔄 Attempting to refresh token');
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'refreshToken': refreshToken}),
+      );
+
+      print('🔄 Refresh response status: ${response.statusCode}');
+      print('🔄 Refresh response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Debug the response structure
+        print('🔄 Refresh response structure:');
+        print('🔄 Data type: ${data.runtimeType}');
+        print('🔄 Access token type: ${data['accessToken']?.runtimeType}');
+        print('🔄 Expires in type: ${data['expiresIn']?.runtimeType}');
+
+        // Extract access token with proper type checking
+        String? newAccessToken;
+        int? expiresIn;
+
+        // Handle access token
+        if (data['accessToken'] is String) {
+          newAccessToken = data['accessToken'] as String;
+          print(
+              '🔄 Access token extracted as String (length: ${newAccessToken.length})');
+        } else if (data['accessToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['accessToken'] as Map<String, dynamic>;
+          print('🔄 Access token is Map, keys: ${tokenMap.keys.toList()}');
+          newAccessToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔄 Access token extracted from Map: ${newAccessToken != null ? 'success' : 'failed'}');
+        } else if (data['accessToken'] != null) {
+          newAccessToken = data['accessToken'].toString();
+          print(
+              '🔄 Access token converted to String (length: ${newAccessToken.length})');
+        } else {
+          print('🔄 WARNING: Access token is null in refresh response');
+        }
+
+        // Handle expiresIn
+        if (data['expiresIn'] is int) {
+          expiresIn = data['expiresIn'] as int;
+          print('🔄 Expires in extracted as int: $expiresIn');
+        } else if (data['expiresIn'] is String) {
+          expiresIn = int.tryParse(data['expiresIn'] as String);
+          print('🔄 Expires in parsed from String: $expiresIn');
+        } else {
+          print('🔄 WARNING: Expires in is null or invalid type');
+        }
+
+        // Validate that we have the required access token
+        if (newAccessToken == null || newAccessToken.isEmpty) {
+          print(
+              '🔄 ERROR: Access token is missing or invalid in refresh response');
+          return false;
+        }
+
+        // Store new access token while keeping refresh token
+        await TokenService.storeTokens(
+          accessToken: newAccessToken,
+          refreshToken: refreshToken, // Keep existing refresh token
+          expiresIn: expiresIn,
+        );
+
+        print('🔄 Token refreshed successfully');
+        return true;
+      }
+      print('🔄 Token refresh failed: ${response.body}');
+      return false;
+    } catch (e) {
+      print('🔄 Error refreshing token: $e');
+      print('🔄 Error type: ${e.runtimeType}');
       return false;
     }
   }
@@ -183,6 +303,7 @@ class ApiService {
     _isRefreshing = true;
     _refreshFuture = Future<bool>(() async {
       try {
+<<<<<<< HEAD
         print('Attempting to refresh token');
         final refreshed = await refreshAccessToken();
 
@@ -196,6 +317,10 @@ class ApiService {
       } catch (e) {
         print('Error refreshing token: $e');
         return false;
+=======
+        final refreshed = await refreshAccessToken();
+        return refreshed;
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       } finally {
         _isRefreshing = false;
       }
@@ -273,6 +398,8 @@ class ApiService {
       errorMessage = "You're offline. Please check your internet connection.";
     } else if (error.toString().contains('TimeoutException')) {
       errorMessage = "Request timed out. Please try again.";
+    } else if (error.toString().contains('500')) {
+      errorMessage = "Server error. Please try again later.";
     }
 
     // Use the global error handler to show user-friendly messages (but not for server errors)
@@ -334,7 +461,10 @@ class ApiService {
     int? routeId,
     int page = 1,
     int limit = 20000,
+<<<<<<< HEAD
     int retryCount = 0,
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   }) async {
     const maxRetries = 3;
 
@@ -370,16 +500,49 @@ class ApiService {
           final List<dynamic> data = responseData['data'];
           return PaginatedResponse<Client>(
             data: data.map((json) {
+              // Handle latitude and longitude type conversion
+              double? latitude;
+              double? longitude;
+
+              if (json['latitude'] != null) {
+                if (json['latitude'] is int) {
+                  latitude = (json['latitude'] as int).toDouble();
+                } else if (json['latitude'] is double) {
+                  latitude = json['latitude'] as double;
+                } else if (json['latitude'] is String) {
+                  latitude = double.tryParse(json['latitude'] as String);
+                } else {
+                  latitude = null;
+                }
+              }
+
+              if (json['longitude'] != null) {
+                if (json['longitude'] is int) {
+                  longitude = (json['longitude'] as int).toDouble();
+                } else if (json['longitude'] is double) {
+                  longitude = json['longitude'] as double;
+                } else if (json['longitude'] is String) {
+                  longitude = double.tryParse(json['longitude'] as String);
+                } else {
+                  longitude = null;
+                }
+              }
+
               return Client(
                   id: json['id'],
                   name: json['name'],
                   address: json['address'] ?? '',
+<<<<<<< HEAD
                   latitude: json['latitude'] != null
                       ? (json['latitude'] as num).toDouble()
                       : null,
                   longitude: json['longitude'] != null
                       ? (json['longitude'] as num).toDouble()
                       : null,
+=======
+                  latitude: latitude,
+                  longitude: longitude,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                   regionId: json['region_id'] ?? 0,
                   region: json['region'] ?? '',
                   countryId: json['country_id'] ?? 0);
@@ -541,6 +704,356 @@ class ApiService {
     }
   }
 
+<<<<<<< HEAD
+=======
+  // Create a Journey Plan
+  static Future<JourneyPlan> createJourneyPlan(int clientId, DateTime dateTime,
+      {String? notes, int? routeId}) async {
+    try {
+      print(
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
+      // Debug: print the entire request body and user
+      print('--- Incoming createJourneyPlan request ---');
+      print(
+          'req.body: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
+      print('req.user: $clientId');
+
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      // Format time as HH:MM:SS
+      final time =
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+
+      print(
+          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes, routeId: $routeId');
+
+      final Map<String, dynamic> requestBody = {
+        'clientId': clientId,
+        'date': dateTime.toIso8601String(),
+        'time': time,
+      };
+
+      if (notes != null && notes.isNotEmpty) {
+        requestBody['notes'] = notes;
+      }
+
+      if (routeId != null) {
+        requestBody['routeId'] = routeId;
+      }
+
+      // Add debug logging
+      print('Journey plan request body: ${jsonEncode(requestBody)}');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/journey-plans'),
+        headers: await _headers(),
+        body: jsonEncode(requestBody),
+      );
+
+      print('Create journey plan response status: ${response.statusCode}');
+      print('Create journey plan response body: ${response.body}');
+
+      if (response.statusCode == 201) {
+        final decodedJson = jsonDecode(response.body);
+        return JourneyPlan.fromJson(decodedJson);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to create journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error in createJourneyPlan: $e');
+      throw Exception('An error occurred while creating the journey plan: $e');
+    }
+  }
+
+  // Delete Journey Plan
+  static Future<void> deleteJourneyPlan(int journeyId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+
+      print('Deleting journey plan: $journeyId');
+      print('URL: $url');
+
+      final response = await http.delete(
+        url,
+        headers: await _headers(),
+      );
+
+      print('Delete journey plan response status: ${response.statusCode}');
+      print('Delete journey plan response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decodedJson = jsonDecode(response.body);
+        print('Journey plan deleted successfully: ${decodedJson['message']}');
+        return;
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(
+            'Failed to delete journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Error in deleteJourneyPlan: $e');
+      throw Exception('An error occurred while deleting the journey plan: $e');
+    }
+  }
+
+  static Future<void> createJourneyPlanOffline(
+    int clientId,
+    DateTime date, {
+    String? notes,
+    int? routeId,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/journey-plans'),
+        headers: await _headers(),
+        body: jsonEncode({
+          'clientId': clientId,
+          'date': date.toIso8601String(),
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (routeId != null) 'routeId': routeId,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw Exception(
+            'Failed to create journey plan: ${response.statusCode}');
+      }
+
+      // Clear journey plans cache to force refresh
+      ApiCache.remove('journey_plans');
+    } catch (e) {
+      print('Error creating journey plan: $e');
+
+      // Check if it's a network error
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Network')) {
+        // Store the journey plan locally for later sync
+        try {
+          final pendingService = Get.find<PendingJourneyPlanHiveService>();
+          final pendingPlan = PendingJourneyPlanModel(
+            clientId: clientId,
+            date: date,
+            notes: notes,
+            routeId: routeId,
+            createdAt: DateTime.now(),
+            status: 'pending',
+          );
+          await pendingService.savePendingJourneyPlan(pendingPlan);
+          return; // Return without throwing exception as we've saved it locally
+        } catch (hiveError) {
+          print('Error saving pending journey plan: $hiveError');
+        }
+      }
+
+      throw Exception('Failed to create journey plan: $e');
+    }
+  }
+
+  // Fetch Journey Plans
+  static Future<List<JourneyPlan>> fetchJourneyPlans(
+      {int page = 1, int limit = 2000}) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      final uri = Uri.parse('$baseUrl/journey-plans')
+          .replace(queryParameters: queryParams);
+      final response = await http.get(uri, headers: await _headers());
+
+      final handledResponse = await _handleResponse(response);
+
+      if (handledResponse.statusCode == 200) {
+        final Map<String, dynamic> responseBody =
+            jsonDecode(handledResponse.body);
+        if (responseBody.containsKey('data') && responseBody['data'] is List) {
+          final List<dynamic> journeyPlansJson = responseBody['data'];
+          return journeyPlansJson
+              .map((json) => JourneyPlan.fromJson(json))
+              .toList();
+        } else {
+          throw Exception(
+              'Unexpected response format: missing data field or not a list');
+        }
+      } else {
+        throw Exception(
+            'Failed to load journey plans: ${handledResponse.statusCode}');
+      }
+    } catch (e) {
+      print('Error in fetchJourneyPlans: $e');
+      throw Exception('An error occurred while fetching journey plans: $e');
+    }
+  }
+
+  // Update Journey Plan
+  static Future<JourneyPlan> updateJourneyPlan({
+    required int journeyId,
+    required int clientId,
+    int? status,
+    DateTime? checkInTime,
+    double? latitude,
+    double? longitude,
+    String? imageUrl,
+    String? notes,
+    DateTime? checkoutTime,
+    double? checkoutLatitude,
+    double? checkoutLongitude,
+  }) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+
+      // Convert numeric status to string status for the API
+      String? statusString;
+      if (status != null) {
+        switch (status) {
+          case JourneyPlan.statusPending:
+            statusString = 'pending';
+            break;
+          case JourneyPlan.statusCheckedIn:
+            statusString = 'checked_in';
+            break;
+          case JourneyPlan.statusInProgress:
+            statusString = 'in_progress';
+            break;
+          case JourneyPlan.statusCompleted:
+            statusString = 'completed';
+            break;
+          case JourneyPlan.statusCancelled:
+            statusString = 'cancelled';
+            break;
+          default:
+            throw Exception('Invalid status value: $status');
+        }
+      }
+
+      final body = {
+        'clientId': clientId,
+        if (statusString != null) 'status': statusString,
+        if (checkInTime != null) 'checkInTime': checkInTime.toIso8601String(),
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+        if (notes != null) 'notes': notes,
+        if (checkoutTime != null)
+          'checkoutTime': checkoutTime.toIso8601String(),
+        if (checkoutLatitude != null) 'checkoutLatitude': checkoutLatitude,
+        if (checkoutLongitude != null) 'checkoutLongitude': checkoutLongitude,
+      };
+
+      // Log all API requests for debugging
+      print('API REQUEST - JOURNEY PLAN UPDATE:');
+      print('URL: $url');
+      print('Journey ID: $journeyId');
+      print('Client ID: $clientId');
+      print('Status: $statusString');
+      print('Request Body: ${jsonEncode(body)}');
+
+      final response = await http.put(
+        url,
+        headers: await _headers(),
+        body: jsonEncode(body),
+      );
+
+      // Log all responses
+      print('API RESPONSE - JOURNEY PLAN UPDATE:');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final decodedJson = jsonDecode(response.body);
+
+        // Log successful response data
+        if (checkoutTime != null) {
+          print('CHECKOUT API - RESPONSE SUCCESSFUL:');
+          print('Journey ID: ${decodedJson['id']}');
+          print('Status: ${decodedJson['status']}');
+          print('Checkout Time: ${decodedJson['checkoutTime']}');
+          print('Checkout Latitude: ${decodedJson['checkoutLatitude']}');
+          print('Checkout Longitude: ${decodedJson['checkoutLongitude']}');
+        }
+
+        return JourneyPlan.fromJson(decodedJson);
+      } else {
+        final errorBody = jsonDecode(response.body);
+
+        // Log error response data
+        if (checkoutTime != null) {
+          print('CHECKOUT API - RESPONSE ERROR:');
+          print('Status Code: ${response.statusCode}');
+          print('Error Message: ${errorBody['error'] ?? 'Unknown error'}');
+        }
+
+        throw Exception(
+            'Failed to update journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      // Log exception
+      if (checkoutTime != null) {
+        print('CHECKOUT API - EXCEPTION:');
+        print('Error: $e');
+      }
+
+      throw Exception('An error occurred while updating the journey plan: $e');
+    }
+  }
+
+  // Get Journey Plan by ID
+  static Future<JourneyPlan?> getJourneyPlanById(int journeyId) async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
+
+      final response = await http.get(
+        url,
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final decodedJson = jsonDecode(response.body);
+        return JourneyPlan.fromJson(decodedJson);
+      } else if (response.statusCode == 404) {
+        return null; // Journey plan not found
+      } else {
+        throw Exception('Failed to fetch journey plan: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getJourneyPlanById: $e');
+      throw Exception('An error occurred while fetching the journey plan: $e');
+    }
+  }
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   static Future<List<NoticeBoard>> getNotice() async {
     try {
       final token = _getAuthToken();
@@ -756,7 +1269,11 @@ class ApiService {
   Future<Map<String, dynamic>> login(
       String phoneNumber, String password) async {
     try {
+<<<<<<< HEAD
       print('🔐 Attempting login for: $phoneNumber');
+=======
+      print('🔐 Starting login process for phone: $phoneNumber');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
@@ -772,6 +1289,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+<<<<<<< HEAD
         print('🔐 Parsed response data keys: ${data.keys.join(', ')}');
 
         // Check if the response has the expected structure
@@ -801,25 +1319,136 @@ class ApiService {
         print('✅ Tokens stored successfully');
 
         // Store user data in GetStorage (keeping existing structure)
+=======
+
+        // Debug the response structure
+        print('🔐 Login response structure:');
+        print('🔐 Data type: ${data.runtimeType}');
+        print('🔐 Access token type: ${data['accessToken']?.runtimeType}');
+        print('🔐 Refresh token type: ${data['refreshToken']?.runtimeType}');
+        print('🔐 Access token present: ${data['accessToken'] != null}');
+        print('🔐 Refresh token present: ${data['refreshToken'] != null}');
+        print('🔐 Expires in: ${data['expiresIn']} seconds');
+
+        // Extract tokens with proper type checking
+        String? accessToken;
+        String? refreshToken;
+        int? expiresIn;
+
+        // Handle access token
+        if (data['accessToken'] is String) {
+          accessToken = data['accessToken'] as String;
+          print(
+              '🔐 Access token extracted as String (length: ${accessToken.length})');
+        } else if (data['accessToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['accessToken'] as Map<String, dynamic>;
+          print('🔐 Access token is Map, keys: ${tokenMap.keys.toList()}');
+          accessToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔐 Access token extracted from Map: ${accessToken != null ? 'success' : 'failed'}');
+        } else if (data['accessToken'] != null) {
+          accessToken = data['accessToken'].toString();
+          print(
+              '🔐 Access token converted to String (length: ${accessToken.length})');
+        } else {
+          print('🔐 WARNING: Access token is null in response');
+        }
+
+        // Handle refresh token
+        if (data['refreshToken'] is String) {
+          refreshToken = data['refreshToken'] as String;
+          print(
+              '🔐 Refresh token extracted as String (length: ${refreshToken.length})');
+        } else if (data['refreshToken'] is Map<String, dynamic>) {
+          // If it's a map, try to extract the token value
+          final tokenMap = data['refreshToken'] as Map<String, dynamic>;
+          print('🔐 Refresh token is Map, keys: ${tokenMap.keys.toList()}');
+          refreshToken =
+              tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
+          print(
+              '🔐 Refresh token extracted from Map: ${refreshToken != null ? 'success' : 'failed'}');
+        } else if (data['refreshToken'] != null) {
+          refreshToken = data['refreshToken'].toString();
+          print(
+              '🔐 Refresh token converted to String (length: ${refreshToken.length})');
+        } else {
+          print('🔐 WARNING: Refresh token is null in response');
+        }
+
+        // Handle expiresIn
+        if (data['expiresIn'] is int) {
+          expiresIn = data['expiresIn'] as int;
+          print('🔐 Expires in extracted as int: $expiresIn');
+        } else if (data['expiresIn'] is String) {
+          expiresIn = int.tryParse(data['expiresIn'] as String);
+          print('🔐 Expires in parsed from String: $expiresIn');
+        } else {
+          print('🔐 WARNING: Expires in is null or invalid type');
+        }
+
+        // Validate that we have the required tokens
+        if (accessToken == null || accessToken.isEmpty) {
+          print('🔐 ERROR: Access token is missing or invalid in response');
+          throw Exception('Access token is missing or invalid in response');
+        }
+
+        if (refreshToken == null || refreshToken.isEmpty) {
+          print('🔐 ERROR: Refresh token is missing or invalid in response');
+          throw Exception('Refresh token is missing or invalid in response');
+        }
+
+        // Store tokens using TokenService
+        print('🔐 Storing tokens from login response');
+        print('🔐 Access token length: ${accessToken.length}');
+        print('🔐 Refresh token length: ${refreshToken.length}');
+        print('🔐 Expires in: ${expiresIn ?? 'not set'} seconds');
+
+        await TokenService.storeTokens(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiresIn: expiresIn,
+        );
+
+        print('🔐 Tokens stored successfully');
+        TokenService.debugTokenInfo();
+
+        // Store user data
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         final box = GetStorage();
         box.write('salesRep', data['salesRep']);
 
         return {
           'success': true,
+<<<<<<< HEAD
           'accessToken': data['accessToken'],
           'refreshToken': data['refreshToken'],
+=======
+          'token': accessToken,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           'salesRep': data['salesRep']
         };
       } else {
         final error = jsonDecode(response.body);
+<<<<<<< HEAD
         print('❌ Login failed: ${error['error'] ?? 'Unknown error'}');
+=======
+        print(
+            '🔐 Login failed with status ${response.statusCode}: ${error['error'] ?? 'Unknown error'}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         return {
           'success': false,
           'message': error['error'] ?? 'Login failed',
         };
       }
     } catch (e) {
+<<<<<<< HEAD
       print('❌ Login error: $e');
+=======
+      print('🔐 Login error: $e');
+      print('🔐 Error type: ${e.runtimeType}');
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       return {
         'success': false,
         'message': 'Network error occurred',
@@ -895,13 +1524,16 @@ class ApiService {
     return await _headers();
   }
 
-  // Get products (independent of outlets)
+  // Get products (independent of outlets) with caching and performance optimizations
   static Future<List<Product>> getProducts({
     int page = 1,
     int limit = 200,
     String? search,
+    int? clientId,
+    bool forceRefresh = false,
   }) async {
     try {
+<<<<<<< HEAD
       // Build query parameters
       final queryParams = <String, String>{
         'page': page.toString(),
@@ -928,10 +1560,62 @@ class ApiService {
         print(
             'Failed to load products: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to load products: ${response.statusCode}');
+=======
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cacheKey =
+            'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+        final cachedData = ApiCache.get(cacheKey);
+        if (cachedData != null) {
+          print('📦 Returning cached products data');
+          return List<Product>.from(cachedData);
+        }
+      }
+
+      await _initDioHeaders();
+
+      // Add timeout for better performance
+      final response = await _dio.get(
+        '/products',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+          if (search != null && search.isNotEmpty) 'search': search,
+          if (clientId != null) 'clientId': clientId,
+        },
+        options: Options(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data['data'];
+        final products = data.map((json) => Product.fromJson(json)).toList();
+
+        // Cache the results for 5 minutes
+        final cacheKey =
+            'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+        ApiCache.set(cacheKey, products, validity: const Duration(minutes: 5));
+
+        print('📦 Fetched ${products.length} products from API');
+        return products;
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     } catch (e) {
       print('Error fetching products: $e');
-      rethrow;
+
+      // Try to return cached data if available
+      final cacheKey =
+          'products_${page}_${limit}_${search ?? ''}_${clientId ?? ''}';
+      final cachedData = ApiCache.get(cacheKey);
+      if (cachedData != null) {
+        print('📦 Returning cached products due to API error');
+        return List<Product>.from(cachedData);
+      }
+
+      // Return empty list instead of rethrowing to handle silently
+      return [];
     }
   }
 
@@ -1515,8 +2199,7 @@ class ApiService {
 
   // Check if the user is authenticated
   static bool isAuthenticated() {
-    final token = _getAuthToken();
-    return token != null;
+    return TokenService.isAuthenticated();
   }
 
   static Future<Leave> submitLeaveApplication({
@@ -2012,6 +2695,7 @@ class ApiService {
 
   static Future<void> logout() async {
     try {
+<<<<<<< HEAD
       // Call logout API endpoint if we have a token
       final accessToken = TokenService.getAccessToken();
       if (accessToken != null) {
@@ -2037,6 +2721,13 @@ class ApiService {
       await box.remove('salesRep');
 
       // Call auth controller logout
+=======
+      await TokenService.clearTokens();
+
+      final box = GetStorage();
+      await box.remove('salesRep');
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final authController = Get.find<AuthController>();
       await authController.logout();
     } catch (e) {
@@ -2277,6 +2968,37 @@ class ApiService {
     ApiCache.remove(key);
   }
 
+<<<<<<< HEAD
+=======
+  static Future<JourneyPlan?> getActiveVisit() async {
+    try {
+      final token = _getAuthToken();
+      if (token == null) {
+        throw Exception("Authentication token is missing");
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/journey-plans?status=in_progress'),
+        headers: await _headers(),
+      );
+
+      final handledResponse = await _handleResponse(response);
+
+      if (handledResponse.statusCode == 200) {
+        final data = json.decode(handledResponse.body);
+        if (data != null && data['data'] != null && data['data'].isNotEmpty) {
+          // Return the first in-progress visit
+          return JourneyPlan.fromJson(data['data'][0]);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting active visit: $e');
+      return null;
+    }
+  }
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   static Future<List<Client>> getClients() async {
     try {
       final response = await http.get(
@@ -2327,7 +3049,8 @@ class ApiService {
           : null;
 
       if (userId == null) {
-        throw Exception('User ID not found. Please login again.');
+        print('User ID not found. Please login again.');
+        return null;
       }
 
       print('[UpliftSale] Creating sale with data:');
@@ -2354,7 +3077,7 @@ class ApiService {
       return null;
     } catch (e) {
       print('Error creating uplift sale: $e');
-      rethrow;
+      return null; // Return null instead of rethrowing
     }
   }
 
@@ -2527,18 +3250,52 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+
+        // Handle latitude and longitude type conversion
+        double? latitude;
+        double? longitude;
+
+        if (responseData['latitude'] != null) {
+          if (responseData['latitude'] is int) {
+            latitude = (responseData['latitude'] as int).toDouble();
+          } else if (responseData['latitude'] is double) {
+            latitude = responseData['latitude'] as double;
+          } else if (responseData['latitude'] is String) {
+            latitude = double.tryParse(responseData['latitude'] as String);
+          } else {
+            latitude = null;
+          }
+        }
+
+        if (responseData['longitude'] != null) {
+          if (responseData['longitude'] is int) {
+            longitude = (responseData['longitude'] as int).toDouble();
+          } else if (responseData['longitude'] is double) {
+            longitude = responseData['longitude'] as double;
+          } else if (responseData['longitude'] is String) {
+            longitude = double.tryParse(responseData['longitude'] as String);
+          } else {
+            longitude = null;
+          }
+        }
+
         // Add null checks and default values
         return Client(
           id: responseData['id'] ?? 0,
           name: responseData['name'] ?? '',
           address: responseData['address'] ?? '',
           balance: responseData['balance']?.toString() ?? '0',
+<<<<<<< HEAD
           latitude: responseData['latitude'] != null
               ? (responseData['latitude'] as num).toDouble()
               : null,
           longitude: responseData['longitude'] != null
               ? (responseData['longitude'] as num).toDouble()
               : null,
+=======
+          latitude: latitude,
+          longitude: longitude,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           email: responseData['email'] ?? '',
           contact: responseData['contact'] ?? '',
           taxPin: responseData['tax_pin'] ?? '',
@@ -2772,5 +3529,115 @@ class ApiService {
       {Map<String, String>? headers, Object? body}) async {
     return _safeHttpCall(
         () => http.patch(Uri.parse(url), headers: headers, body: body));
+  }
+
+  // Request order void
+  static Future<Map<String, dynamic>> requestOrderVoid({
+    required int orderId,
+    String? reason,
+  }) async {
+    try {
+      await _initDioHeaders();
+
+      final requestBody = {
+        if (reason != null) 'reason': reason,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/$orderId/void-request'),
+        headers: await _headers(),
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return {
+            'success': true,
+            'message': responseData['message'] ?? 'Void request submitted',
+            'orderId': responseData['orderId'] ?? orderId,
+          };
+        } else {
+          throw Exception(
+              responseData['error'] ?? 'Failed to submit void request');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to submit void request: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error requesting order void: $e');
+      throw Exception('Failed to request order void: $e');
+    }
+  }
+
+  // Check void status
+  static Future<Map<String, dynamic>> checkVoidStatus({
+    required int orderId,
+  }) async {
+    try {
+      await _initDioHeaders();
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders/$orderId/void-status'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true) {
+          return {
+            'success': true,
+            'orderId': responseData['orderId'] ?? orderId,
+            'status': responseData['status'] ?? 0,
+            'statusMessage': responseData['statusMessage'] ?? 'Unknown Status',
+            'canRequestVoid': responseData['canRequestVoid'] ?? false,
+            'reason': responseData['reason'],
+          };
+        } else {
+          throw Exception(
+              responseData['error'] ?? 'Failed to check void status');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ??
+            'Failed to check void status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error checking void status: $e');
+      throw Exception('Failed to check void status: $e');
+    }
+  }
+
+  // Clear product cache
+  static void clearProductCache() {
+    final keysToRemove = <String>[];
+    ApiCache._cache.keys.forEach((key) {
+      if (key.startsWith('products_')) {
+        keysToRemove.add(key);
+      }
+    });
+
+    for (final key in keysToRemove) {
+      ApiCache.remove(key);
+    }
+    print('📦 Cleared ${keysToRemove.length} product cache entries');
+  }
+
+  // Get products with force refresh
+  static Future<List<Product>> getProductsWithRefresh({
+    int page = 1,
+    int limit = 200,
+    String? search,
+    int? clientId,
+  }) async {
+    return getProducts(
+      page: page,
+      limit: limit,
+      search: search,
+      clientId: clientId,
+      forceRefresh: true,
+    );
   }
 }

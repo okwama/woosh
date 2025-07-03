@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/pages/Leave/leave_requests_page.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/pages/Leave/leave_requests_page.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
+import 'package:intl/date_symbol_data_local.dart';
 
+<<<<<<< HEAD
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+=======
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 class LeaveApplicationPage extends StatefulWidget {
   const LeaveApplicationPage({super.key});
 

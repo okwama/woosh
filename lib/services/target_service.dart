@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
+<<<<<<< HEAD
 import 'package:woosh/models/target_model.dart';
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/targets/sales_rep_dashboard.dart';
@@ -19,6 +20,13 @@ class TargetsApiException implements Exception {
   @override
   String toString() => 'TargetsApiException: $message (Status: $statusCode)';
 }
+=======
+import 'package:glamour_queen/models/target_model.dart';
+import 'package:glamour_queen/models/order_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/utils/config.dart';
+import 'package:glamour_queen/services/token_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class TargetService {
   static const String baseUrl = '${Config.baseUrl}/api';
@@ -73,6 +81,7 @@ class TargetService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
+<<<<<<< HEAD
   /// Get comprehensive dashboard for sales rep
   static Future<SalesRepDashboard> getDashboard(
     int userId, {
@@ -475,6 +484,8 @@ class TargetService {
     }
   }
 
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   // Get daily visit targets for a user
   static Future<Map<String, dynamic>> getDailyVisitTargets({
     required String userId,
@@ -554,12 +565,17 @@ class TargetService {
     }
   }
 
+<<<<<<< HEAD
   // Get all targets for the current user with enhanced caching
+=======
+  // Get all targets for the current user
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   static Future<List<Target>> getTargets({
     int page = 1,
     int limit = 10,
     DateTime? startDate,
     DateTime? endDate,
+<<<<<<< HEAD
     String? status,
     String? type,
   }) async {
@@ -573,6 +589,11 @@ class TargetService {
       type: type,
     );
 
+=======
+  }) async {
+    final cacheKey =
+        'targets_page_${page}_${startDate?.toIso8601String()}_${endDate?.toIso8601String()}';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     final cachedData = _getCachedData(cacheKey);
     if (cachedData != null) {
       print('Debug - Using cached targets data for key: $cacheKey');
@@ -597,6 +618,7 @@ class TargetService {
       if (endDate != null) {
         queryParams['endDate'] = endDate.toIso8601String();
       }
+<<<<<<< HEAD
       if (status != null) {
         queryParams['status'] = status;
       }
@@ -609,6 +631,11 @@ class TargetService {
 
       print('Debug - Fetching targets with params: $queryParams');
 
+=======
+
+      final uri =
+          Uri.parse('$baseUrl/targets').replace(queryParameters: queryParams);
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final response = await http
           .get(
             uri,
@@ -861,7 +888,11 @@ class TargetService {
     try {
       final response = await http.get(
         Uri.parse('${ApiService.baseUrl}/targets/monthly-visits/$userId'),
+<<<<<<< HEAD
         headers: await _headers(),
+=======
+        headers: await ApiService.getHeaders(),
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       );
 
       if (response.statusCode == 200) {
@@ -875,6 +906,7 @@ class TargetService {
       rethrow;
     }
   }
+<<<<<<< HEAD
 
   /// Bulk cache operations for better performance
   static void clearAllUserCache(int userId) {
@@ -929,4 +961,6 @@ class TargetService {
     _cacheTimestamps.remove(cacheKey);
     return await getProductSalesProgress(userId, period: period);
   }
+=======
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 }

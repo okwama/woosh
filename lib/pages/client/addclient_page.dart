@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:glamour_queen/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/client_model.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/outlet_service.dart';
 import 'package:woosh/utils/country_tax_labels.dart';
+=======
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:get/get.dart';
+import 'package:glamour_queen/services/outlet_service.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -149,6 +155,7 @@ class _AddClientPageState extends State<AddClientPage> {
         }
       } catch (e) {
         if (mounted) {
+<<<<<<< HEAD
           // Handle server errors silently
           if (e.toString().contains('500') ||
               e.toString().contains('501') ||
@@ -165,6 +172,15 @@ class _AddClientPageState extends State<AddClientPage> {
               ),
             );
           }
+=======
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to add client: $e'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.red,
+            ),
+          );
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           setState(() {
             _isLoading = false;
           });
@@ -212,9 +228,15 @@ class _AddClientPageState extends State<AddClientPage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _kraPinController,
+<<<<<<< HEAD
                       decoration: InputDecoration(
                         labelText: CountryTaxLabels.getTaxPinLabel(_countryId),
                         border: const OutlineInputBorder(),
+=======
+                      decoration: const InputDecoration(
+                        labelText: 'TAX PIN',
+                        border: OutlineInputBorder(),
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -266,3 +288,4 @@ class _AddClientPageState extends State<AddClientPage> {
     );
   }
 }
+

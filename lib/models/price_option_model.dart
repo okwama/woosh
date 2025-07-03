@@ -1,28 +1,50 @@
 class PriceOption {
-  final int id;
+  final int? id;
   final String option;
+<<<<<<< HEAD
   final int? value;
   final double? value_tzs;
   final double? value_ngn;
+=======
+  final double value;
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   final int categoryId;
+  final double? originalValue;
+  final double? discountPercentage;
+  final bool? isFallback;
 
   PriceOption({
-    required this.id,
+    this.id,
     required this.option,
     this.value,
     this.value_tzs,
     this.value_ngn,
     required this.categoryId,
+    this.originalValue,
+    this.discountPercentage,
+    this.isFallback,
   });
 
   factory PriceOption.fromJson(Map<String, dynamic> json) {
     return PriceOption(
-      id: json['id'] as int,
+      id: json['id'] as int?,
       option: json['option'] as String,
+<<<<<<< HEAD
       value: _parseValue(json['value']),
       value_tzs: _parseDoubleValue(json['value_tzs']),
       value_ngn: _parseDoubleValue(json['value_ngn']),
       categoryId: json['categoryId'] as int,
+=======
+      value: (json['value'] as num).toDouble(),
+      categoryId: json['categoryId'] as int? ?? 0,
+      originalValue: json['originalValue'] != null
+          ? (json['originalValue'] as num).toDouble()
+          : null,
+      discountPercentage: json['discountPercentage'] != null
+          ? (json['discountPercentage'] as num).toDouble()
+          : null,
+      isFallback: json['isFallback'] as bool?,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     );
   }
 
@@ -58,12 +80,19 @@ class PriceOption {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
+        if (id != null) 'id': id,
         'option': option,
         'value': value,
         'categoryId': categoryId,
+<<<<<<< HEAD
         'value_tzs': value_tzs,
         'value_ngn': value_ngn,
+=======
+        if (originalValue != null) 'originalValue': originalValue,
+        if (discountPercentage != null)
+          'discountPercentage': discountPercentage,
+        if (isFallback != null) 'isFallback': isFallback,
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       };
 
   @override

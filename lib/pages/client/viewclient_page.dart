@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/hive/client_model.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/services/api_service.dart';
-import 'package:woosh/pages/order/addorder_page.dart';
-import 'package:woosh/pages/client/addclient_page.dart';
-import 'package:woosh/pages/client/clientdetails.dart';
-import 'package:woosh/utils/app_theme.dart';
-import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:woosh/widgets/skeleton_loader.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
-import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
-import 'package:woosh/services/hive/client_hive_service.dart';
+import 'package:glamour_queen/models/hive/client_model.dart';
+import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:glamour_queen/services/api_service.dart';
+import 'package:glamour_queen/pages/order/addorder_page.dart';
+import 'package:glamour_queen/pages/client/addclient_page.dart';
+import 'package:glamour_queen/pages/client/clientdetails.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:glamour_queen/widgets/skeleton_loader.dart';
+import 'package:glamour_queen/models/client_model.dart';
+import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
+import 'package:glamour_queen/pages/journeyplan/reports/pages/product_return_page.dart';
+import 'package:glamour_queen/services/hive/client_hive_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
+import 'package:get_storage/get_storage.dart';
+
+enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
+
+enum DateFilter { all, today, thisWeek, thisMonth }
 
 enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
 
@@ -80,9 +85,16 @@ class _ViewClientPageState extends State<ViewClientPage> {
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
+<<<<<<< HEAD
       setState(() {
         _isOnline = results.isNotEmpty &&
             results.any((result) => result != ConnectivityResult.none);
+=======
+      final result =
+          results.isNotEmpty ? results.first : ConnectivityResult.none;
+      setState(() {
+        _isOnline = result != ConnectivityResult.none;
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       });
       if (_isOnline && _outlets.isEmpty) {
         _loadOutlets();
@@ -139,17 +151,42 @@ class _ViewClientPageState extends State<ViewClientPage> {
     try {
       // First load from cache for quick display
       await _loadFromCache();
-      print('📱 Loaded ${_outlets.length} clients from cache');
+      print('?? Loaded ${_outlets.length} clients from cache');
 
       // Then fetch from API
       final routeId = ApiService.getCurrentUserRouteId();
-      print('🌐 Fetching page 1 with limit $_pageSize');
-      final outlets = await ApiService.fetchOutlets(
+      print('?? Route ID: $routeId');
+
+      // Debug: Check what's in salesRep data
+      final box = GetStorage();
+      final salesRep = box.read('salesRep');
+      print('?? SalesRep data: $salesRep');
+
+      print('?? Fetching page 1 with limit $_pageSize');
+
+      // Use the newer fetchClients method instead of deprecated fetchOutlets
+      // Make route filtering optional - only filter if routeId is not null
+      final paginatedResponse = await ApiService.fetchClients(
+        routeId: null, // Temporarily disable route filtering to get all clients
         page: 1,
         limit: _pageSize,
-        routeId: routeId,
       );
-      print('✅ Fetched ${outlets.length} clients from API');
+      final outlets = paginatedResponse.data
+          .map((client) => Outlet(
+                id: client.id,
+                name: client.name,
+                address: client.address,
+                latitude: client.latitude,
+                longitude: client.longitude,
+                email: '',
+                contact: '',
+                regionId: client.regionId,
+                region: client.region,
+                countryId: client.countryId,
+              ))
+          .toList();
+
+      print('? Fetched ${outlets.length} clients from API');
 
       // Save to local cache
       final clientHiveService = Get.find<ClientHiveService>();
@@ -167,7 +204,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           .toList();
 
       await clientHiveService.saveClients(clientModels);
-      print('💾 Saved ${clientModels.length} clients to cache');
+      print('?? Saved ${clientModels.length} clients to cache');
 
       if (mounted) {
         setState(() {
@@ -175,11 +212,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
           _isLoading = false;
           _hasMore = outlets.length >= _pageSize;
         });
-        print('📊 Total clients loaded: ${_outlets.length}');
-        print('🔄 Has more clients: $_hasMore');
+        print('?? Total clients loaded: ${_outlets.length}');
+        print('?? Has more clients: $_hasMore');
       }
     } catch (e) {
-      print('❌ Error loading clients: $e');
+      print('? Error loading clients: $e');
       if (mounted) {
         setState(() {
           _errorMessage =
@@ -205,7 +242,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
     try {
       final clientHiveService = Get.find<ClientHiveService>();
       final cachedClients = clientHiveService.getAllClients();
-      print('📱 Found ${cachedClients.length} clients in cache');
+      print('?? Found ${cachedClients.length} clients in cache');
 
       if (cachedClients.isNotEmpty) {
         final cachedOutlets = cachedClients
@@ -227,11 +264,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
           setState(() {
             _outlets = cachedOutlets;
           });
-          print('📊 Loaded ${cachedOutlets.length} clients from cache');
+          print('?? Loaded ${cachedOutlets.length} clients from cache');
         }
       }
     } catch (e) {
-      print('❌ Error loading from cache: $e');
+      print('? Error loading from cache: $e');
     }
   }
 
@@ -244,13 +281,32 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
     try {
       final routeId = ApiService.getCurrentUserRouteId();
-      print('🌐 Fetching page ${_currentPage + 1} with limit $_pageSize');
-      final newOutlets = await ApiService.fetchOutlets(
+      print('?? Route ID: $routeId');
+      print('?? Fetching page ${_currentPage + 1} with limit $_pageSize');
+
+      // Use the newer fetchClients method instead of deprecated fetchOutlets
+      // Make route filtering optional - only filter if routeId is not null
+      final paginatedResponse = await ApiService.fetchClients(
+        routeId: null, // Temporarily disable route filtering to get all clients
         page: _currentPage + 1,
         limit: _pageSize,
-        routeId: routeId,
       );
-      print('✅ Fetched ${newOutlets.length} more clients from API');
+      final newOutlets = paginatedResponse.data
+          .map((client) => Outlet(
+                id: client.id,
+                name: client.name,
+                address: client.address,
+                latitude: client.latitude,
+                longitude: client.longitude,
+                email: '',
+                contact: '',
+                regionId: client.regionId,
+                region: client.region,
+                countryId: client.countryId,
+              ))
+          .toList();
+
+      print('? Fetched ${newOutlets.length} more clients from API');
 
       // Save to local cache
       final clientHiveService = Get.find<ClientHiveService>();
@@ -268,7 +324,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           .toList();
 
       await clientHiveService.saveClients(clientModels);
-      print('💾 Saved ${clientModels.length} more clients to cache');
+      print('?? Saved ${clientModels.length} more clients to cache');
 
       if (mounted) {
         setState(() {
@@ -277,11 +333,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
           _isLoadingMore = false;
           _hasMore = newOutlets.length >= _pageSize;
         });
-        print('📊 Total clients after loading more: ${_outlets.length}');
-        print('🔄 Has more clients: $_hasMore');
+        print('?? Total clients after loading more: ${_outlets.length}');
+        print('?? Has more clients: $_hasMore');
       }
     } catch (e) {
-      print('❌ Error loading more clients: $e');
+      print('? Error loading more clients: $e');
       if (mounted) {
         setState(() {
           _isLoadingMore = false;
@@ -497,7 +553,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           const SizedBox(height: 8),
           Text(
             _searchController.text.isEmpty
-                ? 'Add a new client or check your connection'
+                ? 'No Clients Assigned to this user'
                 : 'Try a different search term',
             style: TextStyle(
               color: Colors.grey.shade500,
@@ -506,15 +562,15 @@ class _ViewClientPageState extends State<ViewClientPage> {
           ),
           if (_searchController.text.isEmpty) ...[
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => Get.to(() => const AddClientPage()),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Client'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
-              ),
-            ),
+            // ElevatedButton.icon(
+            //   onPressed: () => Get.to(() => const AddClientPage()),
+            //   icon: const Icon(Icons.add),
+            //   label: const Text('Add Client'),
+            //   style: ElevatedButton.styleFrom(
+            //     backgroundColor: Theme.of(context).primaryColor,
+            //     foregroundColor: Colors.white,
+            //   ),
+            // ),
           ],
         ],
       ),
@@ -958,13 +1014,13 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
             try {
               final routeId = ApiService.getCurrentUserRouteId();
-              print('🔄 Refreshing after adding new client');
+              print('?? Refreshing after adding new client');
               final outlets = await ApiService.fetchOutlets(
                 page: 1,
                 limit: _pageSize,
                 routeId: routeId,
               );
-              print('✅ Refreshed ${outlets.length} clients');
+              print('? Refreshed ${outlets.length} clients');
 
               // Save to local cache
               final clientHiveService = Get.find<ClientHiveService>();
@@ -982,7 +1038,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                   .toList();
 
               await clientHiveService.saveClients(clientModels);
-              print('💾 Updated cache with ${clientModels.length} clients');
+              print('?? Updated cache with ${clientModels.length} clients');
 
               if (mounted) {
                 setState(() {
@@ -990,10 +1046,10 @@ class _ViewClientPageState extends State<ViewClientPage> {
                   _isLoading = false;
                   _hasMore = outlets.length >= _pageSize;
                 });
-                print('📊 Total clients after refresh: ${_outlets.length}');
+                print('?? Total clients after refresh: ${_outlets.length}');
               }
             } catch (e) {
-              print('❌ Error refreshing after adding client: $e');
+              print('? Error refreshing after adding client: $e');
               if (mounted) {
                 setState(() {
                   _isLoading = false;

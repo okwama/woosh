@@ -1,8 +1,8 @@
 import 'package:get/get.dart';
-import 'package:woosh/models/orderitem_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/price_option_model.dart';
-import 'package:woosh/services/hive/cart_hive_service.dart';
+import 'package:glamour_queen/models/orderitem_model.dart';
+import 'package:glamour_queen/models/product_model.dart';
+import 'package:glamour_queen/models/price_option_model.dart';
+import 'package:glamour_queen/services/hive/cart_hive_service.dart';
 
 class CartController extends GetxController {
   final RxList<OrderItem> items = <OrderItem>[].obs;
@@ -97,9 +97,20 @@ class CartController extends GetxController {
 
   double get totalAmount {
     return items.fold(0, (sum, item) {
-      final priceOption = item.product?.priceOptions
-          .firstWhereOrNull((po) => po.id == item.priceOptionId);
-      return sum + (priceOption?.value ?? 0) * item.quantity;
+      // Use selected price option or first available option as fallback
+      double price = 0.0;
+
+      if (item.priceOptionId != null) {
+        // Use selected price option
+        final priceOption = item.product?.priceOptions
+            .firstWhereOrNull((po) => po.id == item.priceOptionId);
+        price = priceOption?.value ?? 0.0;
+      } else if (item.product?.priceOptions.isNotEmpty == true) {
+        // Use first available price option as fallback
+        price = item.product!.priceOptions.first.value;
+      }
+
+      return sum + (price * item.quantity);
     });
   }
 }

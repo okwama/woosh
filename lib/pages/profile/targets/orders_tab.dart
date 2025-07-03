@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+<<<<<<< HEAD
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
+=======
+import 'package:glamour_queen/models/order_model.dart';
+import 'package:glamour_queen/widgets/gradient_widgets.dart';
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class OrdersTab extends StatelessWidget {
   final List<Order> userOrders;
@@ -191,3 +196,7 @@ class OrdersTab extends StatelessWidget {
     );
   }
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/utils/app_theme.dart';
+import 'package:glamour_queen/utils/app_theme.dart';
 
 class MenuTile extends StatelessWidget {
   final String title;
@@ -88,3 +88,4 @@ class MenuTile extends StatelessWidget {
     );
   }
 }
+

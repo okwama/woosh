@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/models/task_model.dart';
-import 'package:woosh/services/task_service.dart';
+import 'package:glamour_queen/models/task_model.dart';
+import 'package:glamour_queen/services/task_service.dart';
 
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key});
@@ -189,3 +189,4 @@ class _TaskPageState extends State<TaskPage> {
     );
   }
 }
+

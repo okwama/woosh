@@ -1,4 +1,4 @@
-import 'package:woosh/models/client_model.dart';
+import 'package:glamour_queen/models/client_model.dart';
 import 'package:flutter/material.dart';
 
 class JourneyPlan {
@@ -286,3 +286,4 @@ class JourneyPlan {
 
   String get clientName => client.name ?? 'Unknown Client';
 }
+
