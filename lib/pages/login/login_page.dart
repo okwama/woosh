@@ -112,182 +112,299 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isTablet = screenWidth > 600;
+    final horizontalPadding = isTablet ? screenWidth * 0.25 : 20.0;
+    final maxFormWidth = isTablet ? 400.0 : double.infinity;
+
     return Scaffold(
       backgroundColor: appBackground,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Logo
-                Center(
-                  child: Container(
-                    height: 120,
-                    width: 120,
-                    margin: const EdgeInsets.only(bottom: 40),
-                    decoration: GradientDecoration.goldCircular(),
-                    padding: const EdgeInsets.all(2.0),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(15),
-                      child: Image.asset('assets/images/svg.png',
-                          fit: BoxFit.contain),
-                    ),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
                 ),
-
-                // Welcome Text
-                GradientText(
-                  'Woosh',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Sign in to continue',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF666666),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 40),
-
-                // Login Form
-                Form(
-                  key: _formKey,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Email Field
-                      _buildPhoneNumberField(),
+                      // Reduced top spacer
+                      SizedBox(height: screenHeight * 0.03),
 
-                      const SizedBox(height: 20),
+                      // Main content card
+                      Container(
+                        width: double.infinity,
+                        constraints: BoxConstraints(maxWidth: maxFormWidth),
+                        decoration: BoxDecoration(
+                          color: appBackground,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            width: 2,
+                            color: Colors.transparent,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: goldStart.withOpacity(0.15),
+                              blurRadius: 25,
+                              offset: const Offset(0, 10),
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(isTablet ? 40.0 : 24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Enlarged logo with enhanced styling
+                              Container(
+                                height: isTablet ? 120 : 100,
+                                width: isTablet ? 120 : 100,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  gradient: goldGradient,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: goldStart.withOpacity(0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.all(2.0),
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: Image.asset(
+                                    'assets/new.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
 
-                      // Password Field
-                      _buildPasswordField(),
+                              // App name image
+                              Container(
+                                height: isTablet ? 50 : 42,
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: Image.asset(
+                                  'assets/name.png',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
 
-                      const SizedBox(height: 12),
+                              const SizedBox(height: 4),
 
-                      // Forgot Password
-                      // _buildForgotPasswordButton(),
+                              Text(
+                                'Sign in to continue',
+                                style: TextStyle(
+                                  fontSize: isTablet ? 16 : 14,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
 
-                      const SizedBox(height: 24),
+                              SizedBox(height: isTablet ? 28 : 20),
 
-                      // Login Button
-                      _buildLoginButton(),
+                              // Compact form
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    // Phone Number Field
+                                    _buildModernTextField(
+                                      controller: _phoneNumberController,
+                                      label: 'Phone Number',
+                                      hint: 'Enter your phone number',
+                                      prefixIcon: Icons.phone_outlined,
+                                      keyboardType: TextInputType.phone,
+                                      validator: _validatePhoneNumber,
+                                    ),
 
-                      const SizedBox(height: 24),
+                                    const SizedBox(height: 16),
 
-                      // Don't have an account
-                      _buildSignUpRow(),
+                                    // Password Field
+                                    _buildModernTextField(
+                                      controller: _passwordController,
+                                      label: 'Password',
+                                      hint: 'Enter your password',
+                                      prefixIcon: Icons.lock_outline,
+                                      isPassword: true,
+                                      validator: _validatePassword,
+                                    ),
+
+                                    const SizedBox(height: 24),
+
+                                    // Login Button
+                                    _buildModernLoginButton(),
+
+                                    const SizedBox(height: 16),
+
+                                    // Sign up row
+                                    _buildSignUpRow(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Reduced bottom spacer
+                      SizedBox(height: screenHeight * 0.03),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      // bottomNavigationBar: _buildPoweredByFooter(context),
-    );
-  }
-
-  Widget _buildPhoneNumberField() {
-    return TextFormField(
-      controller: _phoneNumberController,
-      keyboardType: TextInputType.phone,
-      decoration: InputDecoration(
-        labelText: 'Phone Number',
-        labelStyle: const TextStyle(color: Colors.black87),
-        hintText: 'Enter your phone number',
-        prefixIcon: const Icon(Icons.phone_outlined),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16),
-      ),
-      validator: _validatePhoneNumber,
-    );
-  }
-
-  Widget _buildPasswordField() {
-    return TextFormField(
-      controller: _passwordController,
-      obscureText: _obscurePassword,
-      decoration: InputDecoration(
-        labelText: 'Password',
-        labelStyle: const TextStyle(color: Colors.black87),
-        hintText: 'Enter your password',
-        prefixIcon: const Icon(Icons.lock_outline),
-        suffixIcon: IconButton(
-          icon: Icon(
-            _obscurePassword ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: () {
-            setState(() {
-              _obscurePassword = !_obscurePassword;
-            });
+              ),
+            );
           },
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16),
       ),
-      validator: _validatePassword,
     );
   }
 
-  Widget _buildForgotPasswordButton() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: TextButton(
-        onPressed: () {
-          Get.toNamed('/forgot-password');
-        },
-        child: GradientText(
-          'Forgot Password?',
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData prefixIcon,
+    TextInputType? keyboardType,
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
           style: const TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w600,
+            color: Color(0xFF2D3748),
           ),
         ),
-      ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          obscureText: isPassword ? _obscurePassword : false,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: Colors.grey.shade400,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Icon(
+              prefixIcon,
+              color: Colors.grey.shade500,
+              size: 18,
+            ),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: Colors.grey.shade500,
+                      size: 18,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Colors.grey.shade200, width: 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: goldStart, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          ),
+          validator: validator,
+        ),
+      ],
     );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildModernLoginButton() {
     return SizedBox(
+      width: double.infinity,
       height: 50,
       child: _isLoading
-          ? Center(
-              child: Transform.scale(
-                scale: 0.9, // Adjust the scale to reduce the size
-                child:
-                    const GradientCircularProgressIndicator(), // Assuming this is your custom widget
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: goldGradient,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
               ),
             )
-          : GoldGradientButton(
-              onPressed: _login,
-              borderRadius: 8,
-              child: const Text(
-                'Sign In',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          : Container(
+              decoration: BoxDecoration(
+                gradient: goldGradient,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: goldStart.withOpacity(0.4),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _login,
+                  borderRadius: BorderRadius.circular(14),
+                  child: const Center(
+                    child: Text(
+                      'Sign In',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -298,20 +415,20 @@ class _LoginPageState extends State<LoginPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text(
+        Text(
           'Don\'t have an account? ',
           style: TextStyle(
-            color: Color(0xFF666666),
+            color: Colors.grey.shade600,
+            fontSize: 13,
           ),
         ),
         GestureDetector(
-          onTap: () {
-            Get.toNamed('/sign-up');
-          },
+          onTap: () => Get.toNamed('/sign-up'),
           child: GradientText(
             'Sign Up',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
+              fontSize: 13,
             ),
           ),
         ),

@@ -23,25 +23,75 @@ class Client extends Outlet {
         );
 
   factory Client.fromJson(Map<String, dynamic> json) {
+    // Debug logging
+    print('Client.fromJson - Raw JSON: $json');
+
+    // Safe parsing helper functions
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) {
+        try {
+          return double.parse(value);
+        } catch (e) {
+          print('Client.parseDouble error for value "$value": $e');
+          return null;
+        }
+      }
+      return null;
+    }
+
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) {
+        try {
+          // Handle decimal strings by converting to double first, then to int
+          if (value.contains('.')) {
+            final doubleValue = double.tryParse(value);
+            return doubleValue?.toInt();
+          }
+          return int.parse(value);
+        } catch (e) {
+          print('Client.parseInt error for value "$value": $e');
+          return null;
+        }
+      }
+      return null;
+    }
+
+    // Debug logging for each field
+    final id = parseInt(json['id']) ?? 0;
+    final latitude = parseDouble(json['latitude']);
+    final longitude = parseDouble(json['longitude']);
+    final clientType = parseInt(json['client_type']);
+    final regionId = parseInt(json['region_id']) ?? 0;
+    final countryId = parseInt(json['countryId']) ?? 0;
+
+    print('Client parsing - id: ${json['id']} -> $id');
+    print('Client parsing - latitude: ${json['latitude']} -> $latitude');
+    print('Client parsing - longitude: ${json['longitude']} -> $longitude');
+    print(
+        'Client parsing - client_type: ${json['client_type']} -> $clientType');
+    print('Client parsing - region_id: ${json['region_id']} -> $regionId');
+    print('Client parsing - countryId: ${json['countryId']} -> $countryId');
+
     return Client(
-      id: json['id'] as int,
-      name: json['name'] as String,
-      address: json['address'] as String,
+      id: id,
+      name: json['name']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
       balance: json['balance']?.toString(),
-      latitude: json['latitude'] != null
-          ? (json['latitude'] as num).toDouble()
-          : null,
-      longitude: json['longitude'] != null
-          ? (json['longitude'] as num).toDouble()
-          : null,
-      email: json['email'] as String?,
-      contact: json['contact'] as String?,
-      taxPin: json['tax_pin'] as String?,
-      location: json['location'] as String?,
-      clientType: json['client_type'] as int?,
-      regionId: json['region_id'] as int,
-      region: json['region'] as String,
-      countryId: json['countryId'] as int,
+      latitude: latitude,
+      longitude: longitude,
+      email: json['email']?.toString(),
+      contact: json['contact']?.toString(),
+      taxPin: json['tax_pin']?.toString(),
+      location: json['location']?.toString(),
+      clientType: clientType,
+      regionId: regionId,
+      region: json['region']?.toString() ?? '',
+      countryId: countryId,
     );
   }
 

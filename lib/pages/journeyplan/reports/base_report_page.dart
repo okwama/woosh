@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/jouneyplan_service.dart';
 
 mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
   TextEditingController get commentController => _commentController;
@@ -152,7 +153,7 @@ mixin BaseReportPageMixin<T extends StatefulWidget> on State<T> {
       final journeyPlan = (widget as BaseReportPage).journeyPlan;
 
       // Update journey plan with checkout information
-      await ApiService.updateJourneyPlan(
+      await JourneyPlanService.updateJourneyPlan(
         journeyId: journeyPlan.id!,
         clientId: journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,

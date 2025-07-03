@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/jouneyplan_service.dart';
+import 'package:woosh/services/enhanced_journey_plan_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -58,8 +60,13 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   @override
   void initState() {
     super.initState();
+    _initializeEnhancedService();
     _initializeClients();
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _initializeEnhancedService() async {
+    await EnhancedJourneyPlanService.initialize();
   }
 
   @override
@@ -94,12 +101,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         // Preload more clients in the background
         _loadMoreClients();
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading clients: ${e.toString()}'),
-            backgroundColor: Colors.red.shade600,
-          ),
-        );
+        // Silent fail for connection errors
+        print('Failed to initialize clients');
       } finally {
         setState(() {
           _isLoading = false;
@@ -107,6 +110,18 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       }
     }
+  }
+
+  bool _isConnectionError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('socketexception') ||
+        errorString.contains('connection timeout') ||
+        errorString.contains('network error') ||
+        errorString.contains('connection refused') ||
+        errorString.contains('no internet') ||
+        errorString.contains('xmlhttprequest error') ||
+        errorString.contains('failed to connect') ||
+        errorString.contains('timeout');
   }
 
   Future<void> _loadMoreClients() async {
@@ -140,12 +155,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading more clients: ${e.toString()}'),
-          backgroundColor: Colors.red.shade600,
-        ),
-      );
+      // Silent fail for all errors in background loading
+      print('Failed to load more clients');
     } finally {
       setState(() {
         _isLoadingMore = false;
@@ -173,12 +184,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         _updateFilteredClients();
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error refreshing clients: ${e.toString()}'),
-          backgroundColor: Colors.red.shade600,
-        ),
-      );
+      // Silent fail for all refresh errors
+      print('Failed to refresh clients');
     }
   }
 
@@ -605,50 +612,65 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     });
 
     try {
-      final newJourneyPlan = await ApiService.createJourneyPlan(
+      final newJourneyPlan = await EnhancedJourneyPlanService.createJourneyPlan(
         clientId,
         date,
         notes: notes,
         routeId: routeId,
       );
 
-      if (onSuccess != null) {
-        onSuccess([newJourneyPlan]);
-      }
+      if (newJourneyPlan != null) {
+        // Successfully created online
+        if (onSuccess != null) {
+          onSuccess([newJourneyPlan]);
+        }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white, size: 20),
-              SizedBox(width: 8),
-              Text('Journey plan created successfully'),
-            ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Journey plan created successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          backgroundColor: Colors.green.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+        );
+      } else {
+        // Saved offline (server error)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.cloud_off, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Journey plan saved offline - will sync when online'),
+              ],
+            ),
+            backgroundColor: Colors.orange.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
 
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Failed to create journey plan: ${e.toString()}'),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+      // Silent fail for server errors, but still log them
+      if (e.toString().contains('500') ||
+          e.toString().contains('501') ||
+          e.toString().contains('502') ||
+          e.toString().contains('503')) {
+        print(
+            'Server error during journey plan creation - handled silently: $e');
+      } else {
+        print('Failed to create journey plan: $e');
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -810,47 +832,30 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
               color: Colors.white,
             ),
             onPressed: () async {
-              // Show loading indicator in snackbar
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
+              try {
+                // Refresh the client list
+                await _refreshClients();
+
+                // Show success message only if refresh succeeds
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.check_circle,
+                              color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          Text('Client list refreshed'),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      const Text('Refreshing client list...'),
-                    ],
-                  ),
-                  duration: const Duration(seconds: 1),
-                  backgroundColor: Theme.of(context).primaryColor,
-                ),
-              );
-
-              // Refresh the client list
-              await _refreshClients();
-
-              // Show success message
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white, size: 20),
-                        const SizedBox(width: 8),
-                        Text('Client list refreshed'),
-                      ],
+                      backgroundColor: Colors.green.shade600,
+                      duration: const Duration(seconds: 2),
                     ),
-                    backgroundColor: Colors.green.shade600,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                  );
+                }
+              } catch (e) {
+                // Silent fail for connection errors
+                print('Error refreshing client list: $e');
               }
             },
             tooltip: 'Refresh client list',
@@ -1026,11 +1031,29 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                     }
 
                                     if (snapshot.hasError) {
-                                      return Text(
-                                        'Error loading routes',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.red.shade600,
+                                      // Silent fail for connection errors
+                                      print('Failed to load routes');
+                                      return Container(
+                                        height: 42,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade50,
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                            width: 1.5,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: const Center(
+                                          child: Text(
+                                            'Select route',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.black54,
+                                            ),
+                                          ),
                                         ),
                                       );
                                     }

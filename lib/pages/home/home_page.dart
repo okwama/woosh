@@ -11,13 +11,16 @@ import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/pages/task/task.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/jouneyplan_service.dart';
 import 'package:woosh/services/task_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/offline_sync_indicator.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
+import 'package:woosh/services/hive/pending_session_hive_service.dart';
 
 import '../../components/menu_tile.dart';
 import '../order/addorder_page.dart';
@@ -75,14 +78,14 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPendingJourneyPlans() async {
     try {
-      final journeyPlans = await ApiService.fetchJourneyPlans();
+      final journeyPlans = await JourneyPlanService.fetchJourneyPlans();
 
       // Get today's date in local time
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
 
       setState(() {
-        _pendingJourneyPlans = journeyPlans.where((plan) {
+        _pendingJourneyPlans = journeyPlans.data.where((plan) {
           // Convert plan date from UTC to local time
           final localDate = plan.date.toLocal();
           // Check if plan is pending AND is for today
@@ -115,11 +118,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadUnreadNotices() async {
     try {
       final notices = await ApiService.getNotice();
-      // Count notices from the last 7 days
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      // Count notices from the last 30 days
+      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
       setState(() {
         _unreadNotices = notices
-            .where((notice) => notice.createdAt.isAfter(sevenDaysAgo))
+            .where((notice) => notice.createdAt.isAfter(thirtyDaysAgo))
             .length;
       });
     } catch (e) {
@@ -172,14 +175,58 @@ class _HomePageState extends State<HomePage> {
         ),
       );
 
-      // Clear cart
+      // 1. Server-side session invalidation (attempt first, but don't block logout)
+      try {
+        await ApiService
+            .logout(); // Should call /api/logout endpoint to invalidate server session
+      } catch (e) {
+        print('Server logout failed (continuing with local logout): $e');
+        // Continue with local logout even if server logout fails
+      }
+
+      // 2. Clear cart data (session-specific)
       await _cartController.clear();
 
-      // Clear all stored data
+      // 3. Clear authentication data from GetStorage (selective clearing)
       final box = GetStorage();
-      await box.erase();
 
-      // Update auth controller state
+      // Remove authentication-related data
+      await box.remove('userId');
+      await box.remove('salesRep');
+      await box.remove('authToken');
+      await box.remove('refreshToken');
+      await box.remove('accessToken');
+      await box.remove('userCredentials');
+      await box.remove('userSession');
+      await box.remove('loginTime');
+      await box.remove('sessionId');
+
+      // Keep non-sensitive user preferences and app settings
+      // Examples of data to preserve:
+      // - Theme settings
+      // - Language preferences
+      // - App configuration
+      // - Non-sensitive cached data
+      // - User interface preferences
+
+      // 4. Clear Hive session-specific data
+      try {
+        final sessionHiveService = SessionHiveService();
+        await sessionHiveService.clearSession();
+      } catch (e) {
+        print('Error clearing session from Hive: $e');
+      }
+
+      // 5. Clear any pending session data
+      try {
+        // Clear any offline session data that might be pending sync
+        final pendingSessionService = Get.find<PendingSessionHiveService>();
+        await pendingSessionService.clearAllPendingSessions();
+      } catch (e) {
+        print('Error clearing pending sessions: $e');
+      }
+
+      // 6. Update auth controller state
       final authController = Get.find<AuthController>();
       await authController.logout();
 
@@ -189,6 +236,15 @@ class _HomePageState extends State<HomePage> {
 
       // Navigate to login page and clear all previous routes
       Get.offAllNamed('/login');
+
+      // Show success message
+      Get.snackbar(
+        'Logged Out',
+        'You have been successfully logged out',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
     } catch (e) {
       print('Error during logout: $e');
       if (!mounted) return;
@@ -198,22 +254,48 @@ class _HomePageState extends State<HomePage> {
         Get.back();
       }
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to logout: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Handle server errors silently but still perform local logout
+      if (e.toString().contains('500') ||
+          e.toString().contains('501') ||
+          e.toString().contains('502') ||
+          e.toString().contains('503')) {
+        print('Server error during logout - performing local logout: $e');
+
+        // Force local logout for server errors
+        final box = GetStorage();
+        await box.remove('userId');
+        await box.remove('salesRep');
+        await box.remove('authToken');
+        await box.remove('refreshToken');
+        await box.remove('accessToken');
+
+        Get.offAllNamed('/login');
+        Get.snackbar(
+          'Logged Out',
+          'Logged out locally (server unavailable)',
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+        );
+      } else {
+        // Show error message for other errors
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to logout properly. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    print(
+        'Building HomePage - _unreadNotices: $_unreadNotices, _isLoading: $_isLoading');
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: 'Woosh',
+        title: 'WOOSH',
         actions: [
           Obx(() {
             final cartItems = _cartController.totalItems;
@@ -295,6 +377,8 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: Column(
           children: [
+            // Offline sync indicator
+            const OfflineSyncIndicator(),
             // Menu section title
             // Padding(
             //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -368,7 +452,7 @@ class _HomePageState extends State<HomePage> {
                     MenuTile(
                       title: 'Notice Board',
                       icon: Icons.notifications,
-                      badgeCount: _unreadNotices,
+                      badgeCount: _unreadNotices > 0 ? _unreadNotices : null,
                       onTap: () {
                         Get.to(
                           () => const NoticeBoardPage(),
@@ -401,7 +485,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     // Tasks (always active)
                     MenuTile(
-                      title: 'Tasks',
+                      title: 'Tasks/Warnings',
                       icon: Icons.task,
                       badgeCount: _pendingTasks,
                       onTap: () {

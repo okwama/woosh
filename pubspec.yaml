@@ -1,7 +1,7 @@
 name: woosh
 description: "A new Flutter project."
 
-version: 1.0.1+13  # Small fix/update
+version: 1.0.1+16  # Small fix/update
 
 
 environment:
@@ -53,7 +53,7 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#ffffff"
-  image: assets/splash.jpeg
+  image: assets/woosh.png
   android: true
   ios: true
   android_gravity: center
@@ -62,11 +62,11 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/splash.jpeg"
+  image_path: "assets/new.png"
   remove_alpha_ios: true 
   web:
     generate: true
-    image_path: "assets/logg.png"
+    image_path: "assets/new.png"
     background_color: "#FFFFFF"
   # Optional for Android adaptive icons:
   # adaptive_icon_background: "#FFFFFF"
@@ -79,4 +79,6 @@ flutter:
     - assets/ben.png
     - assets/images/
     - assets/images/gold.png
- 
+    - assets/new.png
+    - assets/name.png
+  

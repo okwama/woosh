@@ -5,10 +5,12 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/pages/profile/deleteaccount.dart';
 import 'package:woosh/pages/profile/targets/targets_page.dart';
+
 import 'package:woosh/pages/profile/user_stats_page.dart';
 import 'package:woosh/pages/profile/session_history_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/session_service.dart';
+import 'package:woosh/services/enhanced_session_service.dart';
 import 'package:woosh/services/session_state.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
@@ -20,6 +22,9 @@ import 'package:get_storage/get_storage.dart';
 import 'dart:async';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/hive/session_model.dart';
+import 'package:woosh/services/hive/cart_hive_service.dart';
+import 'package:woosh/services/hive/client_hive_service.dart';
+import 'package:woosh/services/hive/hive_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -41,11 +46,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initHive();
+    _initEnhancedSessionService();
     _checkSessionStatus();
     // Add periodic session check
     Timer.periodic(const Duration(minutes: 5), (timer) {
       _checkSessionTimeout();
     });
+  }
+
+  Future<void> _initEnhancedSessionService() async {
+    await EnhancedSessionService.initialize();
   }
 
   Future<void> _initHive() async {
@@ -205,8 +215,9 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
     try {
       if (!isSessionActive) {
-        // Start session
-        final response = await SessionService.recordLogin(userId);
+        // Start session using enhanced service with offline support
+        final response = await EnhancedSessionService.recordLogin(userId);
+
         if (response['error'] != null) {
           // Show dialog for early login attempt
           if (response['error']
@@ -239,44 +250,52 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           return;
         }
 
-        // Save to Hive
-        await _sessionHiveService.saveSession(SessionModel(
-          isActive: true,
-          lastCheck: DateTime.now(),
-          loginTime: DateTime.now(),
-          userId: userId,
-        ));
-
         setState(() => isSessionActive = true);
         _sessionState.updateSessionState(true, DateTime.now());
+
+        // Show appropriate success message
+        final message = response['offline'] == true
+            ? 'Session started (will sync when online)'
+            : 'Session started successfully';
+        final color =
+            response['offline'] == true ? Colors.orange : Colors.green;
+
         Get.snackbar(
           'Success',
-          'Session started successfully',
+          message,
           backgroundColor: Colors.white,
-          colorText: Colors.green,
+          colorText: color,
         );
       } else {
-        // End session
-        await SessionService.recordLogout(userId);
-
-        // Update Hive
-        await _sessionHiveService.saveSession(SessionModel(
-          isActive: false,
-          lastCheck: DateTime.now(),
-          loginTime: null,
-          userId: userId,
-        ));
+        // End session using enhanced service with offline support
+        final response = await EnhancedSessionService.recordLogout(userId);
 
         setState(() => isSessionActive = false);
         _sessionState.updateSessionState(false, null);
+
+        // Show appropriate success message
+        final message = response['offline'] == true
+            ? 'Session ended (will sync when online)'
+            : 'Session ended successfully';
+        final color = response['offline'] == true ? Colors.orange : Colors.blue;
+
         Get.snackbar(
           'Success',
-          'Session ended successfully',
+          message,
           backgroundColor: Colors.white,
-          colorText: Colors.blue,
+          colorText: color,
         );
       }
     } catch (e) {
+      // Handle server errors silently
+      if (e.toString().contains('500') ||
+          e.toString().contains('501') ||
+          e.toString().contains('502') ||
+          e.toString().contains('503')) {
+        print('Server error during session toggle - handled silently: $e');
+        return;
+      }
+
       String errorMessage =
           'Failed to ${isSessionActive ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
@@ -308,6 +327,65 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       );
     } finally {
       setState(() => isProcessing = false);
+    }
+  }
+
+  Future<void> _clearAppCache() async {
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: GradientText(
+          'Clear App Cache',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'This will clear all cached data including images, offline data, and temporary files. Are you sure you want to continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          GoldGradientButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Clear Cache'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) return;
+
+    try {
+      // Clear image cache
+      ImageCache().clear();
+      ImageCache().clearLiveImages();
+
+      // Clear API cache
+      ApiCache.clear();
+
+      // Clear Hive cache using correct methods
+      final cartHiveService = CartHiveService();
+      await cartHiveService.init();
+      await cartHiveService.clearCart();
+
+      final clientHiveService = ClientHiveService();
+      await clientHiveService.init();
+      await clientHiveService.clearAllClients();
+
+      Get.snackbar(
+        'Success',
+        'App cache cleared successfully',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to clear cache: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -750,7 +828,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
-                      Icons.history,
+                      Icons.track_changes,
                       color: Theme.of(context).primaryColor,
                       size: 16,
                     ),
@@ -808,6 +886,52 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                   const Expanded(
                     child: Text(
                       'Settings',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: Colors.grey.shade600,
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Card(
+          elevation: 1,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: InkWell(
+            onTap: _clearAppCache,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.cleaning_services,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Clear App Cache',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,

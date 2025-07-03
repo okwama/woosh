@@ -69,10 +69,18 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
         _payments = payments;
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load payments. Please try again.';
-      });
-      _showErrorDialog();
+      // Handle server errors silently
+      if (e.toString().contains('500') ||
+          e.toString().contains('501') ||
+          e.toString().contains('502') ||
+          e.toString().contains('503')) {
+        print('Server error during payment fetch - handled silently: $e');
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to load payments. Please try again.';
+        });
+        _showErrorDialog();
+      }
     } finally {
       setState(() => _loadingPayments = false);
       _refreshController.refreshCompleted();
@@ -281,11 +289,22 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             }
                           } catch (e) {
                             print('Error uploading payment: $e');
-                            setState(() {
-                              errorMessage =
-                                  'Failed to upload payment. Please try again.';
-                              uploading = false;
-                            });
+                            // Handle server errors silently
+                            if (e.toString().contains('500') ||
+                                e.toString().contains('501') ||
+                                e.toString().contains('502') ||
+                                e.toString().contains('503')) {
+                              print(
+                                  'Server error during payment upload - handled silently: $e');
+                              // Close dialog silently for server errors
+                              Navigator.pop(context);
+                            } else {
+                              setState(() {
+                                errorMessage =
+                                    'Failed to upload payment. Please try again.';
+                                uploading = false;
+                              });
+                            }
                           }
                         },
                   child: uploading

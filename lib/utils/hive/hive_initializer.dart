@@ -8,6 +8,7 @@ import 'package:woosh/models/hive/route_model.dart';
 import 'package:woosh/models/hive/pending_journey_plan_model.dart';
 import 'package:woosh/models/hive/product_report_hive_model.dart';
 import 'package:woosh/models/hive/product_model.dart';
+import 'package:woosh/models/hive/pending_session_model.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:woosh/services/hive/journey_plan_hive_service.dart';
@@ -16,6 +17,7 @@ import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
 import 'package:woosh/services/hive/product_report_hive_service.dart';
 import 'package:woosh/services/hive/product_hive_service.dart';
 import 'package:woosh/services/hive/order_hive_service.dart';
+import 'package:woosh/services/hive/pending_session_hive_service.dart';
 
 class HiveInitializer {
   static Future<void> initialize() async {
@@ -33,6 +35,7 @@ class HiveInitializer {
     Hive.registerAdapter(ProductReportHiveModelAdapter());
     Hive.registerAdapter(ProductQuantityHiveModelAdapter());
     Hive.registerAdapter(ProductHiveModelAdapter());
+    Hive.registerAdapter(PendingSessionModelAdapter());
 
     // Open boxes
     await Hive.openBox<OrderModel>('orders');
@@ -44,37 +47,42 @@ class HiveInitializer {
     await Hive.openBox<PendingJourneyPlanModel>('pendingJourneyPlans');
     await Hive.openBox<ProductReportHiveModel>('productReports');
     await Hive.openBox<ProductHiveModel>('products');
-    
+    await Hive.openBox<PendingSessionModel>('pendingSessions');
+
     // Open general timestamp box for tracking last update times
     await Hive.openBox('timestamps');
-    
+
     // Initialize and register Hive services
     final clientHiveService = ClientHiveService();
     await clientHiveService.init();
     Get.put(clientHiveService);
-    
+
     final journeyPlanHiveService = JourneyPlanHiveService();
     await journeyPlanHiveService.init();
     Get.put(journeyPlanHiveService);
-    
+
     final routeHiveService = RouteHiveService();
     await routeHiveService.init();
     Get.put(routeHiveService);
-    
+
     final pendingJourneyPlanHiveService = PendingJourneyPlanHiveService();
     await pendingJourneyPlanHiveService.init();
     Get.put(pendingJourneyPlanHiveService);
-    
+
     final productReportHiveService = ProductReportHiveService();
     await productReportHiveService.init();
     Get.put(productReportHiveService);
-    
+
     final productHiveService = ProductHiveService();
     await productHiveService.init();
     Get.put(productHiveService);
-    
+
     final orderHiveService = OrderHiveService();
     await orderHiveService.init();
     Get.put(orderHiveService);
+
+    final pendingSessionHiveService = PendingSessionHiveService();
+    await pendingSessionHiveService.init();
+    Get.put(pendingSessionHiveService);
   }
 }

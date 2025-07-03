@@ -17,6 +17,11 @@ import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/services/permission_service.dart';
 import 'package:woosh/services/outlet_service.dart';
+import 'package:woosh/pages/activation_page.dart';
+import 'package:woosh/pages/test/error_test_page.dart';
+import 'package:woosh/services/offline_sync_service.dart';
+import 'package:woosh/services/enhanced_session_service.dart';
+import 'package:woosh/services/enhanced_journey_plan_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +30,13 @@ void main() async {
     await GetStorage.init();
     // Initialize Hive with all adapters
     await HiveInitializer.initialize();
+
+    // Initialize enhanced services
+    await EnhancedSessionService.initialize();
+    await EnhancedJourneyPlanService.initialize();
+
+    // Initialize offline sync service
+    Get.put(OfflineSyncService());
 
     // Request permissions at startup
     await PermissionService.requestInitialPermissions();
@@ -36,8 +48,8 @@ void main() async {
     Get.put(UpliftCartController());
     runApp(MyApp());
   } catch (e) {
-    print('Error initializing app: $e');
-    // You might want to show an error screen or handle the error appropriately
+    print('❌ Error initializing services: $e');
+    // Continue with app launch even if some services fail
   }
 }
 
@@ -149,6 +161,113 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/no_connection', page: () => const OfflineToast()),
         ...AppRoutes.routes,
       ],
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus();
+  }
+
+  Future<void> _checkAuthStatus() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    try {
+      final authController = Get.put(AuthController());
+      final isLoggedIn = await authController.isLoggedIn();
+
+      if (isLoggedIn) {
+        Get.offAll(() => const HomePage());
+      } else {
+        Get.offAll(() => const LoginPage());
+      }
+    } catch (e) {
+      print('Error checking auth status: $e');
+      Get.offAll(() => const LoginPage());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Logo
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/images/woosh_logo.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.business,
+                        size: 60,
+                        color: Colors.white,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 30),
+            // App name
+            Text(
+              'Woosh',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Sales Management System',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 50),
+            // Loading indicator
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

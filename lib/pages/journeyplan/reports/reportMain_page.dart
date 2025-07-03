@@ -6,7 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
-
+import 'package:woosh/services/jouneyplan_service.dart';
 import 'package:woosh/models/report/productReport_model.dart';
 import 'package:woosh/models/report/feedbackReport_model.dart';
 import 'package:woosh/models/report/visibilityReport_model.dart';
@@ -127,7 +127,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     if (_imageFile == null) return null;
 
     try {
-      final imageUrl = await ApiService.uploadImage(_imageFile!);
+    final imageUrl = await ApiService.uploadImage(_imageFile!);
       setState(() => _imageUrl = imageUrl);
       return imageUrl;
     } catch (e) {
@@ -761,7 +761,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
 
       // Update journey plan with checkout information
       print('CHECKOUT: Sending data to API...');
-      final response = await ApiService.updateJourneyPlan(
+      final response = await JourneyPlanService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,

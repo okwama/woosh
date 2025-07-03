@@ -149,13 +149,22 @@ class _AddClientPageState extends State<AddClientPage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to add client: $e'),
-              duration: const Duration(seconds: 3),
-              backgroundColor: Colors.red,
-            ),
-          );
+          // Handle server errors silently
+          if (e.toString().contains('500') ||
+              e.toString().contains('501') ||
+              e.toString().contains('502') ||
+              e.toString().contains('503')) {
+            print('Server error during client creation - handled silently: $e');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Unable to add client. Please check your connection and try again.'),
+                duration: Duration(seconds: 3),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
           setState(() {
             _isLoading = false;
           });

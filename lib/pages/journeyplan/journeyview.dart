@@ -19,6 +19,8 @@ import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:get/get.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:woosh/services/jouneyplan_service.dart';
+import 'package:woosh/utils/safe_error_handler.dart';
 
 class JourneyView extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -358,7 +360,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       // Update journey plan in background
       try {
         print('Background: Updating journey plan...');
-        final updatedPlan = await ApiService.updateJourneyPlan(
+        final updatedPlan = await JourneyPlanService.updateJourneyPlan(
           journeyId: optimisticPlan.id!,
           clientId: optimisticPlan.client.id,
           status: JourneyPlan.statusInProgress,
@@ -376,10 +378,18 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         }
       } catch (e) {
         print('Background: ❌ Journey plan update failed: $e');
-        // Schedule retry for background sync
-        _scheduleRetry(
-            () => _processCheckInInBackground(imageFile, optimisticPlan),
-            operationName: 'background-journey-update');
+        // Only schedule retry for non-server errors (server errors are handled by the service)
+        if (!(e.toString().contains('500') ||
+            e.toString().contains('501') ||
+            e.toString().contains('502') ||
+            e.toString().contains('503'))) {
+          _scheduleRetry(
+              () => _processCheckInInBackground(imageFile, optimisticPlan),
+              operationName: 'background-journey-update');
+        } else {
+          print(
+              'Background: Server error - service will handle retries automatically');
+        }
       }
     } catch (e) {
       print('Background: ❌ Error in background sync: $e');
@@ -671,7 +681,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       }
 
       // 2. Submit completion with minimal data
-      final completedPlan = await ApiService.updateJourneyPlan(
+      final completedPlan = await JourneyPlanService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusCompleted,
@@ -704,16 +714,15 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not complete visit: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: _handleAllReportsSubmitted,
-            ),
+        SafeErrorHandler.showSnackBar(
+          context,
+          e,
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _handleAllReportsSubmitted,
           ),
         );
       }
@@ -755,7 +764,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       print('Fixing journey status: changing from checked-in to in-progress');
 
       // Update to In Progress status
-      final inProgressPlan = await ApiService.updateJourneyPlan(
+      final inProgressPlan = await JourneyPlanService.updateJourneyPlan(
         journeyId: widget.journeyPlan.id!,
         clientId: widget.journeyPlan.client.id,
         status: JourneyPlan.statusInProgress,
@@ -1387,7 +1396,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       // Fetch updated journey plan
       final updatedPlan =
-          await ApiService.getJourneyPlanById(widget.journeyPlan.id!);
+          await JourneyPlanService.getJourneyPlanById(widget.journeyPlan.id!);
 
       if (!mounted) return;
 
@@ -1412,12 +1421,20 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       print('Error refreshing journey status: $e');
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to refresh: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Handle server errors silently
+      if (e.toString().contains('500') ||
+          e.toString().contains('501') ||
+          e.toString().contains('502') ||
+          e.toString().contains('503')) {
+        print('Server error during refresh - handled silently: $e');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to refresh. Please check your connection.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1513,7 +1530,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                 );
 
                 // Call API to update notes
-                final updatedJourneyPlan = await ApiService.updateJourneyPlan(
+                final updatedJourneyPlan =
+                    await JourneyPlanService.updateJourneyPlan(
                   journeyId: widget.journeyPlan.id!,
                   clientId: widget.journeyPlan.client.id,
                   notes: notesController.text.trim(),
@@ -1532,12 +1550,21 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                   ),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to save notes: ${e.toString()}'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                // Handle server errors silently
+                if (e.toString().contains('500') ||
+                    e.toString().contains('501') ||
+                    e.toString().contains('502') ||
+                    e.toString().contains('503')) {
+                  print(
+                      'Server error during notes save - handled silently: $e');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Unable to save notes. Please try again.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Save'),

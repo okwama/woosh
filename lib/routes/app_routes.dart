@@ -8,6 +8,7 @@ import 'package:woosh/controllers/uplift_cart_controller.dart';
 import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/controllers/uplift_sale_controller.dart';
 import 'package:woosh/pages/login/sign_page.dart';
+import 'package:woosh/pages/test/error_test_page.dart';
 
 class AppRoutes {
   static final routes = [
@@ -57,6 +58,12 @@ class AppRoutes {
     GetPage(
       name: '/sign-up',
       page: () => const SignUpPage(),
+      transition: Transition.rightToLeft,
+    ),
+    // Test Route (for development/testing)
+    GetPage(
+      name: '/test/errors',
+      page: () => const ErrorTestPage(),
       transition: Transition.rightToLeft,
     ),
   ];

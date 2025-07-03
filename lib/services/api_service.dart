@@ -11,16 +11,13 @@ import 'package:get_storage/get_storage.dart';
 import 'package:get/get.dart'
     hide FormData, MultipartFile; // Hide conflicting imports
 import 'package:http_parser/http_parser.dart';
-import 'package:woosh/models/hive/pending_journey_plan_model.dart';
 import 'package:woosh/models/hive/route_model.dart';
 // Generated files cannot be directly imported
-import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/noticeboard_model.dart';
 import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/user_model.dart';
-import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
 import 'package:woosh/services/hive/route_hive_service.dart';
 import 'package:woosh/utils/config.dart';
 import 'package:woosh/utils/image_utils.dart';
@@ -40,6 +37,7 @@ import 'package:woosh/models/store_model.dart';
 import 'image_upload.dart';
 import 'package:image/image.dart' as img;
 import 'package:woosh/services/offline_toast_service.dart';
+import 'package:woosh/utils/error_handler.dart';
 import 'package:woosh/services/token_service.dart';
 
 // API Caching System
@@ -256,6 +254,15 @@ class ApiService {
     // Log the error for debugging but don't show raw error to user
     print('Network error occurred: $error');
 
+    // Check if it's a server error (500, 501, 502, 503) - handle silently
+    if (error.toString().contains('500') ||
+        error.toString().contains('501') ||
+        error.toString().contains('502') ||
+        error.toString().contains('503')) {
+      print('Server error detected - handling silently: $error');
+      return; // Don't show any error to user for server errors
+    }
+
     String errorMessage = "Unable to connect to the server";
 
     if (error.toString().contains('SocketException') ||
@@ -266,18 +273,10 @@ class ApiService {
       errorMessage = "You're offline. Please check your internet connection.";
     } else if (error.toString().contains('TimeoutException')) {
       errorMessage = "Request timed out. Please try again.";
-    } else if (error.toString().contains('500')) {
-      errorMessage = "Server error. Please try again later.";
     }
 
-    // Always show the offline toast instead of raw error
-    OfflineToastService.showOfflineToast(
-      message: errorMessage,
-      duration: const Duration(seconds: 4),
-      onRetry: () {
-        Get.back();
-      },
-    );
+    // Use the global error handler to show user-friendly messages (but not for server errors)
+    GlobalErrorHandler.handleApiError(error, showToast: true);
   }
 
   static Future<dynamic> _handleResponse(http.Response response) async {
@@ -302,6 +301,13 @@ class ApiService {
       // If refresh succeeded, the original request should be retried
       throw Exception("Token refreshed, retry request");
     }
+
+    // Handle server errors silently with retry logic
+    if (response.statusCode >= 500 && response.statusCode <= 503) {
+      print('Server error ${response.statusCode} - will be retried silently');
+      throw Exception("Server error ${response.statusCode} - retry");
+    }
+
     return response;
   }
 
@@ -328,7 +334,10 @@ class ApiService {
     int? routeId,
     int page = 1,
     int limit = 20000,
+    int retryCount = 0,
   }) async {
+    const maxRetries = 3;
+
     try {
       // Build query parameters
       final queryParams = <String, String>{
@@ -389,6 +398,25 @@ class ApiService {
             'Failed to load clients: ${handledResponse.statusCode}');
       }
     } catch (e) {
+      // Check if it's a server error and we haven't exceeded max retries
+      if ((e.toString().contains('500') ||
+              e.toString().contains('501') ||
+              e.toString().contains('502') ||
+              e.toString().contains('503') ||
+              e.toString().contains('Server error')) &&
+          retryCount < maxRetries) {
+        print(
+            'Server error in fetchClients, retrying... (${retryCount + 1}/$maxRetries)');
+        await Future.delayed(
+            Duration(seconds: (retryCount + 1) * 2)); // Exponential backoff
+        return fetchClients(
+          routeId: routeId,
+          page: page,
+          limit: limit,
+          retryCount: retryCount + 1,
+        );
+      }
+
       handleNetworkError(e);
       rethrow;
     }
@@ -409,6 +437,16 @@ class ApiService {
     final salesRep = box.read('salesRep');
     if (salesRep != null && salesRep is Map<String, dynamic>) {
       return salesRep['route_id'];
+    }
+    return null;
+  }
+
+  // Get current user's ID
+  static int? getCurrentUserId() {
+    final box = GetStorage();
+    final salesRep = box.read('salesRep');
+    if (salesRep != null && salesRep is Map<String, dynamic>) {
+      return salesRep['id'];
     }
     return null;
   }
@@ -500,349 +538,6 @@ class ApiService {
     } catch (e) {
       print('Error fetching outlets: $e');
       throw Exception('Failed to load outlets: $e');
-    }
-  }
-
-  // Create a Journey Plan
-  static Future<JourneyPlan> createJourneyPlan(int clientId, DateTime dateTime,
-      {String? notes, int? routeId}) async {
-    try {
-      print(
-          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
-      // Debug: print the entire request body and user
-      print('--- Incoming createJourneyPlan request ---');
-      print(
-          'req.body: $clientId, date: ${dateTime.toIso8601String()}, notes: $notes, routeId: $routeId');
-      print('req.user: $clientId');
-
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      // Format time as HH:MM:SS
-      final time =
-          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
-
-      print(
-          'Creating journey plan with clientId: $clientId, date: ${dateTime.toIso8601String()}, time: $time, notes: $notes, routeId: $routeId');
-
-      final Map<String, dynamic> requestBody = {
-        'clientId': clientId,
-        'date': dateTime.toIso8601String(),
-        'time': time,
-      };
-
-      if (notes != null && notes.isNotEmpty) {
-        requestBody['notes'] = notes;
-      }
-
-      if (routeId != null) {
-        requestBody['routeId'] = routeId;
-      }
-
-      // Add debug logging
-      print('Journey plan request body: ${jsonEncode(requestBody)}');
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/journey-plans'),
-        headers: await _headers(),
-        body: jsonEncode(requestBody),
-      );
-
-      print('Create journey plan response status: ${response.statusCode}');
-      print('Create journey plan response body: ${response.body}');
-
-      if (response.statusCode == 201) {
-        final decodedJson = jsonDecode(response.body);
-        return JourneyPlan.fromJson(decodedJson);
-      } else {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(
-            'Failed to create journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
-      }
-    } catch (e) {
-      print('Error in createJourneyPlan: $e');
-      throw Exception('An error occurred while creating the journey plan: $e');
-    }
-  }
-
-  static Future<void> createJourneyPlanOffline(
-    int clientId,
-    DateTime date, {
-    String? notes,
-    int? routeId,
-  }) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/journey-plans'),
-        headers: await _headers(),
-        body: jsonEncode({
-          'clientId': clientId,
-          'date': date.toIso8601String(),
-          if (notes != null && notes.isNotEmpty) 'notes': notes,
-          if (routeId != null) 'routeId': routeId,
-        }),
-      );
-
-      if (response.statusCode != 201) {
-        throw Exception(
-            'Failed to create journey plan: ${response.statusCode}');
-      }
-
-      // Clear journey plans cache to force refresh
-      ApiCache.remove('journey_plans');
-    } catch (e) {
-      print('Error creating journey plan: $e');
-
-      // Check if it's a network error
-      if (e.toString().contains('SocketException') ||
-          e.toString().contains('Connection') ||
-          e.toString().contains('Network')) {
-        // Store the journey plan locally for later sync
-        try {
-          final pendingService = Get.find<PendingJourneyPlanHiveService>();
-          final pendingPlan = PendingJourneyPlanModel(
-            clientId: clientId,
-            date: date,
-            notes: notes,
-            routeId: routeId,
-            createdAt: DateTime.now(),
-            status: 'pending',
-          );
-          await pendingService.savePendingJourneyPlan(pendingPlan);
-          return; // Return without throwing exception as we've saved it locally
-        } catch (hiveError) {
-          print('Error saving pending journey plan: $hiveError');
-        }
-      }
-
-      throw Exception('Failed to create journey plan: $e');
-    }
-  }
-
-  // Fetch Journey Plans
-  static Future<List<JourneyPlan>> fetchJourneyPlans(
-      {int page = 1, int limit = 2000}) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final queryParams = {
-        'page': page.toString(),
-        'limit': limit.toString(),
-      };
-
-      final uri = Uri.parse('$baseUrl/journey-plans')
-          .replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: await _headers());
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseBody = jsonDecode(response.body);
-        if (responseBody.containsKey('data') && responseBody['data'] is List) {
-          final List<dynamic> journeyPlansJson = responseBody['data'];
-          return journeyPlansJson
-              .map((json) => JourneyPlan.fromJson(json))
-              .toList();
-        } else {
-          throw Exception(
-              'Unexpected response format: missing data field or not a list');
-        }
-      } else {
-        throw Exception('Failed to load journey plans: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error in fetchJourneyPlans: $e');
-      throw Exception('An error occurred while fetching journey plans: $e');
-    }
-  }
-
-  // Update Journey Plan
-  static Future<JourneyPlan> updateJourneyPlan({
-    required int journeyId,
-    required int clientId,
-    int? status,
-    DateTime? checkInTime,
-    double? latitude,
-    double? longitude,
-    String? imageUrl,
-    String? notes,
-    DateTime? checkoutTime,
-    double? checkoutLatitude,
-    double? checkoutLongitude,
-  }) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
-
-      // Convert numeric status to string status for the API
-      String? statusString;
-      if (status != null) {
-        switch (status) {
-          case JourneyPlan.statusPending:
-            statusString = 'pending';
-            break;
-          case JourneyPlan.statusCheckedIn:
-            statusString = 'checked_in';
-            break;
-          case JourneyPlan.statusInProgress:
-            statusString = 'in_progress';
-            break;
-          case JourneyPlan.statusCompleted:
-            statusString = 'completed';
-            break;
-          case JourneyPlan.statusCancelled:
-            statusString = 'cancelled';
-            break;
-          default:
-            throw Exception('Invalid status value: $status');
-        }
-      }
-
-      final body = {
-        'clientId': clientId,
-        if (statusString != null) 'status': statusString,
-        if (checkInTime != null) 'checkInTime': checkInTime.toIso8601String(),
-        if (latitude != null) 'latitude': latitude,
-        if (longitude != null) 'longitude': longitude,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        if (notes != null) 'notes': notes,
-        if (checkoutTime != null)
-          'checkoutTime': checkoutTime.toIso8601String(),
-        if (checkoutLatitude != null) 'checkoutLatitude': checkoutLatitude,
-        if (checkoutLongitude != null) 'checkoutLongitude': checkoutLongitude,
-      };
-
-      // Log all API requests for debugging
-      print('API REQUEST - JOURNEY PLAN UPDATE:');
-      print('URL: $url');
-      print('Journey ID: $journeyId');
-      print('Client ID: $clientId');
-      print('Status: $statusString');
-      print('Request Body: ${jsonEncode(body)}');
-
-      final response = await http.put(
-        url,
-        headers: await _headers(),
-        body: jsonEncode(body),
-      );
-
-      // Log all responses
-      print('API RESPONSE - JOURNEY PLAN UPDATE:');
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final decodedJson = jsonDecode(response.body);
-
-        // Log successful response data
-        if (checkoutTime != null) {
-          print('CHECKOUT API - RESPONSE SUCCESSFUL:');
-          print('Journey ID: ${decodedJson['id']}');
-          print('Status: ${decodedJson['status']}');
-          print('Checkout Time: ${decodedJson['checkoutTime']}');
-          print('Checkout Latitude: ${decodedJson['checkoutLatitude']}');
-          print('Checkout Longitude: ${decodedJson['checkoutLongitude']}');
-        }
-
-        return JourneyPlan.fromJson(decodedJson);
-      } else {
-        final errorBody = jsonDecode(response.body);
-
-        // Log error response data
-        if (checkoutTime != null) {
-          print('CHECKOUT API - RESPONSE ERROR:');
-          print('Status Code: ${response.statusCode}');
-          print('Error Message: ${errorBody['error'] ?? 'Unknown error'}');
-        }
-
-        throw Exception(
-            'Failed to update journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
-      }
-    } catch (e) {
-      // Log exception
-      if (checkoutTime != null) {
-        print('CHECKOUT API - EXCEPTION:');
-        print('Error: $e');
-      }
-
-      throw Exception('An error occurred while updating the journey plan: $e');
-    }
-  }
-
-  // Get Journey Plan by ID
-  static Future<JourneyPlan?> getJourneyPlanById(int journeyId) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
-
-      final response = await http.get(
-        url,
-        headers: await _headers(),
-      );
-
-      if (response.statusCode == 200) {
-        final decodedJson = jsonDecode(response.body);
-        return JourneyPlan.fromJson(decodedJson);
-      } else if (response.statusCode == 404) {
-        return null; // Journey plan not found
-      } else {
-        throw Exception('Failed to fetch journey plan: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error in getJourneyPlanById: $e');
-      throw Exception('An error occurred while fetching the journey plan: $e');
-    }
-  }
-
-  // Delete Journey Plan
-  static Future<void> deleteJourneyPlan(int journeyId) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception("Authentication token is missing");
-      }
-
-      final url = Uri.parse('$baseUrl/journey-plans/$journeyId');
-
-      print('Deleting journey plan: $journeyId');
-      print('URL: $url');
-
-      final response = await http.delete(
-        url,
-        headers: await _headers(),
-      );
-
-      print('Delete journey plan response status: ${response.statusCode}');
-      print('Delete journey plan response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final decodedJson = jsonDecode(response.body);
-        print('Journey plan deleted successfully: ${decodedJson['message']}');
-        return;
-      } else {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(
-            'Failed to delete journey plan: ${response.statusCode}\n${errorBody['error'] ?? 'Unknown error'}');
-      }
-    } catch (e) {
-      print('Error in deleteJourneyPlan: $e');
-      throw Exception('An error occurred while deleting the journey plan: $e');
     }
   }
 
@@ -2580,27 +2275,6 @@ class ApiService {
 
   static void removeFromCache(String key) {
     ApiCache.remove(key);
-  }
-
-  static Future<JourneyPlan?> getActiveVisit() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/journey-plans?status=in_progress'),
-        headers: await _headers(),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data != null && data['data'] != null && data['data'].isNotEmpty) {
-          // Return the first in-progress visit
-          return JourneyPlan.fromJson(data['data'][0]);
-        }
-      }
-      return null;
-    } catch (e) {
-      print('Error getting active visit: $e');
-      return null;
-    }
   }
 
   static Future<List<Client>> getClients() async {

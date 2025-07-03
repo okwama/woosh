@@ -136,11 +136,52 @@ class JourneyPlan {
   }
 
   factory JourneyPlan.fromJson(Map<String, dynamic> json) {
-    if (json['date'] == null) {
-      throw FormatException('Journey date is required');
+    // Debug logging to identify the issue
+    print('JourneyPlan.fromJson - Processing JSON: ${json.keys.join(', ')}');
+    print('JourneyPlan.fromJson - Date field: ${json['date']}');
+    print(
+        'JourneyPlan.fromJson - Client field present: ${json['client'] != null}');
+
+    if (json['date'] == null || json['date'].toString().isEmpty) {
+      throw FormatException(
+          'Journey date is required - received: ${json['date']}');
     }
     if (json['client'] == null) {
       throw FormatException('Client information is required');
+    }
+
+    // Safe parsing helper functions
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) {
+        try {
+          return double.parse(value);
+        } catch (e) {
+          print('parseDouble error for value "$value": $e');
+          return null;
+        }
+      }
+      return null;
+    }
+
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is String) {
+        try {
+          // Handle decimal strings by converting to double first, then to int
+          if (value.contains('.')) {
+            final doubleValue = double.tryParse(value);
+            return doubleValue?.toInt();
+          }
+          return int.parse(value);
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
     }
 
     DateTime parseDate(String dateStr) {
@@ -159,6 +200,10 @@ class JourneyPlan {
     final date = parseDate(json['date']);
     final time = json['time'] ?? getTime(date);
 
+    // Debug date and time parsing
+    print('JourneyPlan parsing - date: ${json['date']} -> $date');
+    print('JourneyPlan parsing - time: ${json['time']} -> $time');
+
     // Convert status to int, default to pending (0)
     final status = json['status'] != null
         ? (json['status'] is int
@@ -166,34 +211,53 @@ class JourneyPlan {
             : int.tryParse(json['status'].toString()) ?? statusPending)
         : statusPending;
 
+    // Debug status parsing
+    print('JourneyPlan parsing - status: ${json['status']} -> $status');
+    print('JourneyPlan parsing - statusText: ${json['statusText']}');
+
+    // Debug logging for each field
+    final id = parseInt(json['id']);
+    // Check for both userId and salesRepId (server might use userId)
+    final salesRepId = parseInt(json['userId'] ?? json['salesRepId']);
+    final routeId = parseInt(json['routeId']);
+    final clientId = parseInt(json['clientId']); // Add clientId parsing
+    final latitude = parseDouble(json['latitude']);
+    final longitude = parseDouble(json['longitude']);
+    final checkoutLatitude = parseDouble(json['checkoutLatitude']);
+    final checkoutLongitude = parseDouble(json['checkoutLongitude']);
+
+    print('JourneyPlan parsing - id: ${json['id']} -> $id');
+    print(
+        'JourneyPlan parsing - userId/salesRepId: ${json['userId'] ?? json['salesRepId']} -> $salesRepId');
+    print('JourneyPlan parsing - routeId: ${json['routeId']} -> $routeId');
+    print('JourneyPlan parsing - clientId: ${json['clientId']} -> $clientId');
+    print('JourneyPlan parsing - latitude: ${json['latitude']} -> $latitude');
+    print(
+        'JourneyPlan parsing - longitude: ${json['longitude']} -> $longitude');
+
+    // Debug client parsing
+    print('JourneyPlan parsing - client: ${json['client']}');
+
     return JourneyPlan(
-      id: json['id'],
+      id: id,
       date: date,
       time: time,
-      salesRepId: json['salesRepId'],
+      salesRepId: salesRepId,
       status: status,
       notes: json['notes'],
       checkInTime:
           json['checkInTime'] != null ? parseDate(json['checkInTime']) : null,
-      latitude: json['latitude'] != null
-          ? (json['latitude'] as num).toDouble()
-          : null,
-      longitude: json['longitude'] != null
-          ? (json['longitude'] as num).toDouble()
-          : null,
+      latitude: latitude,
+      longitude: longitude,
       imageUrl: json['imageUrl'],
       client: Client.fromJson(json['client']),
       checkoutTime:
           json['checkoutTime'] != null ? parseDate(json['checkoutTime']) : null,
-      checkoutLatitude: json['checkoutLatitude'] != null
-          ? (json['checkoutLatitude'] as num).toDouble()
-          : null,
-      checkoutLongitude: json['checkoutLongitude'] != null
-          ? (json['checkoutLongitude'] as num).toDouble()
-          : null,
+      checkoutLatitude: checkoutLatitude,
+      checkoutLongitude: checkoutLongitude,
       showUpdateLocation:
           json['showUpdateLocation'] ?? true, // Parse the new flag
-      routeId: json['routeId'], // Add routeId
+      routeId: routeId, // Add routeId
       routeName: json['routeName'], // Add routeName
     );
   }
