@@ -42,21 +42,21 @@ class EnhancedSessionService {
           userId: userId,
         ));
 
-        print('✅ Session started successfully (online)');
+        print('? Session started successfully (online)');
         return response;
       } else {
         // API returned an error (like early login restriction)
         return response;
       }
     } catch (e) {
-      print('❌ Session start failed, checking if server error: $e');
+      print('? Session start failed, checking if server error: $e');
 
       // Check if it's a server error (500-503)
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
           e.toString().contains('502') ||
           e.toString().contains('503')) {
-        print('🔄 Server error detected - saving session start for later sync');
+        print('?? Server error detected - saving session start for later sync');
 
         // Save pending session operation
         await _savePendingSessionOperation(userId, 'start');
@@ -70,7 +70,7 @@ class EnhancedSessionService {
         ));
 
         print(
-            '💾 Session start saved locally - will sync when server is available');
+            '?? Session start saved locally - will sync when server is available');
 
         return {
           'success': true,
@@ -95,7 +95,7 @@ class EnhancedSessionService {
           session.operation == 'start' && session.status == 'pending');
 
       if (hasPendingStart) {
-        print('🔄 Found pending session start - ending session locally only');
+        print('?? Found pending session start - ending session locally only');
 
         // Remove the pending start operation since we're ending the session
         final pendingStartSessions = pendingSessions
@@ -116,7 +116,7 @@ class EnhancedSessionService {
           userId: userId,
         ));
 
-        print('✅ Session ended locally (cancelled pending start)');
+        print('? Session ended locally (cancelled pending start)');
         return {
           'success': true,
           'message': 'Session ended (offline session cancelled)',
@@ -135,14 +135,14 @@ class EnhancedSessionService {
         userId: userId,
       ));
 
-      print('✅ Session ended successfully (online)');
+      print('? Session ended successfully (online)');
       return {'success': true, 'message': 'Session ended successfully'};
     } catch (e) {
-      print('❌ Session end failed, checking if server error: $e');
+      print('? Session end failed, checking if server error: $e');
 
       // Check if it's "No active session found" error - common when session was started offline
       if (e.toString().contains('No active session found')) {
-        print('🔄 No active session on server - ending local session only');
+        print('?? No active session on server - ending local session only');
 
         // Update local session state
         await _sessionHiveService.saveSession(SessionModel(
@@ -152,7 +152,7 @@ class EnhancedSessionService {
           userId: userId,
         ));
 
-        print('✅ Local session ended (no server session found)');
+        print('? Local session ended (no server session found)');
         return {
           'success': true,
           'message': 'Session ended locally',
@@ -165,7 +165,7 @@ class EnhancedSessionService {
           e.toString().contains('501') ||
           e.toString().contains('502') ||
           e.toString().contains('503')) {
-        print('🔄 Server error detected - saving session end for later sync');
+        print('?? Server error detected - saving session end for later sync');
 
         // Save pending session operation
         await _savePendingSessionOperation(userId, 'end');
@@ -179,7 +179,7 @@ class EnhancedSessionService {
         ));
 
         print(
-            '💾 Session end saved locally - will sync when server is available');
+            '?? Session end saved locally - will sync when server is available');
 
         return {
           'success': true,
@@ -205,7 +205,7 @@ class EnhancedSessionService {
     );
 
     await _pendingSessionService.savePendingSession(pendingSession);
-    print('💾 Saved pending $operation operation for user $userId');
+    print('?? Saved pending $operation operation for user $userId');
   }
 
   /// Get current session status (from local storage)

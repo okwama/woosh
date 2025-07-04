@@ -8,10 +8,12 @@ class PendingJourneyPlanHiveService {
   final _uuid = const Uuid();
 
   Future<void> init() async {
-    _pendingJourneyPlanBox = await Hive.openBox<PendingJourneyPlanModel>(_boxName);
+    _pendingJourneyPlanBox =
+        await Hive.openBox<PendingJourneyPlanModel>(_boxName);
   }
 
-  Future<String> savePendingJourneyPlan(PendingJourneyPlanModel journeyPlan) async {
+  Future<String> savePendingJourneyPlan(
+      PendingJourneyPlanModel journeyPlan) async {
     final id = _uuid.v4();
     await _pendingJourneyPlanBox.put(id, journeyPlan);
     return id;
@@ -36,7 +38,8 @@ class PendingJourneyPlanHiveService {
     return result;
   }
 
-  Future<void> updatePendingJourneyPlanStatus(String id, String status, {String? errorMessage}) async {
+  Future<void> updatePendingJourneyPlanStatus(String id, String status,
+      {String? errorMessage}) async {
     final plan = _pendingJourneyPlanBox.get(id);
     if (plan != null) {
       final updatedPlan = plan.copyWith(

@@ -1,14 +1,7 @@
-<<<<<<< HEAD
 name: woosh
 description: "A new Flutter project."
 
 version: 1.0.1+16  # Small fix/update
-=======
-﻿name: glamour_queen
-description: "Glamour Queen - A Flutter project."
-# com.cit.glamourqueen
-version: 1.0.1+11  # Small fix/update
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 
 environment:
@@ -47,11 +40,10 @@ dependencies:
   flutter_riverpod: ^2.6.1
   url_launcher: ^6.2.5
   flutter_image_compress: ^2.4.0
-<<<<<<< HEAD
   package_info_plus: ^8.0.2
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
+  image: any
+  uuid: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -63,11 +55,7 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#ffffff"
-<<<<<<< HEAD
   image: assets/woosh.png
-=======
-  image: assets/logo.jpeg
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   android: true
   ios: true
   android_gravity: center
@@ -76,19 +64,11 @@ flutter_native_splash:
 flutter_launcher_icons:
   android: true
   ios: true
-<<<<<<< HEAD
   image_path: "assets/new.png"
   remove_alpha_ios: true 
   web:
     generate: true
     image_path: "assets/new.png"
-=======
-  image_path: "assets/logo.jpeg"
-  remove_alpha_ios: true 
-  web:
-    generate: true
-    image_path: "assets/logo.jpeg"
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     background_color: "#FFFFFF"
   # Optional for Android adaptive icons:
   # adaptive_icon_background: "#FFFFFF"
@@ -98,15 +78,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-<<<<<<< HEAD
-    - assets/ben.png
-    - assets/images/
-    - assets/images/gold.png
+
     - assets/new.png
     - assets/name.png
   
-=======
-    - assets/logo.jpeg #splash
-
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

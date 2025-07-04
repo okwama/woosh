@@ -1,15 +1,9 @@
 class Config {
-<<<<<<< HEAD
- static const String baseUrl  = 'https://woosh-api-mocha.vercel.app';
+  static const String baseUrl = 'https://woosh-api-mocha.vercel.app';
 // static const String baseUrl = 'http://192.168.100.10:5000';
   static const String apiVersion = 'v1';
- static const String imageBaseUrl = 'https://woosh-api-mocha.vercel.app/uploads';
-=======
-  static const String baseUrl = 'https://gq-server-nu.vercel.app';
-  //static const String baseUrl2 = 'http://192.168.1.100:3000';
-  static const String apiVersion = 'v1';
-  static const String imageBaseUrl = 'https://gq-server-nu.vercel.app/uploads';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
+  static const String imageBaseUrl =
+      'https://woosh-api-mocha.vercel.app/uploads';
 
   // API Endpoints
   static const String loginEndpoint = '/auth/login';

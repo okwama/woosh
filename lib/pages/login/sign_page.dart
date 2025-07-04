@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/controllers/auth_controller.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_widgets.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -20,11 +20,8 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-<<<<<<< HEAD
   final TextEditingController _countryController =
       TextEditingController(text: 'Kenya');
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   final TextEditingController _countryIdController =
       TextEditingController(text: '1');
   final TextEditingController _regionIdController =
@@ -34,17 +31,10 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _routeIdController =
       TextEditingController(text: '1');
   final TextEditingController _routeController =
-<<<<<<< HEAD
       TextEditingController(text: 'Nairobi');
   String? _selectedRole = 'SALES_REP';
   String? _selectedCountry = 'Kenya';
   final TextEditingController _departmentController = TextEditingController();
-=======
-      TextEditingController(text: 'Kilimani');
-  String? _selectedRole = 'SALES_REP';
-  String? _selectedCountry = 'Kenya';
-  int _selectedCountryId = 1;
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthController _authController = Get.find<AuthController>();
   final ApiService _apiService = ApiService();
@@ -168,17 +158,14 @@ class _SignUpPageState extends State<SignUpPage> {
         'phoneNumber': _phoneController.text.trim(),
         'password': _passwordController.text,
         'country': _selectedCountry,
-        'countryId': _selectedCountryId,
+        'countryId': int.tryParse(_countryIdController.text) ?? 1,
         'region_id': int.tryParse(_regionIdController.text) ?? 1,
         'region': _regionController.text,
         'route_id': int.tryParse(_routeIdController.text) ?? 1,
         'route': _routeController.text,
         'role': _selectedRole,
-<<<<<<< HEAD
         'department':
             _selectedRole == 'MANAGER' ? _departmentController.text : null,
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       };
 
       final response = await _apiService.register(userData);
@@ -203,48 +190,19 @@ class _SignUpPageState extends State<SignUpPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isTablet = screenWidth > 600;
-    final horizontalPadding = isTablet ? screenWidth * 0.25 : 16.0; // Reduced padding
+    final horizontalPadding =
+        isTablet ? screenWidth * 0.25 : 16.0; // Reduced padding
     final maxFormWidth = isTablet ? 500.0 : double.infinity;
 
     return Scaffold(
       backgroundColor: appBackground,
       body: SafeArea(
-<<<<<<< HEAD
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Column(
             children: [
               // Reduced top spacing
               SizedBox(height: screenHeight * 0.01),
-=======
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Logo
-                  Center(
-                    child: Container(
-                      height: 120,
-                      width: 120,
-                      margin: const EdgeInsets.only(bottom: 30),
-                      decoration: GradientDecoration.goldCircular(),
-                      padding: const EdgeInsets.all(2.0),
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(15),
-                        child:
-                            Image.asset('assets/glam.png', fit: BoxFit.contain),
-                      ),
-                    ),
-                  ),
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
               // Main content card
               Container(
@@ -264,11 +222,11 @@ class _SignUpPageState extends State<SignUpPage> {
                       offset: const Offset(0, 10),
                       spreadRadius: 0,
                     ),
-<<<<<<< HEAD
                   ],
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(isTablet ? 32.0 : 20.0), // Reduced padding
+                  padding:
+                      EdgeInsets.all(isTablet ? 32.0 : 20.0), // Reduced padding
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -292,107 +250,12 @@ class _SignUpPageState extends State<SignUpPage> {
                                 ),
                                 onPressed: () => Get.back(),
                                 padding: EdgeInsets.zero,
-=======
-                    validator: _validateEmail,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Phone Field
-                  TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
-                      prefixIcon: const Icon(Icons.phone_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    validator: _validatePhone,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Password Field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Confirm Password Field
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    decoration: InputDecoration(
-                      labelText: 'Confirm Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          });
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    validator: _validateConfirmPassword,
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Sign Up Button
-                  SizedBox(
-                    height: 50,
-                    child: _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(),
-                          )
-                        : GoldGradientButton(
-                            onPressed: _signUp,
-                            borderRadius: 8,
-                            child: const Text(
-                              'Create Account',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                               ),
                             ),
                             const Spacer(),
                           ],
                         ),
 
-<<<<<<< HEAD
                         const SizedBox(height: 16), // Reduced spacing
 
                         // Smaller logo
@@ -430,187 +293,6 @@ class _SignUpPageState extends State<SignUpPage> {
                           'Create Account',
                           style: TextStyle(
                             fontSize: isTablet ? 24 : 20, // Reduced size
-=======
-                  // Role Selection
-                  DropdownButtonFormField<String>(
-                    value: _selectedRole,
-                    decoration: InputDecoration(
-                      labelText: 'Role',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 12),
-                    ),
-                    items: ['SALES_REP', 'RELIEVER'].map((String role) {
-                      return DropdownMenuItem(
-                        value: role,
-                        child: Text(
-                          role == 'SALES_REP'
-                              ? 'Sales Representative'
-                              : 'Reliever',
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? value) {
-                      setState(() {
-                        _selectedRole = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Country and Region Fields
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedCountry,
-                          decoration: InputDecoration(
-                            labelText: 'Country',
-                            prefixIcon: const Icon(Icons.flag_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 12),
-                          ),
-                          items: [
-                            DropdownMenuItem(
-                                value: 'Kenya', child: Text('Kenya')),
-                            DropdownMenuItem(
-                                value: 'Tanzania', child: Text('Tanzania')),
-                            DropdownMenuItem(
-                                value: 'Nigeria', child: Text('Nigeria')),
-                          ],
-                          onChanged: (String? value) {
-                            setState(() {
-                              _selectedCountry = value;
-                              // Update country ID based on selection
-                              switch (value) {
-                                case 'Kenya':
-                                  _selectedCountryId = 1;
-                                  break;
-                                case 'Tanzania':
-                                  _selectedCountryId = 2;
-                                  break;
-                                case 'Nigeria':
-                                  _selectedCountryId = 3;
-                                  break;
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _countryIdController,
-                          decoration: InputDecoration(
-                            labelText: 'Country ID',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          keyboardType: TextInputType.number,
-                          readOnly: true,
-                          onChanged: (value) {
-                            _selectedCountryId = int.tryParse(value) ?? 1;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _regionController,
-                          decoration: InputDecoration(
-                            labelText: 'Region',
-                            prefixIcon: const Icon(Icons.location_on_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _regionIdController,
-                          decoration: InputDecoration(
-                            labelText: 'Region ID',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          keyboardType: TextInputType.number,
-                          readOnly: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Route Fields
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _routeController,
-                          decoration: InputDecoration(
-                            labelText: 'Route',
-                            prefixIcon: const Icon(Icons.route_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _routeIdController,
-                          decoration: InputDecoration(
-                            labelText: 'Route ID',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          keyboardType: TextInputType.number,
-                          readOnly: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-
-                  // Already have an account
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Already have an account? '),
-                      GestureDetector(
-                        onTap: () => Get.back(),
-                        child: GradientText(
-                          'Sign In',
-                          style: const TextStyle(
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                             fontWeight: FontWeight.bold,
                             letterSpacing: -0.5,
                           ),
@@ -762,7 +444,8 @@ class _SignUpPageState extends State<SignUpPage> {
             filled: true,
             fillColor: readOnly ? Colors.grey.shade100 : Colors.grey.shade50,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12), // Slightly smaller radius
+              borderRadius:
+                  BorderRadius.circular(12), // Slightly smaller radius
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
@@ -781,8 +464,8 @@ class _SignUpPageState extends State<SignUpPage> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12), // Reduced padding
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 12), // Reduced padding
           ),
           validator: validator,
         ),
@@ -793,7 +476,7 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget _buildPasswordFields() {
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 400;
-    
+
     if (isSmallScreen) {
       // Stack password fields vertically on very small screens
       return Column(
@@ -805,8 +488,8 @@ class _SignUpPageState extends State<SignUpPage> {
             prefixIcon: Icons.lock_outline,
             isPassword: true,
             obscureText: _obscurePassword,
-            onTogglePassword: () => setState(() =>
-                _obscurePassword = !_obscurePassword),
+            onTogglePassword: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
             validator: _validatePassword,
           ),
           const SizedBox(height: 12),
@@ -817,8 +500,8 @@ class _SignUpPageState extends State<SignUpPage> {
             prefixIcon: Icons.lock_outline,
             isPassword: true,
             obscureText: _obscureConfirmPassword,
-            onTogglePassword: () => setState(() =>
-                _obscureConfirmPassword = !_obscureConfirmPassword),
+            onTogglePassword: () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword),
             validator: _validateConfirmPassword,
           ),
         ],
@@ -837,8 +520,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 prefixIcon: Icons.lock_outline,
                 isPassword: true,
                 obscureText: _obscurePassword,
-                onTogglePassword: () => setState(() =>
-                    _obscurePassword = !_obscurePassword),
+                onTogglePassword: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
                 validator: _validatePassword,
               ),
             ),
@@ -851,8 +534,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 prefixIcon: Icons.lock_outline,
                 isPassword: true,
                 obscureText: _obscureConfirmPassword,
-                onTogglePassword: () => setState(() =>
-                    _obscureConfirmPassword = !_obscureConfirmPassword),
+                onTogglePassword: () => setState(
+                    () => _obscureConfirmPassword = !_obscureConfirmPassword),
                 validator: _validateConfirmPassword,
               ),
             ),
@@ -880,9 +563,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 label: 'Department',
                 hint: 'Enter department',
                 prefixIcon: Icons.business_outlined,
-                validator: (value) => value?.isEmpty ?? true
-                    ? 'Department required'
-                    : null,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? 'Department required' : null,
               ),
             ),
           ],

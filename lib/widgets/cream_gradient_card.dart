@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:woosh/utils/app_theme.dart';
 
 // A Card with cream background and gradient border
 class CreamGradientCard extends StatelessWidget {
@@ -51,4 +51,3 @@ class CreamGradientCard extends StatelessWidget {
     );
   }
 }
-

@@ -1,6 +1,6 @@
 // Activation Page
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/pages/login/login_page.dart';
+import 'package:woosh/pages/login/login_page.dart';
 
 class ActivationPage extends StatelessWidget {
   const ActivationPage({super.key});
@@ -38,4 +38,3 @@ class ActivationPage extends StatelessWidget {
     );
   }
 }
-

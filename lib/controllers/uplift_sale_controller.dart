@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:glamour_queen/models/uplift_sale_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
+import 'package:woosh/models/uplift_sale_model.dart';
+import 'package:woosh/services/api_service.dart';
 
 class UpliftSaleController extends GetxController {
   final RxList<UpliftSale> sales = <UpliftSale>[].obs;
@@ -94,4 +94,3 @@ class UpliftSaleController extends GetxController {
     }
   }
 }
-

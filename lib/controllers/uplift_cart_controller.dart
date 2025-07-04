@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/outlet_model.dart';
 
 class UpliftCartItem {
   final Product product;
@@ -26,30 +26,30 @@ class UpliftCartController extends GetxController {
     currentOutlet = outlet;
   }
 
-void addItem(Product product, int quantity, double unitPrice) {
-  final existingItemIndex = items.indexWhere(
-    (item) => item.product.id == product.id && item.unitPrice == unitPrice,
-  );
+  void addItem(Product product, int quantity, double unitPrice) {
+    final existingItemIndex = items.indexWhere(
+      (item) => item.product.id == product.id && item.unitPrice == unitPrice,
+    );
 
-  if (existingItemIndex >= 0) {
-    // Update existing item
-    final existingItem = items[existingItemIndex];
-    items[existingItemIndex] = UpliftCartItem(
-      product: product,
-      quantity: existingItem.quantity + quantity,
-      unitPrice: unitPrice,
-    );
-  } else {
-    // Add new item
-    items.add(
-      UpliftCartItem(
+    if (existingItemIndex >= 0) {
+      // Update existing item
+      final existingItem = items[existingItemIndex];
+      items[existingItemIndex] = UpliftCartItem(
         product: product,
-        quantity: quantity,
+        quantity: existingItem.quantity + quantity,
         unitPrice: unitPrice,
-      ),
-    );
+      );
+    } else {
+      // Add new item
+      items.add(
+        UpliftCartItem(
+          product: product,
+          quantity: quantity,
+          unitPrice: unitPrice,
+        ),
+      );
+    }
   }
-}
 
   void updateItemQuantity(UpliftCartItem item, int newQuantity) {
     final index = items.indexOf(item);
@@ -93,4 +93,3 @@ void addItem(Product product, int quantity, double unitPrice) {
 
   void clearCart() {}
 }
-

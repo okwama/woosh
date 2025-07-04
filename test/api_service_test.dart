@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:glamour_queen/services/api_service.dart';
+import 'package:woosh/services/api_service.dart';
 
 void main() {
   group('API Service Token Handling Tests', () {

@@ -159,7 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          SkeletonLoader(height: 120, width: double.infinity),  
+          SkeletonLoader(height: 120, width: double.infinity),
           SizedBox(height: 16),
           SkeletonLoader(height: 120, width: double.infinity),
           SizedBox(height: 16),

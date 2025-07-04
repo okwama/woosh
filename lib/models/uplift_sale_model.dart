@@ -1,9 +1,9 @@
 import 'package:get/get.dart';
-import 'package:glamour_queen/models/client_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/outlet_model.dart';
 import 'package:dio/dio.dart';
-import 'package:glamour_queen/services/api_service.dart';
+import 'package:woosh/services/api_service.dart';
 
 class UpliftSaleItem {
   final int id;

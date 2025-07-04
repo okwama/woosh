@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
-import 'package:glamour_queen/models/report/feedbackReport_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/feedbackReport_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class FeedbackReportPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -177,4 +177,3 @@ class _FeedbackReportPageState extends State<FeedbackReportPage> {
     super.dispose();
   }
 }
-

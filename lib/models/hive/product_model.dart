@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/price_option_model.dart';
-import 'package:glamour_queen/models/store_quantity_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/price_option_model.dart';
+import 'package:woosh/models/store_quantity_model.dart';
 
 // This part reference will be generated after running build_runner
 part 'product_model.g.dart';
@@ -122,31 +122,14 @@ class ProductHiveModel extends HiveObject {
       priceOptions.add(PriceOption(
         id: defaultPriceOptionId!,
         option: defaultPriceOption!,
-<<<<<<< HEAD
         value: defaultPriceValue!.toInt(),
         value_tzs: null, // Nullable value
         value_ngn: null, // Nullable value
-=======
-        value: defaultPriceValue!,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         categoryId: defaultPriceCategoryId ??
             category_id, // Use the stored category ID or fall back to product's category_id
       ));
     }
 
-<<<<<<< HEAD
-=======
-    // Convert store quantities data back to StoreQuantity objects
-    List<StoreQuantity> storeQuantities = [];
-    try {
-      storeQuantities = storeQuantitiesData
-          .map((data) => StoreQuantity.fromJson(data))
-          .toList();
-    } catch (e) {
-      print('Error parsing store quantities: $e');
-    }
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     return Product(
       id: id,
       name: name,
@@ -159,7 +142,9 @@ class ProductHiveModel extends HiveObject {
       clientId: clientId,
       packSize: packSize,
       priceOptions: priceOptions,
-      storeQuantities: storeQuantities,
+      storeQuantities: storeQuantitiesData
+          .map((data) => StoreQuantity.fromJson(data))
+          .toList(),
     );
   }
 }

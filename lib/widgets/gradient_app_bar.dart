@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:woosh/utils/app_theme.dart';
 
 class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -87,4 +87,3 @@ class GradientFlexibleSpaceBar extends StatelessWidget {
     );
   }
 }
-

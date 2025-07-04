@@ -1,13 +1,9 @@
 class PriceOption {
   final int? id;
   final String option;
-<<<<<<< HEAD
   final int? value;
   final double? value_tzs;
   final double? value_ngn;
-=======
-  final double value;
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   final int categoryId;
   final double? originalValue;
   final double? discountPercentage;
@@ -29,22 +25,10 @@ class PriceOption {
     return PriceOption(
       id: json['id'] as int?,
       option: json['option'] as String,
-<<<<<<< HEAD
       value: _parseValue(json['value']),
       value_tzs: _parseDoubleValue(json['value_tzs']),
       value_ngn: _parseDoubleValue(json['value_ngn']),
       categoryId: json['categoryId'] as int,
-=======
-      value: (json['value'] as num).toDouble(),
-      categoryId: json['categoryId'] as int? ?? 0,
-      originalValue: json['originalValue'] != null
-          ? (json['originalValue'] as num).toDouble()
-          : null,
-      discountPercentage: json['discountPercentage'] != null
-          ? (json['discountPercentage'] as num).toDouble()
-          : null,
-      isFallback: json['isFallback'] as bool?,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     );
   }
 
@@ -84,15 +68,8 @@ class PriceOption {
         'option': option,
         'value': value,
         'categoryId': categoryId,
-<<<<<<< HEAD
         'value_tzs': value_tzs,
         'value_ngn': value_ngn,
-=======
-        if (originalValue != null) 'originalValue': originalValue,
-        if (discountPercentage != null)
-          'discountPercentage': discountPercentage,
-        if (isFallback != null) 'isFallback': isFallback,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       };
 
   @override

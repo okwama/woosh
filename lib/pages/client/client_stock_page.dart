@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/models/client_stock_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/services/client_stock_service.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/models/client_stock_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/services/client_stock_service.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ClientStockPage extends StatefulWidget {
@@ -24,7 +24,7 @@ class ClientStockPage extends StatefulWidget {
 class _ClientStockPageState extends State<ClientStockPage> {
   List<ClientStock> _clientStocks = [];
   List<Product> _products = [];
-  Map<int, TextEditingController> _controllers = {};
+  final Map<int, TextEditingController> _controllers = {};
   bool _loading = true;
   bool _loadingProducts = false;
   bool _updatingStock = false;
@@ -32,7 +32,7 @@ class _ClientStockPageState extends State<ClientStockPage> {
   String _searchQuery = '';
   String _selectedCategory = 'ALL';
   bool _editMode = false;
-  List<int> _changedProducts = [];
+  final List<int> _changedProducts = [];
 
   @override
   void initState() {

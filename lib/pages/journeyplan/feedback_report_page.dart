@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
-import 'package:glamour_queen/models/report/feedbackReport_model.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/base_report_page.dart';
-
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/feedbackReport_model.dart';
+import 'package:woosh/pages/journeyplan/reports/base_report_page.dart';
 
 class FeedbackReportPage extends BaseReportPage {
   const FeedbackReportPage({super.key, required super.journeyPlan})
@@ -172,4 +171,3 @@ class _FeedbackReportPageState extends State<FeedbackReportPage>
     );
   }
 }
-

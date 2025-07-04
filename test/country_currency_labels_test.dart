@@ -22,7 +22,7 @@ void main() {
 
     test('should return correct currency info for Nigeria (countryId: 3)', () {
       final currency = CountryCurrencyLabels.getCurrencyInfo(3);
-      expect(currency['symbol'], equals('₦'));
+      expect(currency['symbol'], equals('?'));
       expect(currency['position'], equals('before'));
       expect(currency['decimalPlaces'], equals(2));
       expect(currency['name'], equals('Nigerian Naira'));
@@ -62,15 +62,15 @@ void main() {
 
     test('should format currency correctly for Nigeria (before position)', () {
       expect(CountryCurrencyLabels.formatCurrency(1000.50, 3),
-          equals('₦ 1000.50'));
-      expect(CountryCurrencyLabels.formatCurrency(0, 3), equals('₦ 0.00'));
-      expect(CountryCurrencyLabels.formatCurrency(null, 3), equals('₦ 0.00'));
+          equals('? 1000.50'));
+      expect(CountryCurrencyLabels.formatCurrency(0, 3), equals('? 0.00'));
+      expect(CountryCurrencyLabels.formatCurrency(null, 3), equals('? 0.00'));
     });
 
     test('should handle null amount gracefully', () {
       expect(CountryCurrencyLabels.formatCurrency(null, 1), equals('KES 0.00'));
       expect(CountryCurrencyLabels.formatCurrency(null, 2), equals('TZS 0.00'));
-      expect(CountryCurrencyLabels.formatCurrency(null, 3), equals('₦ 0.00'));
+      expect(CountryCurrencyLabels.formatCurrency(null, 3), equals('? 0.00'));
       expect(
           CountryCurrencyLabels.formatCurrency(null, null), equals('KES 0.00'));
     });
@@ -86,7 +86,7 @@ void main() {
     test('should return correct currency symbol', () {
       expect(CountryCurrencyLabels.getCurrencySymbol(1), equals('KES'));
       expect(CountryCurrencyLabels.getCurrencySymbol(2), equals('TZS'));
-      expect(CountryCurrencyLabels.getCurrencySymbol(3), equals('₦'));
+      expect(CountryCurrencyLabels.getCurrencySymbol(3), equals('?'));
       expect(CountryCurrencyLabels.getCurrencySymbol(null), equals('KES'));
     });
 

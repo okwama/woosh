@@ -1,8 +1,8 @@
 import 'package:hive/hive.dart';
-import 'package:glamour_queen/models/hive/product_report_hive_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/report/productReport_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
+import 'package:woosh/models/hive/product_report_hive_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/report_model.dart';
 
 class ProductReportHiveService {
   static const String _boxName = 'productReports';
@@ -23,7 +23,8 @@ class ProductReportHiveService {
     String comment = '',
   }) async {
     final productQuantities = products
-        .where((product) => quantities[product.id] != null && quantities[product.id]! > 0)
+        .where((product) =>
+            quantities[product.id] != null && quantities[product.id]! > 0)
         .map((product) => ProductQuantityHiveModel(
               productId: product.id,
               productName: product.name,
@@ -52,7 +53,9 @@ class ProductReportHiveService {
 
   // Get all unsynchronized product reports
   List<ProductReportHiveModel> getUnsyncedReports() {
-    return _productReportBox.values.where((report) => !report.isSynced).toList();
+    return _productReportBox.values
+        .where((report) => !report.isSynced)
+        .toList();
   }
 
   // Get a product report by journey plan ID
@@ -84,7 +87,8 @@ class ProductReportHiveService {
   }
 
   // Convert a Hive model to a Report model for API submission
-  Report convertToReportModel(ProductReportHiveModel hiveModel, int salesRepId) {
+  Report convertToReportModel(
+      ProductReportHiveModel hiveModel, int salesRepId) {
     final productReports = hiveModel.products
         .map((product) => ProductReport(
               reportId: 0,
@@ -109,4 +113,3 @@ class ProductReportHiveService {
     await _productReportBox.clear();
   }
 }
-

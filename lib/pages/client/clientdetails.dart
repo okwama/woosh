@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart' as ptr;
-import 'package:glamour_queen/models/outlet_model.dart';
+import 'package:woosh/models/client_payment_model.dart';
+import 'package:woosh/models/outlet_model.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
+import 'package:woosh/utils/app_theme.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:glamour_queen/models/clientPayment_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:flutter/foundation.dart' show kIsWeb;
-<<<<<<< HEAD
 import 'package:woosh/utils/country_tax_labels.dart';
-=======
-import 'package:glamour_queen/pages/client/client_stock_page.dart';
-import 'package:glamour_queen/services/client_stock_service.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
+import 'package:woosh/pages/client/client_stock_page.dart';
+import 'package:woosh/services/client_stock_service.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final Outlet outlet;
@@ -71,9 +68,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     });
 
     try {
-      final payments = await ApiService.getClientPayments(widget.outlet.id);
+      final paymentsData = await ApiService.getClientPayments(widget.outlet.id);
       setState(() {
-        _payments = payments;
+        _payments = paymentsData.map((e) => ClientPayment.fromJson(e)).toList();
       });
     } catch (e) {
       // Handle server errors silently
@@ -128,9 +125,9 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
             children: [
               const Text('Unable to load payments. This could be due to:'),
               const SizedBox(height: 8),
-              const Text('� No internet connection'),
-              const Text('� Server is temporarily unavailable'),
-              const Text('� Database connection issues'),
+              const Text('? No internet connection'),
+              const Text('? Server is temporarily unavailable'),
+              const Text('? Database connection issues'),
               const SizedBox(height: 16),
               const Text('Would you like to retry?'),
             ],

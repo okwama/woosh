@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:glamour_queen/models/client_stock_model.dart';
-import 'package:glamour_queen/utils/config.dart';
-import 'package:glamour_queen/services/token_service.dart';
+import 'package:woosh/models/client_stock_model.dart';
+import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
 
 class ClientStockService {
   static const String baseUrl = '${Config.baseUrl}/api/client-stock';

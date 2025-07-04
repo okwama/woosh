@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:glamour_queen/controllers/profile_controller.dart';
+import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-<<<<<<< HEAD
 import 'package:woosh/pages/profile/ChangePasswordPage.dart';
 import 'package:woosh/pages/profile/deleteaccount.dart';
 import 'package:woosh/pages/profile/targets/targets_page.dart';
@@ -17,34 +16,15 @@ import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:woosh/widgets/version_info_widget.dart';
-=======
-import 'package:glamour_queen/pages/managers/stats_page.dart';
-import 'package:glamour_queen/pages/profile/ChangePasswordPage.dart';
-import 'package:glamour_queen/pages/profile/deleteaccount.dart';
-import 'package:glamour_queen/pages/profile/targets/targets_page.dart';
-import 'package:glamour_queen/pages/profile/user_stats_page.dart';
-import 'package:glamour_queen/pages/profile/session_history_page.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/services/session_service.dart';
-import 'package:glamour_queen/services/session_state.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
-import 'package:glamour_queen/widgets/gradient_widgets.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
 import 'dart:async';
-<<<<<<< HEAD
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/services/hive/cart_hive_service.dart';
 import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:woosh/services/hive/hive_service.dart';
-=======
-import 'package:glamour_queen/services/hive/session_hive_service.dart';
-import 'package:glamour_queen/models/hive/session_model.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -923,7 +903,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-<<<<<<< HEAD
         Card(
           elevation: 1,
           margin: EdgeInsets.zero,
@@ -970,8 +949,6 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         // Session Control Button
         Card(
           elevation: 1,
@@ -1030,4 +1007,3 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     );
   }
 }
-

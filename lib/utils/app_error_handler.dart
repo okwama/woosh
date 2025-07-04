@@ -71,8 +71,8 @@ extension ErrorHandlingExtension on BuildContext {
 }
 
 /// Usage Examples:
-/// 
-/// ✅ CORRECT - Safe error handling:
+///
+/// ? CORRECT - Safe error handling:
 /// ```dart
 /// try {
 ///   await someApiCall();
@@ -82,8 +82,8 @@ extension ErrorHandlingExtension on BuildContext {
 ///   AppErrorHandler.logError(e, context: 'SomeOperation'); // For debugging
 /// }
 /// ```
-/// 
-/// ✅ CORRECT - With retry:
+///
+/// ? CORRECT - With retry:
 /// ```dart
 /// try {
 ///   await someApiCall();
@@ -91,8 +91,8 @@ extension ErrorHandlingExtension on BuildContext {
 ///   AppErrorHandler.showGetError(e, onRetry: () => someApiCall());
 /// }
 /// ```
-/// 
-/// ❌ WRONG - Raw error exposure:
+///
+/// ? WRONG - Raw error exposure:
 /// ```dart
 /// catch (e) {
 ///   ScaffoldMessenger.of(context).showSnackBar(
@@ -100,15 +100,15 @@ extension ErrorHandlingExtension on BuildContext {
 ///   );
 /// }
 /// ```
-/// 
-/// ❌ WRONG - Raw error in Get.snackbar:
+///
+/// ? WRONG - Raw error in Get.snackbar:
 /// ```dart
 /// catch (e) {
 ///   Get.snackbar('Error', e.toString()); // DON'T DO THIS
 /// }
 /// ```
-/// 
-/// ❌ WRONG - Raw error in dialog:
+///
+/// ? WRONG - Raw error in dialog:
 /// ```dart
 /// catch (e) {
 ///   showDialog(
@@ -118,4 +118,4 @@ extension ErrorHandlingExtension on BuildContext {
 ///     ),
 ///   );
 /// }
-/// ``` 
+/// ```

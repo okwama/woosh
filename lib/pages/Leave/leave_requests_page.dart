@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/models/leave_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
+import 'package:woosh/models/leave_model.dart';
+import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class LeaveRequestsPage extends StatefulWidget {
   const LeaveRequestsPage({super.key});
@@ -178,4 +178,3 @@ class _LeaveRequestsPageState extends State<LeaveRequestsPage> {
     );
   }
 }
-

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/services/task_service.dart';
-import 'package:glamour_queen/models/task_model.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
-import 'package:glamour_queen/pages/task/task_history_page.dart';
+import 'package:woosh/services/task_service.dart';
+import 'package:woosh/models/task_model.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/pages/task/task_history_page.dart';
 
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key});
@@ -467,4 +467,3 @@ class _TaskPageState extends State<TaskPage> {
     );
   }
 }
-

@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-<<<<<<< HEAD
 import 'package:woosh/models/uplift_sale_model.dart';
 import 'package:woosh/controllers/uplift_sale_controller.dart';
 import 'package:woosh/utils/date_utils.dart' as custom_date;
 import 'package:woosh/utils/currency_utils.dart';
-import 'package:woosh/utils/country_currency_labels.dart';
-import 'package:get_storage/get_storage.dart';
-=======
-import 'package:glamour_queen/models/uplift_sale_model.dart';
-import 'package:glamour_queen/controllers/uplift_sale_controller.dart';
-import 'package:glamour_queen/utils/date_utils.dart' as custom_date;
-import 'package:glamour_queen/utils/currency_utils.dart';
-import 'package:glamour_queen/pages/client/viewclient_page.dart';
-import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
-import 'package:glamour_queen/models/outlet_model.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
+import 'package:woosh/pages/client/viewclient_page.dart';
+import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/models/outlet_model.dart';
 
 class UpliftSalesPage extends StatefulWidget {
   const UpliftSalesPage({super.key});
@@ -31,16 +22,12 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
   final Rx<DateTime?> _endDate = Rx<DateTime?>(null);
   final RxInt _selectedClientId = RxInt(0);
   final RxBool _isLoading = false.obs;
-  int? _userCountryId;
 
   @override
   void initState() {
     super.initState();
     _controller = Get.put(UpliftSaleController());
     _loadSales();
-    // Get user's country ID for currency formatting
-    final salesRep = GetStorage().read('salesRep');
-    _userCountryId = salesRep?['countryId'];
   }
 
   Future<void> _loadSales() async {
@@ -199,27 +186,6 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
                   ),
                 ],
               ),
-<<<<<<< HEAD
-              const SizedBox(height: 8),
-              if (sale.client != null) ...[
-                Text(
-                  'Client: ${sale.client!.name}',
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-              ],
-              Text(
-                'Items: ${sale.items.length}',
-                style: const TextStyle(fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Total: ${CountryCurrencyLabels.formatCurrency(sale.totalAmount, _userCountryId)}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-=======
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -236,7 +202,6 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
                     ),
                   ),
                 ],
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
               ),
               const SizedBox(height: 4),
               Text(

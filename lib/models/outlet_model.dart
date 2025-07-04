@@ -89,23 +89,6 @@ class Outlet {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : null,
-<<<<<<< HEAD
-=======
-      longitude: json['longitude'] != null
-          ? (json['longitude'] as num).toDouble()
-          : null,
-      email: json['email'] as String?,
-      contact: json['contact'] as String?,
-      taxPin: json['tax_pin'] as String?,
-      location: json['location'] as String?,
-      clientType: json['client_type'] as int?,
-      regionId: json['region_id'] as int?,
-      region: json['region'] as String?,
-      countryId: json['country']?['id'] as int?,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : null,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     );
   }
 

@@ -2,7 +2,9 @@ import 'package:hive/hive.dart';
 
 part 'route_model.g.dart';
 
-@HiveType(typeId: 9) // Changed from 8 to resolve conflict with PendingJourneyPlanModel
+@HiveType(
+    typeId:
+        9) // Changed from 8 to resolve conflict with PendingJourneyPlanModel
 class RouteModel extends HiveObject {
   @HiveField(0)
   final int id;

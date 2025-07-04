@@ -27,7 +27,7 @@ class _VisitTargetsDetailPageState extends State<VisitTargetsDetailPage> {
   String? _errorMessage;
   Map<String, dynamic> _dailyVisitTargets = {};
   List<dynamic> _monthlyVisits = [];
-  List<dynamic> _weeklyVisits = [];
+  final List<dynamic> _weeklyVisits = [];
   String _selectedView = 'daily'; // daily, weekly, monthly
 
   @override
@@ -57,7 +57,7 @@ class _VisitTargetsDetailPageState extends State<VisitTargetsDetailPage> {
 
       if (mounted) {
         setState(() {
-          _monthlyVisits = monthlyVisits as List<dynamic>;
+          _monthlyVisits = monthlyVisits;
           _isLoading = false;
         });
       }

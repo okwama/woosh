@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-<<<<<<< HEAD
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
@@ -22,26 +21,6 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
-=======
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
-
-import 'package:glamour_queen/models/report/productReport_model.dart';
-import 'package:glamour_queen/models/report/feedbackReport_model.dart';
-import 'package:glamour_queen/models/report/visibilityReport_model.dart';
-import 'package:glamour_queen/models/report/productReturn_model.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/feedback_report_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/product_report_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/product_sample.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/visibility_report_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/product_availability_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/base_report_page.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/product_return_page.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class ReportsOrdersPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -148,7 +127,7 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     if (_imageFile == null) return null;
 
     try {
-    final imageUrl = await ApiService.uploadImage(_imageFile!);
+      final imageUrl = await ApiService.uploadImage(_imageFile!);
       setState(() => _imageUrl = imageUrl);
       return imageUrl;
     } catch (e) {
@@ -655,7 +634,8 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 145, 238, 122),
+                          backgroundColor:
+                              const Color.fromARGB(255, 145, 238, 122),
                           foregroundColor: Colors.white,
                           alignment: Alignment.centerLeft,
                           padding: const EdgeInsets.symmetric(
@@ -831,4 +811,3 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
     }
   }
 }
-

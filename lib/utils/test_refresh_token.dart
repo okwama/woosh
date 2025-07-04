@@ -19,9 +19,9 @@ class RefreshTokenTest {
     try {
       final clients = await ApiService.fetchClients(limit: 1);
       print(
-          '   ✅ API call successful - fetched ${clients.data.length} clients');
+          '   ? API call successful - fetched ${clients.data.length} clients');
     } catch (e) {
-      print('   ❌ API call failed: $e');
+      print('   ? API call failed: $e');
     }
 
     // Test token refresh
@@ -29,9 +29,9 @@ class RefreshTokenTest {
     try {
       final refreshed = await ApiService.refreshAccessToken();
       print(
-          '   ${refreshed ? "✅" : "❌"} Token refresh: ${refreshed ? "Success" : "Failed"}');
+          '   ${refreshed ? "?" : "?"} Token refresh: ${refreshed ? "Success" : "Failed"}');
     } catch (e) {
-      print('   ❌ Token refresh error: $e');
+      print('   ? Token refresh error: $e');
     }
 
     print('\n=== TEST COMPLETE ===');
@@ -51,9 +51,9 @@ class RefreshTokenTest {
       print('3. Testing API access...');
       try {
         final clients = await ApiService.fetchClients(limit: 1);
-        print('   ✅ API access working - ${clients.data.length} clients');
+        print('   ? API access working - ${clients.data.length} clients');
       } catch (e) {
-        print('   ❌ API access failed: $e');
+        print('   ? API access failed: $e');
       }
     }
 

@@ -160,7 +160,7 @@ class _ErrorTestPageState extends State<ErrorTestPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('⚠️ RAW Error Example (DON\'T DO THIS)'),
+        title: const Text('?? RAW Error Example (DON\'T DO THIS)'),
         content: const Text(
           'HTTP 500: Internal Server Error\n'
           'at Object.throw_ [as throw] (http://localhost:8080/dart_sdk.js:5348:11)\n'

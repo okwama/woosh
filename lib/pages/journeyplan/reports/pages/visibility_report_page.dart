@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
-import 'package:glamour_queen/models/report/visibilityReport_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:image/image.dart' as img;
 import 'dart:typed_data';
 
@@ -551,4 +551,3 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
     super.dispose();
   }
 }
-

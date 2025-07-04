@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import 'package:glamour_queen/models/report/productReport_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/services/productTransaction_service.dart';
+import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/productTransaction_service.dart';
 
 enum ProductType {
   RETURN,
@@ -35,7 +35,7 @@ class ProductReportController extends GetxController {
       );
 
       productReports.value = response;
-        } catch (e) {
+    } catch (e) {
       errorMessage.value = e.toString();
     } finally {
       isLoading.value = false;
@@ -62,7 +62,8 @@ class ProductReportController extends GetxController {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final success = await ProductTransactionService.updateProductReportStatus(id, status);
+      final success =
+          await ProductTransactionService.updateProductReportStatus(id, status);
       if (success) {
         // Update local state
         final index = productReports.indexWhere((report) => report.id == id);
@@ -100,4 +101,3 @@ class ProductReportController extends GetxController {
     }
   }
 }
-

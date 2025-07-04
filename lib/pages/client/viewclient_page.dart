@@ -1,25 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:glamour_queen/models/hive/client_model.dart';
-import 'package:glamour_queen/models/outlet_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/pages/order/addorder_page.dart';
-import 'package:glamour_queen/pages/client/addclient_page.dart';
-import 'package:glamour_queen/pages/client/clientdetails.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
-import 'package:glamour_queen/widgets/skeleton_loader.dart';
-import 'package:glamour_queen/models/client_model.dart';
-import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/pages/product_return_page.dart';
-import 'package:glamour_queen/services/hive/client_hive_service.dart';
+import 'package:woosh/models/hive/client_model.dart';
+import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/pages/order/addorder_page.dart';
+import 'package:woosh/pages/client/addclient_page.dart';
+import 'package:woosh/pages/client/clientdetails.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/skeleton_loader.dart';
+import 'package:woosh/models/client_model.dart';
+import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
+import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 import 'package:get_storage/get_storage.dart';
-
-enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
-
-enum DateFilter { all, today, thisWeek, thisMonth }
 
 enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
 
@@ -85,16 +81,9 @@ class _ViewClientPageState extends State<ViewClientPage> {
     _connectivitySubscription = Connectivity()
         .onConnectivityChanged
         .listen((List<ConnectivityResult> results) {
-<<<<<<< HEAD
       setState(() {
         _isOnline = results.isNotEmpty &&
             results.any((result) => result != ConnectivityResult.none);
-=======
-      final result =
-          results.isNotEmpty ? results.first : ConnectivityResult.none;
-      setState(() {
-        _isOnline = result != ConnectivityResult.none;
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       });
       if (_isOnline && _outlets.isEmpty) {
         _loadOutlets();

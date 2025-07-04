@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
-import 'package:glamour_queen/models/hive/product_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
+import 'package:woosh/models/hive/product_model.dart';
+import 'package:woosh/models/product_model.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
@@ -21,10 +21,10 @@ void ensureProductHiveAdapterRegistered() {
 class ProductHiveService {
   static const String _boxName = 'products';
   static const String _timestampBoxName = 'timestamps';
-  
+
   Box<ProductHiveModel>? _productBox;
   Box? _timestampBox;
-  
+
   // Flag to track initialization status
   bool _isInitialized = false;
   Completer<void>? _initCompleter;
@@ -34,21 +34,21 @@ class ProductHiveService {
     if (_initCompleter != null) {
       return _initCompleter!.future;
     }
-    
+
     // If already initialized, return immediately
     if (_isInitialized) {
       return;
     }
-    
+
     // Create a completer to track initialization
     _initCompleter = Completer<void>();
-    
+
     try {
       // Ensure adapter is registered
       ensureProductHiveAdapterRegistered();
-      
+
       debugPrint('ProductHiveService: Starting initialization');
-      
+
       // Open the products box if not already open
       if (!Hive.isBoxOpen(_boxName)) {
         debugPrint('ProductHiveService: Opening products box');
@@ -57,7 +57,7 @@ class ProductHiveService {
         debugPrint('ProductHiveService: Products box already open');
         _productBox = Hive.box<ProductHiveModel>(_boxName);
       }
-      
+
       // Open the timestamps box if not already open
       if (!Hive.isBoxOpen(_timestampBoxName)) {
         debugPrint('ProductHiveService: Opening timestamps box');
@@ -66,7 +66,7 @@ class ProductHiveService {
         debugPrint('ProductHiveService: Timestamps box already open');
         _timestampBox = Hive.box(_timestampBoxName);
       }
-      
+
       _isInitialized = true;
       debugPrint('ProductHiveService: Initialization complete');
       _initCompleter!.complete();
@@ -77,7 +77,7 @@ class ProductHiveService {
       rethrow;
     }
   }
-  
+
   // Helper method to ensure the service is initialized before use
   Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
@@ -93,7 +93,7 @@ class ProductHiveService {
       print('ProductHiveService: Cannot save product, box is null');
       return;
     }
-    
+
     try {
       final hiveModel = ProductHiveModel.fromProduct(product);
       await _productBox!.put(product.id, hiveModel);
@@ -111,10 +111,10 @@ class ProductHiveService {
       print('ProductHiveService: Cannot save products, box is null');
       return;
     }
-    
+
     try {
       final Map<int, ProductHiveModel> productMap = {
-        for (var product in products) 
+        for (var product in products)
           product.id: ProductHiveModel.fromProduct(product)
       };
       await _productBox!.putAll(productMap);
@@ -132,7 +132,7 @@ class ProductHiveService {
       print('ProductHiveService: Cannot get product, box is null');
       return null;
     }
-    
+
     try {
       final hiveModel = _productBox!.get(id);
       return hiveModel?.toProduct();
@@ -149,9 +149,11 @@ class ProductHiveService {
       print('ProductHiveService: Cannot get all products, box is null');
       return [];
     }
-    
+
     try {
-      return _productBox!.values.map((hiveModel) => hiveModel.toProduct()).toList();
+      return _productBox!.values
+          .map((hiveModel) => hiveModel.toProduct())
+          .toList();
     } catch (e) {
       print('ProductHiveService: Error getting all products: $e');
       return [];
@@ -165,13 +167,14 @@ class ProductHiveService {
       print('ProductHiveService: Cannot search products, box is null');
       return [];
     }
-    
+
     try {
       final lowercaseQuery = query.toLowerCase();
       return _productBox!.values
-          .where((model) => 
+          .where((model) =>
               model.name.toLowerCase().contains(lowercaseQuery) ||
-              (model.description?.toLowerCase().contains(lowercaseQuery) ?? false))
+              (model.description?.toLowerCase().contains(lowercaseQuery) ??
+                  false))
           .map((hiveModel) => hiveModel.toProduct())
           .toList();
     } catch (e) {
@@ -187,7 +190,7 @@ class ProductHiveService {
       print('ProductHiveService: Cannot delete product, box is null');
       return;
     }
-    
+
     try {
       await _productBox!.delete(id);
       print('ProductHiveService: Deleted product $id');
@@ -204,7 +207,7 @@ class ProductHiveService {
       print('ProductHiveService: Cannot clear products, box is null');
       return;
     }
-    
+
     try {
       await _productBox!.clear();
       print('ProductHiveService: Cleared all products');
@@ -218,13 +221,16 @@ class ProductHiveService {
   Future<DateTime?> getLastUpdateTime() async {
     await _ensureInitialized();
     if (_timestampBox == null) {
-      print('ProductHiveService: Cannot get last update time, timestamps box is null');
+      print(
+          'ProductHiveService: Cannot get last update time, timestamps box is null');
       return null;
     }
-    
+
     try {
       final timestamp = _timestampBox!.get('products_last_update');
-      return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+      return timestamp != null
+          ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+          : null;
     } catch (e) {
       print('ProductHiveService: Error getting last update time: $e');
       return null;
@@ -235,12 +241,14 @@ class ProductHiveService {
   Future<void> setLastUpdateTime(DateTime timestamp) async {
     await _ensureInitialized();
     if (_timestampBox == null) {
-      print('ProductHiveService: Cannot set last update time, timestamps box is null');
+      print(
+          'ProductHiveService: Cannot set last update time, timestamps box is null');
       return;
     }
-    
+
     try {
-      await _timestampBox!.put('products_last_update', timestamp.millisecondsSinceEpoch);
+      await _timestampBox!
+          .put('products_last_update', timestamp.millisecondsSinceEpoch);
       print('ProductHiveService: Updated last update timestamp');
     } catch (e) {
       print('ProductHiveService: Error setting last update time: $e');
@@ -248,4 +256,3 @@ class ProductHiveService {
     }
   }
 }
-

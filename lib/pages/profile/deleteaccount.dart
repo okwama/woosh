@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:get_storage/get_storage.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 // API Configuration
 const String _baseUrl = 'https://woosh-api.vercel.app/api';
@@ -17,7 +17,7 @@ class DeleteAccount extends StatefulWidget {
 
 class _DeleteAccountState extends State<DeleteAccount> {
   final _storage = GetStorage();
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _isDeletionInProgress = false;
   bool _isProcessing = false;
   String? _errorMessage;
@@ -173,10 +173,11 @@ class _DeleteAccountState extends State<DeleteAccount> {
                           )
                         : Text(
                             'Delete Account',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                           ),
                   ),
                 ),
@@ -230,7 +231,8 @@ class _DeleteAccountState extends State<DeleteAccount> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+              color:
+                  Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -249,7 +251,8 @@ class _DeleteAccountState extends State<DeleteAccount> {
                 const Divider(height: 24, thickness: 0.5),
                 const _BulletPoint(
                   icon: Icons.history_toggle_off,
-                  text: 'You will lose access to all your account features and history.',
+                  text:
+                      'You will lose access to all your account features and history.',
                   color: Colors.blue,
                 ),
                 if (_errorMessage != null) ...[
@@ -457,9 +460,9 @@ class _BulletPoint extends StatelessWidget {
             child: Text(
               text,
               style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.hintColor,
-                    height: 1.4,
-                  ),
+                color: theme.hintColor,
+                height: 1.4,
+              ),
             ),
           ),
         ],

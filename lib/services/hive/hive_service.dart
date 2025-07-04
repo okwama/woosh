@@ -1,5 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:glamour_queen/models/hive/session_model.dart';
+import 'package:woosh/models/hive/session_model.dart';
 
 class HiveService {
   static Future<void> init() async {
@@ -13,4 +13,3 @@ class HiveService {
     await Hive.openBox<SessionModel>('sessionBox');
   }
 }
-

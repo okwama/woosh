@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:glamour_queen/utils/pagination_utils.dart';
+import 'package:woosh/utils/pagination_utils.dart';
 
 class PaginatedService<T> {
   final Future<List<T>> Function({int page, int limit, String? search})
@@ -91,4 +91,3 @@ class PaginatedService<T> {
     _currentCompleter?.completeError('Disposed');
   }
 }
-

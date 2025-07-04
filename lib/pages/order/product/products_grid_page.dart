@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:glamour_queen/models/hive/order_model.dart';
-import 'package:glamour_queen/models/outlet_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/services/paginated_service.dart';
-import 'package:glamour_queen/utils/pagination_utils.dart';
-import 'package:glamour_queen/pages/order/product/product_detail_page.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/utils/image_utils.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
-import 'package:glamour_queen/widgets/skeleton_loader.dart';
-import 'package:glamour_queen/services/hive/product_hive_service.dart';
-import 'package:glamour_queen/models/hive/product_model.dart';
+import 'package:woosh/models/hive/order_model.dart';
+import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/paginated_service.dart';
+import 'package:woosh/utils/pagination_utils.dart';
+import 'package:woosh/pages/order/product/product_detail_page.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/utils/image_utils.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:woosh/widgets/skeleton_loader.dart';
+import 'package:woosh/services/hive/product_hive_service.dart';
+import 'package:woosh/models/hive/product_model.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
@@ -73,37 +73,11 @@ class _ProductsGridPageState extends State<ProductsGridPage>
     _setupConnectivityListener();
   }
 
-<<<<<<< HEAD
-=======
-  void _setupConnectivityListener() {
-    _connectivitySubscription = Connectivity()
-        .onConnectivityChanged
-        .listen((List<ConnectivityResult> results) {
-      final wasConnected = _isConnected;
-      _isConnected = results.contains(ConnectivityResult.wifi) ||
-          results.contains(ConnectivityResult.mobile) ||
-          results.contains(ConnectivityResult.ethernet);
-
-      if (!wasConnected && _isConnected) {
-        // Reconnected - refresh data if we have stale data
-        _refreshData();
-      }
-
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   Future<void> _initializeAndLoad() async {
     try {
       ensureProductHiveAdapterRegistered();
 
-<<<<<<< HEAD
       // Try to get the ProductHiveService from Get
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       if (Get.isRegistered<ProductHiveService>()) {
         _productHiveService = Get.find<ProductHiveService>();
         debugPrint('[ProductsGrid] Found ProductHiveService from Get');
@@ -114,10 +88,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
         debugPrint('[ProductsGrid] Created new ProductHiveService instance');
       }
 
-<<<<<<< HEAD
       // Load data
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       await _loadFromCacheAndApi();
     } catch (e) {
       debugPrint('[ProductsGrid] Error initializing: $e');
@@ -204,10 +175,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   Future<void> _loadFromCacheAndApi() async {
     await _loadFromCache();
 
-<<<<<<< HEAD
     // Then check connectivity before loading from API
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     final connectivityResult = await Connectivity().checkConnectivity();
     _isConnected = connectivityResult != ConnectivityResult.none;
 
@@ -225,9 +193,8 @@ class _ProductsGridPageState extends State<ProductsGridPage>
     if (_paginatedData == null) {
       setState(() {
         _isLoading = true;
-<<<<<<< HEAD
-      }
-    });
+      });
+    }
 
     try {
       final cachedProducts = await _productHiveService.getAllProducts();
@@ -248,26 +215,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
         }
       } else {
         print('[ProductsGrid] No cached products found');
-=======
-      });
-    }
-
-    try {
-      final cachedProducts = await _productHiveService.getAllProducts();
-      if (cachedProducts.isNotEmpty && mounted) {
-        debugPrint(
-            '[ProductsGrid] Loaded ${cachedProducts.length} products from cache');
-
-        setState(() {
-          _paginatedData = PaginatedData<Product>(
-            items: cachedProducts,
-            currentPage: 1,
-            totalPages: 1,
-            hasMore: false,
-          );
-          _isLoading = false;
-        });
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     } catch (e) {
       debugPrint('[ProductsGrid] Error loading products from cache: $e');
@@ -295,7 +242,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
           _isLoading = false;
         });
 
-<<<<<<< HEAD
         // Try to save products to local storage if possible
         try {
           ensureProductHiveAdapterRegistered();
@@ -317,10 +263,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
           debugPrint(
               '[ProductsGrid] Error saving to local storage: $storageError');
         }
-=======
-        // Save to cache in background
-        _saveToCache(data.items);
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     } catch (e) {
       debugPrint('[ProductsGrid] Error loading products from API: $e');
@@ -368,7 +310,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
           _isLoading = false;
         });
 
-<<<<<<< HEAD
         // Try to save new products to local storage
         try {
           ensureProductHiveAdapterRegistered();
@@ -391,12 +332,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
           debugPrint(
               '[ProductsGrid] Error saving more products to local storage: $storageError');
         }
-=======
-        // Save new items to cache
-        final previousCount = _paginatedData!.items.length;
-        final newProducts = newData.items.sublist(previousCount);
-        _saveToCache(newProducts);
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     } catch (e) {
       debugPrint('[ProductsGrid] Error loading more products: $e');
@@ -414,6 +349,17 @@ class _ProductsGridPageState extends State<ProductsGridPage>
         _scrollController.position.maxScrollExtent - 300) {
       _loadMoreData();
     }
+  }
+
+  void _setupConnectivityListener() {
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((List<ConnectivityResult> results) {
+      setState(() {
+        _isConnected = results.isNotEmpty &&
+            results.any((result) => result != ConnectivityResult.none);
+      });
+    });
   }
 
   Widget _buildProductCard(Product product, int index, double spacing) {
@@ -763,13 +709,8 @@ class _ProductsGridPageState extends State<ProductsGridPage>
 
     final filteredProducts = _getFilteredProducts();
     final bool isInitialLoading = _isLoading && _paginatedData == null;
-<<<<<<< HEAD
 
     // Use FutureBuilder to handle the async lastUpdate
-=======
-    final gridParams = _getGridParameters(context);
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     return FutureBuilder<DateTime?>(
       future: Get.isRegistered<ProductHiveService>()
           ? Get.find<ProductHiveService>().getLastUpdateTime()
@@ -799,7 +740,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                   tooltip: 'Refresh',
                 ),
               if (lastUpdate != null)
-<<<<<<< HEAD
                 Padding(
                   padding: const EdgeInsets.only(right: 16.0),
                   child: Tooltip(
@@ -820,7 +760,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                     mainAxisSpacing: 8,
                   ),
                   itemCount: 6, // Show 6 skeleton cards while loading
-                  itemBuilder: (context, index) => _buildSkeletonCard(),
+                  itemBuilder: (context, index) => _buildSkeletonCard(8.0),
                 )
               : Column(
                   children: [
@@ -904,83 +844,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                                 childAspectRatio: 0.75,
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
-=======
-                IconButton(
-                  icon: const Icon(Icons.info_outline),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Last updated: ${lastUpdate.toString().substring(0, 16)}',
-                        ),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  tooltip: 'Last update info',
-                ),
-            ],
-          ),
-          body: Column(
-            children: [
-              _buildConnectionStatus(),
-              if (!isInitialLoading) _buildSearchBar(),
-              if (_error != null && !isInitialLoading)
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline,
-                          color: Colors.red[700], size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: TextStyle(
-                            color: Colors.red[700],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: isInitialLoading
-                    ? GridView.builder(
-                        padding: EdgeInsets.all(gridParams['spacing']),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: gridParams['crossAxisCount'],
-                          childAspectRatio: gridParams['childAspectRatio'],
-                          crossAxisSpacing: gridParams['spacing'],
-                          mainAxisSpacing: gridParams['spacing'],
-                        ),
-                        itemCount: 6,
-                        itemBuilder: (context, index) =>
-                            _buildSkeletonCard(gridParams['spacing']),
-                      )
-                    : filteredProducts.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            onRefresh: _refreshData,
-                            child: GridView.builder(
-                              controller: _scrollController,
-                              key: const PageStorageKey('products_grid'),
-                              padding: EdgeInsets.all(gridParams['spacing']),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: gridParams['crossAxisCount'],
-                                childAspectRatio:
-                                    gridParams['childAspectRatio'],
-                                crossAxisSpacing: gridParams['spacing'],
-                                mainAxisSpacing: gridParams['spacing'],
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                               ),
                               itemCount: filteredProducts.length +
                                   (_paginatedData?.hasMore ?? false ? 1 : 0),
@@ -990,35 +853,18 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                                     child: Padding(
                                       padding: EdgeInsets.all(16.0),
                                       child: CircularProgressIndicator(
-<<<<<<< HEAD
                                         strokeWidth: 2,
                                       ),
-=======
-                                          strokeWidth: 2),
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                                     ),
                                   );
                                 }
                                 return _buildProductCard(
-<<<<<<< HEAD
-                                    filteredProducts[index], index);
+                                    filteredProducts[index], index, 8.0);
                               },
                             ),
                     ),
                   ],
                 ),
-=======
-                                  filteredProducts[index],
-                                  index,
-                                  gridParams['spacing'],
-                                );
-                              },
-                            ),
-                          ),
-              ),
-            ],
-          ),
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         );
       },
     );

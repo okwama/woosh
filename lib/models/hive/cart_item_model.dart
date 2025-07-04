@@ -1,7 +1,7 @@
 import 'package:hive/hive.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/price_option_model.dart';
-import 'package:glamour_queen/models/orderitem_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/price_option_model.dart';
+import 'package:woosh/models/orderitem_model.dart';
 import 'package:get/get.dart'; // For firstWhereOrNull
 
 part 'cart_item_model.g.dart';
@@ -49,13 +49,14 @@ class CartItemModel extends HiveObject {
         item.product?.priceOptions.isNotEmpty == true) {
       final firstOption = item.product!.priceOptions.first;
       priceOptionId = firstOption.id;
-      unitPrice = firstOption.value;
+      unitPrice = (firstOption.value ?? 0).toDouble();
     } else if (priceOptionId != null) {
       // Get the price from the selected price option
       unitPrice = (item.product?.priceOptions
-              .firstWhereOrNull((po) => po.id == priceOptionId)
-              ?.value ??
-          0.0) as double;
+                  .firstWhereOrNull((po) => po.id == priceOptionId)
+                  ?.value ??
+              0.0)
+          .toDouble();
     }
 
     // For fallback pricing, keep priceOptionId as null and set unitPrice to 0
@@ -89,7 +90,7 @@ class CartItemModel extends HiveObject {
         priceOptions: [
           PriceOption(
             id: priceOptionId ?? 0,
-            value: unitPrice, // Use double directly
+            value: unitPrice.toInt(), // Ensure int type
             option: 'Default', // Default value
             value_tzs: null, // Nullable value
             value_ngn: null, // Nullable value

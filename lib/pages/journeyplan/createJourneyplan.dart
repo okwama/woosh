@@ -1,20 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-<<<<<<< HEAD
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/jouneyplan_service.dart';
 import 'package:woosh/services/enhanced_journey_plan_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-=======
-import 'package:glamour_queen/models/client_model.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 import 'dart:async';
-import 'package:flutter/services.dart';
 import 'package:get_storage/get_storage.dart';
 
 // Simple class to represent a match
@@ -61,18 +53,14 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
   Timer? _debounce;
   bool _searchByName = true;
   bool _searchByAddress = true;
-  Map<String, List<Client>> _searchCache = {};
+  final Map<String, List<Client>> _searchCache = {};
   bool _isInitialLoad = true;
   bool _isCreatingJourneyPlan = false;
 
   @override
   void initState() {
     super.initState();
-<<<<<<< HEAD
     _initializeEnhancedService();
-=======
-    _debugAuthStatus();
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     _initializeClients();
     _scrollController.addListener(_onScroll);
   }
@@ -143,38 +131,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
           });
         }
       } catch (e) {
-<<<<<<< HEAD
         // Silent fail for connection errors
         print('Failed to initialize clients');
-=======
-        print('? Error loading clients: $e');
-
-        // If API fails, keep the passed clients as fallback
-        if (_allClients.isEmpty && widget.clients.isNotEmpty) {
-          setState(() {
-            _allClients = widget.clients;
-            filteredClients = _allClients;
-          });
-          print('?? Using fallback clients: ${widget.clients.length} clients');
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Error loading clients: ${e.toString()}'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.orange.shade700,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
-        );
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       } finally {
         setState(() {
           _isLoading = false;
@@ -232,28 +190,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       }
     } catch (e) {
-<<<<<<< HEAD
       // Silent fail for all errors in background loading
       print('Failed to load more clients');
-=======
-      print('? Error loading more clients: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Error loading more clients: ${e.toString()}'),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     } finally {
       setState(() {
         _isLoadingMore = false;
@@ -285,28 +223,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         _updateFilteredClients();
       });
     } catch (e) {
-<<<<<<< HEAD
       // Silent fail for all refresh errors
       print('Failed to refresh clients');
-=======
-      print('? Error refreshing clients: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Error refreshing clients: ${e.toString()}'),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     }
   }
 
@@ -343,7 +261,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
 
     for (final client in clients) {
       final name = client.name.trim().toLowerCase();
-      final address = client.address?.trim().toLowerCase() ?? '';
+      final address = client.address.trim().toLowerCase() ?? '';
 
       // Skip empty searches
       if (searchQuery.isEmpty) {
@@ -609,13 +527,12 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                         context: context,
                       ),
                     ],
-                    if (client.address != null &&
-                        client.address!.isNotEmpty) ...[
+                    if (client.address.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildDetailRow(
                         icon: Icons.location_on,
                         label: 'Address',
-                        value: client.address!,
+                        value: client.address,
                         context: context,
                       ),
                     ],
@@ -733,18 +650,13 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     });
 
     try {
-<<<<<<< HEAD
       final newJourneyPlan = await EnhancedJourneyPlanService.createJourneyPlan(
-=======
-      final newJourneyPlan = await ApiService.createJourneyPlan(
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         clientId,
         date,
         notes: notes,
         routeId: routeId,
       );
 
-<<<<<<< HEAD
       if (newJourneyPlan != null) {
         // Successfully created online
         if (onSuccess != null) {
@@ -764,20 +676,6 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-=======
-      if (onSuccess != null) {
-        onSuccess([newJourneyPlan]);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white, size: 20),
-              SizedBox(width: 8),
-              Text('Journey plan created successfully'),
-            ],
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           ),
         );
       } else {
@@ -830,34 +728,13 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         ),
         child: _isLoading && _isInitialLoad
             ? Center(
-<<<<<<< HEAD
                 child: Text(
                   'No clients available',
                   style: TextStyle(color: Colors.grey.shade600),
-=======
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Loading clients...',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
                 ),
               )
             : _allClients.isEmpty
                 ? Center(
-<<<<<<< HEAD
                     child: Text(
                       'No matching clients found',
                       style: TextStyle(color: Colors.grey.shade600),
@@ -899,137 +776,6 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                               );
                               return;
                             }
-=======
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No clients available',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No Clients Assigned to this user',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        // ElevatedButton.icon(
-                        //   onPressed: () {
-                        //     setState(() {
-                        //       _isInitialLoad = true;
-                        //     });
-                        //     _initializeClients();
-                        //   },
-                        //   icon: const Icon(Icons.refresh, size: 18),
-                        //   label: const Text('Retry'),
-                        //   style: ElevatedButton.styleFrom(
-                        //     backgroundColor: Theme.of(context).primaryColor,
-                        //     foregroundColor: Colors.white,
-                        //     padding: const EdgeInsets.symmetric(
-                        //       horizontal: 16,
-                        //       vertical: 8,
-                        //     ),
-                        //   ),
-                        // ),
-                      ],
-                    ),
-                  )
-                : filteredClients.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 48,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No matching clients found',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Try adjusting your search terms',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        itemCount:
-                            filteredClients.length + (_hasMoreData ? 1 : 0),
-                        separatorBuilder: (context, index) => Divider(
-                          height: 1,
-                          color: Colors.grey.shade200,
-                        ),
-                        itemBuilder: (context, index) {
-                          if (index == filteredClients.length) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          final client = filteredClients[index];
-                          return InkWell(
-                            onTap: () async {
-                              if (!_isLoading) {
-                                // Add validation for selectedRouteId
-                                if (selectedRouteId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Row(
-                                        children: const [
-                                          Icon(Icons.warning_amber_rounded,
-                                              color: Colors.white),
-                                          SizedBox(width: 8),
-                                          Text('Please select a route first.'),
-                                        ],
-                                      ),
-                                      backgroundColor: Colors.orange.shade700,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                String? routeName;
-                                if (selectedRouteId != null) {
-                                  try {
-                                    final routes = await ApiService.getRoutes();
-                                    final route = routes.firstWhere(
-                                      (r) => r['id'] == selectedRouteId,
-                                      orElse: () => <String, dynamic>{},
-                                    );
-                                    routeName = route['name'];
-                                  } catch (e) {
-                                    // Handle error silently
-                                  }
-                                }
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
                             String? routeName;
                             if (selectedRouteId != null) {
@@ -1043,7 +789,6 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                               } catch (e) {
                                 // Handle error silently
                               }
-<<<<<<< HEAD
                             }
 
                             await _showConfirmationDialog(
@@ -1082,15 +827,14 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                   children: [
                                     _buildHighlightedText(
                                         client.name, searchQuery),
-                                    if (client.address != null &&
-                                        client.address!.isNotEmpty)
+                                    if (client.address.isNotEmpty)
                                       DefaultTextStyle(
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.grey.shade600,
                                         ),
                                         child: _buildHighlightedText(
-                                          client.address!,
+                                          client.address,
                                           searchQuery,
                                         ),
                                       ),
@@ -1108,62 +852,6 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                       );
                     },
                   ),
-=======
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: Theme.of(context)
-                                        .primaryColor
-                                        .withOpacity(0.1),
-                                    child: Icon(
-                                      Icons.person,
-                                      size: 16,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        _buildHighlightedText(
-                                            client.name, searchQuery),
-                                        if (client.address != null &&
-                                            client.address!.isNotEmpty)
-                                          DefaultTextStyle(
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                            child: _buildHighlightedText(
-                                              client.address!,
-                                              searchQuery,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.chevron_right,
-                                    size: 16,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       ),
     );
   }

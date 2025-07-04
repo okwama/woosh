@@ -3,8 +3,6 @@ import '../../models/hive/order_model.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
-
-
 // Ensure the adapter is registered
 void ensureOrderHiveAdapterRegistered() {
   try {
@@ -24,10 +22,10 @@ void ensureOrderHiveAdapterRegistered() {
 class OrderHiveService {
   static const String _boxName = 'orders';
   static const String _timestampBoxName = 'timestamps';
-  
+
   Box<OrderModel>? _orderBox;
   Box? _timestampBox;
-  
+
   // Flag to track initialization status
   bool _isInitialized = false;
   Completer<void>? _initCompleter;
@@ -37,21 +35,21 @@ class OrderHiveService {
     if (_initCompleter != null) {
       return _initCompleter!.future;
     }
-    
+
     // If already initialized, return immediately
     if (_isInitialized) {
       return;
     }
-    
+
     // Create a completer to track initialization
     _initCompleter = Completer<void>();
-    
+
     try {
       // Ensure adapter is registered
       ensureOrderHiveAdapterRegistered();
-      
+
       debugPrint('OrderHiveService: Starting initialization');
-      
+
       // Open the orders box if not already open
       if (!Hive.isBoxOpen(_boxName)) {
         debugPrint('OrderHiveService: Opening orders box');
@@ -60,7 +58,7 @@ class OrderHiveService {
         debugPrint('OrderHiveService: Orders box already open');
         _orderBox = Hive.box<OrderModel>(_boxName);
       }
-      
+
       // Open the timestamps box if not already open
       if (!Hive.isBoxOpen(_timestampBoxName)) {
         debugPrint('OrderHiveService: Opening timestamps box');
@@ -69,7 +67,7 @@ class OrderHiveService {
         debugPrint('OrderHiveService: Timestamps box already open');
         _timestampBox = Hive.box(_timestampBoxName);
       }
-      
+
       _isInitialized = true;
       debugPrint('OrderHiveService: Initialization complete');
       _initCompleter!.complete();
@@ -80,7 +78,7 @@ class OrderHiveService {
       rethrow;
     }
   }
-  
+
   // Helper method to ensure the service is initialized before use
   Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
@@ -95,7 +93,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot save order, box is null');
       return;
     }
-    
+
     try {
       await _orderBox!.put(order.id, order);
       debugPrint('OrderHiveService: Saved order ${order.id}');
@@ -111,7 +109,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot save orders, box is null');
       return;
     }
-    
+
     try {
       final Map<int, OrderModel> orderMap = {
         for (var order in orders) order.id: order
@@ -130,7 +128,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot get order, box is null');
       return null;
     }
-    
+
     try {
       return _orderBox!.get(id);
     } catch (e) {
@@ -145,7 +143,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot get all orders, box is null');
       return [];
     }
-    
+
     try {
       return _orderBox!.values.toList();
     } catch (e) {
@@ -160,7 +158,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot get orders by client, box is null');
       return [];
     }
-    
+
     try {
       return _orderBox!.values
           .where((order) => order.clientId == clientId)
@@ -177,7 +175,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot delete order, box is null');
       return;
     }
-    
+
     try {
       await _orderBox!.delete(id);
       debugPrint('OrderHiveService: Deleted order $id');
@@ -193,7 +191,7 @@ class OrderHiveService {
       debugPrint('OrderHiveService: Cannot clear orders, box is null');
       return;
     }
-    
+
     try {
       await _orderBox!.clear();
       debugPrint('OrderHiveService: Cleared all orders');
@@ -202,34 +200,39 @@ class OrderHiveService {
       rethrow;
     }
   }
-  
+
   // Get the timestamp of the last update
   Future<DateTime?> getLastUpdateTime() async {
     await _ensureInitialized();
     if (_timestampBox == null) {
-      debugPrint('OrderHiveService: Cannot get last update time, timestamps box is null');
+      debugPrint(
+          'OrderHiveService: Cannot get last update time, timestamps box is null');
       return null;
     }
-    
+
     try {
       final timestamp = _timestampBox!.get('orders_last_update');
-      return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+      return timestamp != null
+          ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+          : null;
     } catch (e) {
       debugPrint('OrderHiveService: Error getting last update time: $e');
       return null;
     }
   }
-  
+
   // Set the timestamp of the last update
   Future<void> setLastUpdateTime(DateTime timestamp) async {
     await _ensureInitialized();
     if (_timestampBox == null) {
-      debugPrint('OrderHiveService: Cannot set last update time, timestamps box is null');
+      debugPrint(
+          'OrderHiveService: Cannot set last update time, timestamps box is null');
       return;
     }
-    
+
     try {
-      await _timestampBox!.put('orders_last_update', timestamp.millisecondsSinceEpoch);
+      await _timestampBox!
+          .put('orders_last_update', timestamp.millisecondsSinceEpoch);
       debugPrint('OrderHiveService: Updated last update timestamp');
     } catch (e) {
       debugPrint('OrderHiveService: Error setting last update time: $e');

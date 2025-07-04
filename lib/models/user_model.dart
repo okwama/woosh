@@ -1,6 +1,6 @@
-import 'package:glamour_queen/models/journeyPlan_model.dart';
-import 'package:glamour_queen/models/order_model.dart';
-import 'package:glamour_queen/models/token_model.dart';
+import 'package:woosh/models/journeyPlan_model.dart';
+import 'package:woosh/models/order_model.dart';
+import 'package:woosh/models/token_model.dart';
 
 class SalesRep {
   final int id;
@@ -72,4 +72,3 @@ class SalesRep {
     };
   }
 }
-

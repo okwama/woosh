@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/models/product_model.dart';
-import 'package:glamour_queen/models/report/product_sample_item_model.dart';
-import 'package:glamour_queen/models/report/report_model.dart';
-import 'package:glamour_queen/models/report/productReport_model.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/models/journeyplan_model.dart';
+import 'package:woosh/models/product_model.dart';
+import 'package:woosh/models/report/product_sample_item_model.dart';
+import 'package:woosh/models/report/report_model.dart';
+import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/services/api_service.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProductSamplePage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -95,64 +95,67 @@ class _ProductSamplePageState extends State<ProductSamplePage> {
     });
   }
 
-Future<void> _submitCart() async {
-  if (_cart.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Cart is empty')),
-    );
-    return;
-  }
-  setState(() => _isSubmitting = true);
-  try {
-    final box = GetStorage();
-    final salesRepData = box.read('salesRep');
-    final int? salesRepId =
-        salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
-    if (salesRepId == null) {
-      throw Exception("User not authenticated: Could not determine salesRep ID");
-    }
-
-    // Build the list of ProductSampleItem
-    final items = _cart.map((item) {
-      final product = item['product'] as Product;
-      final quantity = item['quantity'] as int;
-      final reason = item['reason'] as String;
-      return ProductSampleItem(
-        productName: product.name,
-        quantity: quantity,
-        reason: reason,
-      );
-    }).toList();
-
-    // Submit a single report with all items
-    final report = Report(
-      type: ReportType.PRODUCT_SAMPLE,
-      journeyPlanId: widget.journeyPlan.id,
-      salesRepId: salesRepId,
-      clientId: widget.journeyPlan.client.id,
-      productSampleItems: items,
-    );
-    await _apiService.submitReport(report);
-
-    if (mounted) {
+  Future<void> _submitCart() async {
+    if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product sample report submitted successfully')),
+        const SnackBar(content: Text('Cart is empty')),
       );
-      widget.onReportSubmitted?.call();
-      Navigator.pop(context);
+      return;
     }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting report: $e')),
+    setState(() => _isSubmitting = true);
+    try {
+      final box = GetStorage();
+      final salesRepData = box.read('salesRep');
+      final int? salesRepId =
+          salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
+      if (salesRepId == null) {
+        throw Exception(
+            "User not authenticated: Could not determine salesRep ID");
+      }
+
+      // Build the list of ProductSampleItem
+      final items = _cart.map((item) {
+        final product = item['product'] as Product;
+        final quantity = item['quantity'] as int;
+        final reason = item['reason'] as String;
+        return ProductSampleItem(
+          productName: product.name,
+          quantity: quantity,
+          reason: reason,
+        );
+      }).toList();
+
+      // Submit a single report with all items
+      final report = Report(
+        type: ReportType.PRODUCT_SAMPLE,
+        journeyPlanId: widget.journeyPlan.id,
+        salesRepId: salesRepId,
+        clientId: widget.journeyPlan.client.id,
+        productSampleItems: items,
       );
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isSubmitting = false);
+      await _apiService.submitReport(report);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Product sample report submitted successfully')),
+        );
+        widget.onReportSubmitted?.call();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error submitting report: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
-}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -341,4 +344,3 @@ Future<void> _submitCart() async {
     super.dispose();
   }
 }
-

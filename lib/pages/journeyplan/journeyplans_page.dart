@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-<<<<<<< HEAD
 import 'package:woosh/models/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/pages/journeyplan/createJourneyplan.dart';
@@ -10,15 +9,6 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/jouneyplan_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-=======
-import 'package:glamour_queen/models/client_model.dart';
-import 'package:glamour_queen/models/journeyplan_model.dart';
-import 'package:glamour_queen/pages/journeyplan/createJourneyplan.dart';
-import 'package:glamour_queen/pages/journeyplan/journeyview.dart';
-import 'package:glamour_queen/services/api_service.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
@@ -41,17 +31,10 @@ class _JourneyPlansLoadingScreenState extends State<JourneyPlansLoadingScreen> {
   Future<void> _preloadData() async {
     try {
       // Load journey plans and clients from the server
-<<<<<<< HEAD
       final journeyPlansResponse =
           await JourneyPlanService.fetchJourneyPlans(page: 1);
       final routeId = ApiService.getCurrentUserRouteId();
       final clientsResponse = await ApiService.fetchClients(routeId: routeId);
-=======
-      final journeyPlans = await ApiService.fetchJourneyPlans(page: 1);
-      final clientsResponse =
-          await ApiService.fetchClients(routeId: null); // Don't filter by route
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
-
       // Navigate to main page with preloaded data
       if (mounted) {
         Navigator.pushReplacement(
@@ -59,11 +42,7 @@ class _JourneyPlansLoadingScreenState extends State<JourneyPlansLoadingScreen> {
           MaterialPageRoute(
             builder: (context) => JourneyPlansPage(
               preloadedClients: clientsResponse.data,
-<<<<<<< HEAD
               preloadedPlans: journeyPlansResponse.data,
-=======
-              preloadedPlans: journeyPlans,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
             ),
           ),
         );
@@ -134,7 +113,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
   JourneyPlan? _activeVisit;
   bool _isShowingNotification = false;
   Timer? _refreshTimer;
-
   bool _sortAscending = true;
 
   @override
@@ -198,24 +176,14 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
   Future<void> _refreshData() async {
     try {
       // Quick refresh without showing loading state
-<<<<<<< HEAD
       final routeId = ApiService.getCurrentUserRouteId();
       final journeyPlansFuture = JourneyPlanService.fetchJourneyPlans(page: 1);
       final clientsFuture = ApiService.fetchClients(routeId: routeId);
-=======
-      final journeyPlansFuture = ApiService.fetchJourneyPlans(page: 1);
-      final clientsFuture =
-          ApiService.fetchClients(routeId: null); // Don't filter by route
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
       final journeyPlansResult = await journeyPlansFuture;
       final clientsResult = await clientsFuture;
 
-<<<<<<< HEAD
       final List<JourneyPlan> fetchedPlans = journeyPlansResult.data;
-=======
-      final List<JourneyPlan> fetchedPlans = journeyPlansResult;
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final List<Client> clients = clientsResult.data;
 
       // Build a map for efficient client lookup
@@ -244,7 +212,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
       }
     } catch (e) {
       // Silent fail for background refresh
-<<<<<<< HEAD
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
           e.toString().contains('502') ||
@@ -253,9 +220,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
       } else {
         print('Failed to refresh journey plans: $e');
       }
-=======
-      print('Background refresh failed: $e');
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     }
   }
 
@@ -317,25 +281,15 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
 
     try {
       // 1. Fetch journey plans and clients in parallel
-<<<<<<< HEAD
       final routeId = ApiService.getCurrentUserRouteId();
       final journeyPlansFuture = JourneyPlanService.fetchJourneyPlans(page: 1);
       final clientsFuture = ApiService.fetchClients(routeId: routeId);
-=======
-      final journeyPlansFuture = ApiService.fetchJourneyPlans(page: 1);
-      final clientsFuture =
-          ApiService.fetchClients(routeId: null); // Don't filter by route
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
       // Await both futures
       final journeyPlansResult = await journeyPlansFuture;
       final clientsResult = await clientsFuture;
 
-<<<<<<< HEAD
       final List<JourneyPlan> fetchedPlans = journeyPlansResult.data;
-=======
-      final List<JourneyPlan> fetchedPlans = journeyPlansResult;
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       final List<Client> clients = clientsResult.data;
 
       // Build a map for efficient client lookup
@@ -359,17 +313,12 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
       if (mounted) {
         setState(() {
           _journeyPlans = updatedJourneyPlans;
-<<<<<<< HEAD
           _clients = clients;
-=======
-          _clients = clients; // Store clients for other uses
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           _currentPage = 1;
           _hasMoreData = true;
         });
       }
     } catch (e) {
-<<<<<<< HEAD
       // Silent fail for server errors
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
@@ -378,11 +327,9 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
         print('Server error during load - handled silently: $e');
       } else {
         print('Failed to load journey plans: $e');
-=======
-      print('Error loading data: $e');
+      }
       if (mounted) {
         _showGenericErrorDialog();
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       }
     } finally {
       if (mounted) {
@@ -439,18 +386,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     );
   }
 
-  bool _isConnectionError(dynamic error) {
-    final errorString = error.toString().toLowerCase();
-    return errorString.contains('socketexception') ||
-        errorString.contains('connection timeout') ||
-        errorString.contains('network error') ||
-        errorString.contains('connection refused') ||
-        errorString.contains('no internet') ||
-        errorString.contains('xmlhttprequest error') ||
-        errorString.contains('failed to connect') ||
-        errorString.contains('timeout');
-  }
-
   Future<void> _checkActiveVisit() async {
     try {
       final activeVisit = await JourneyPlanService.getActiveVisit();
@@ -492,13 +427,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
                     _journeyPlans.insert(0, newJourneyPlans[0]);
                   });
                 }
-<<<<<<< HEAD
-=======
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Journey plan created successfully')),
-                );
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
               },
             ),
           ),
@@ -539,26 +467,14 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     if (!isToday || !canNavigate) {
       HapticFeedback.vibrate();
 
-<<<<<<< HEAD
       // Only show notification if one isn't already showing and it's a critical navigation restriction
       if (!_isShowingNotification && (!isToday || hasInProgressToday)) {
-=======
-      // Only show notification if one isn't already showing
-      if (!_isShowingNotification) {
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         _isShowingNotification = true;
         ScaffoldMessenger.of(context)
             .showSnackBar(
               SnackBar(
-                content: Text(!isToday
-                    ? 'You can only navigate to today\'s journey plans'
-<<<<<<< HEAD
-                    : 'Please complete the active journey plan first'),
-=======
-                    : hasInProgressToday
-                        ? 'Please complete the active journey plan first'
-                        : 'You can only navigate to today\'s active journey plans'),
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
+                content:
+                    const Text('Please complete the active journey plan first'),
                 action: _activeVisit != null &&
                         _activeVisit!.id != journeyPlan.id &&
                         !isInProgress &&
@@ -634,36 +550,20 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
   // Add method to refresh specific journey plan status
   Future<void> _refreshJourneyPlanStatus(int journeyPlanId) async {
     try {
-<<<<<<< HEAD
       // Fetch the updated journey plan from the server
       final updatedPlan =
           await JourneyPlanService.getJourneyPlanById(journeyPlanId);
 
-=======
-      print('Refreshing journey plan status for ID: $journeyPlanId');
-
-      // Fetch the updated journey plan from the server
-      final updatedPlan = await ApiService.getJourneyPlanById(journeyPlanId);
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       if (updatedPlan != null && mounted) {
         setState(() {
           final index = _journeyPlans.indexWhere((p) => p.id == journeyPlanId);
           if (index != -1) {
             _journeyPlans[index] = updatedPlan;
-<<<<<<< HEAD
-=======
-            print('Updated journey plan status to: ${updatedPlan.statusText}');
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           }
 
           // Update active visit if this was the active one
           if (_activeVisit?.id == journeyPlanId) {
             _activeVisit = updatedPlan;
-<<<<<<< HEAD
-=======
-            print('Updated active visit status to: ${updatedPlan.statusText}');
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           }
         });
 
@@ -677,11 +577,7 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
         }
       }
     } catch (e) {
-<<<<<<< HEAD
       print('Failed to refresh journey plan status');
-=======
-      print('Error refreshing journey plan status: $e');
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       // Try again after a short delay
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
@@ -739,21 +635,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     if (confirmed != true) return;
 
     try {
-<<<<<<< HEAD
       // Call API to delete journey plan
       await JourneyPlanService.deleteJourneyPlan(journeyPlan.id!);
-=======
-      // Show loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Deleting journey plan...'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-
-      // Call API to delete journey plan
-      await ApiService.deleteJourneyPlan(journeyPlan.id!);
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
       // Remove from local list
       setState(() {
@@ -764,7 +647,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-<<<<<<< HEAD
             content: Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.white, size: 20),
@@ -774,18 +656,11 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
             ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
-=======
-            content: Text('Journey plan deleted successfully'),
-            backgroundColor: Colors.green,
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
           ),
         );
       }
     } catch (e) {
-<<<<<<< HEAD
-      // Silent fail for all errors
-      print('Failed to delete journey plan');
-=======
+      print('Failed to delete journey plan: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -794,7 +669,6 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
           ),
         );
       }
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
     }
   }
 
@@ -921,12 +795,6 @@ class JourneyPlanItem extends StatelessWidget {
     final isCompleted = journeyPlan.statusText == 'Completed';
     final isPending = journeyPlan.statusText == 'Pending';
     final clientName = journeyPlan.client.name;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final planDate = journeyPlan.date.toLocal();
-    final isToday =
-        DateTime(planDate.year, planDate.month, planDate.day) == today;
 
     // Only disable if completed
     final shouldDisable = isCompleted;

@@ -14,7 +14,7 @@ class TestWidget extends StatefulWidget {
 }
 
 class _TestWidgetState extends State<TestWidget> {
-  String _message = "Hello"; // This will trigger prefer_single_quotes
+  final String _message = "Hello"; // This will trigger prefer_single_quotes
 
   @override
   Widget build(BuildContext context) {

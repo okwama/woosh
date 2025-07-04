@@ -93,23 +93,23 @@ class Product {
 
   // Helper method to get maximum quantity available in a region
   int getMaxQuantityInRegion(int regionId) {
-    // Filter store quantities for stores in the specified region
-    final regionStoreQuantities = storeQuantities.where((sq) {
-      final store = sq.store;
-      // Handle nullable regionId
-      return store != null &&
-          (store.regionId == regionId || store.regionId == null);
-    }).toList();
-
-    if (regionStoreQuantities.isEmpty) {
-      return 0; // No stores in the region have this product
+    // Early return if no store quantities
+    if (storeQuantities.isEmpty) {
+      return 0;
     }
 
-    // Find the maximum quantity among stores in the region
-    final maxQuantity = regionStoreQuantities.fold<int>(
-      0,
-      (max, sq) => sq.quantity > max ? sq.quantity : max,
-    );
+    int maxQuantity = 0;
+
+    // Single pass through store quantities
+    for (final sq in storeQuantities) {
+      final store = sq.store;
+      if (store != null &&
+          (store.regionId == regionId || store.regionId == null)) {
+        if (sq.quantity > maxQuantity) {
+          maxQuantity = sq.quantity;
+        }
+      }
+    }
 
     return maxQuantity;
   }

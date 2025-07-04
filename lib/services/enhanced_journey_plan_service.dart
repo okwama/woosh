@@ -33,24 +33,24 @@ class EnhancedJourneyPlanService {
         routeId: routeId,
       );
 
-      print('✅ Journey plan created successfully (online)');
+      print('? Journey plan created successfully (online)');
       return journeyPlan;
     } catch (e) {
-      print('❌ Journey plan creation failed, checking if server error: $e');
+      print('? Journey plan creation failed, checking if server error: $e');
 
       // Check if it's a server error (500-503)
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
           e.toString().contains('502') ||
           e.toString().contains('503')) {
-        print('🔄 Server error detected - saving journey plan for later sync');
+        print('?? Server error detected - saving journey plan for later sync');
 
         // Save pending journey plan operation
         await _savePendingJourneyPlan(clientId, dateTime,
             notes: notes, routeId: routeId);
 
         print(
-            '💾 Journey plan saved locally - will sync when server is available');
+            '?? Journey plan saved locally - will sync when server is available');
 
         // Return null to indicate offline save (caller should handle this)
         return null;
@@ -78,7 +78,7 @@ class EnhancedJourneyPlanService {
     );
 
     await _pendingService.savePendingJourneyPlan(pendingPlan);
-    print('💾 Saved pending journey plan for client $clientId');
+    print('?? Saved pending journey plan for client $clientId');
   }
 
   /// Get all pending journey plans
@@ -127,14 +127,14 @@ class EnhancedJourneyPlanService {
         checkoutLongitude: checkoutLongitude,
       );
     } catch (e) {
-      print('❌ Journey plan update failed: $e');
+      print('? Journey plan update failed: $e');
 
       // Check if it's a server error (500-503)
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
           e.toString().contains('502') ||
           e.toString().contains('503')) {
-        print('🔄 Server error detected during journey plan update');
+        print('?? Server error detected during journey plan update');
 
         // For journey plan updates (like check-in), we'll let the service handle retries
         // This is different from creation which we can defer

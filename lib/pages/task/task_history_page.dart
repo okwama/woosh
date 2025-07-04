@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:glamour_queen/services/task_service.dart';
-import 'package:glamour_queen/models/task_model.dart';
-import 'package:glamour_queen/utils/app_theme.dart';
-import 'package:glamour_queen/widgets/gradient_app_bar.dart';
+import 'package:woosh/services/task_service.dart';
+import 'package:woosh/models/task_model.dart';
+import 'package:woosh/utils/app_theme.dart';
+import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class TaskHistoryPage extends StatefulWidget {
   const TaskHistoryPage({super.key});
@@ -315,4 +315,3 @@ class _TaskHistoryPageState extends State<TaskHistoryPage> {
     );
   }
 }
-

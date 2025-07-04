@@ -8,10 +8,10 @@ import 'package:path_provider/path_provider.dart';
 class ErrorIconHelper {
   /// Gets the asset path for the 500 error SVG icon
   static String get oops500SvgPath => 'assets/images/error/oops_500.svg';
-  
+
   /// Gets the asset path for the 500 error PNG icon
   static String get oops500PngPath => 'assets/images/error/oops_500.png';
-  
+
   /// Checks if the error icons are available in the assets
   static Future<bool> areErrorIconsAvailable() async {
     try {
@@ -23,7 +23,7 @@ class ErrorIconHelper {
       return false;
     }
   }
-  
+
   /// Builds a widget to display for 500 errors
   static Widget build500ErrorWidget(BuildContext context) {
     return Center(

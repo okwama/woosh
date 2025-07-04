@@ -1,5 +1,6 @@
 class ImageUtils {
-  static String getOptimizedImageUrl(String? originalUrl, {
+  static String getOptimizedImageUrl(
+    String? originalUrl, {
     int width = 300,
     int height = 300,
     int quality = 80,
@@ -16,7 +17,8 @@ class ImageUtils {
     }
 
     // If the URL is already complete (starts with http:// or https://), no need to prepend base URL
-    if (originalUrl.startsWith('http://') || originalUrl.startsWith('https://')) {
+    if (originalUrl.startsWith('http://') ||
+        originalUrl.startsWith('https://')) {
       return originalUrl; // Return the full URL as is
     }
 

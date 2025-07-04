@@ -1,26 +1,14 @@
 import 'package:get/get.dart';
-<<<<<<< HEAD
 import 'package:woosh/pages/journeyplan/feedback_report_page.dart';
 import 'package:woosh/pages/journeyplan/reports/product_availability_page.dart';
 import 'package:woosh/pages/journeyplan/reports/visibility_activity_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
 import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
 import 'package:woosh/controllers/uplift_cart_controller.dart';
-import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/controllers/uplift_sale_controller.dart';
 import 'package:woosh/pages/login/sign_page.dart';
+import 'package:woosh/pages/pos/uplift_sales_page.dart';
 import 'package:woosh/pages/test/error_test_page.dart';
-=======
-import 'package:glamour_queen/pages/journeyplan/feedback_report_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/product_availability_page.dart';
-import 'package:glamour_queen/pages/journeyplan/reports/visibility_activity_page.dart';
-import 'package:glamour_queen/pages/order/viewOrder/vieworder_page.dart';
-import 'package:glamour_queen/pages/pos/upliftSaleCart_page.dart';
-import 'package:glamour_queen/pages/pos/uplift_sales_page.dart';
-import 'package:glamour_queen/controllers/uplift_cart_controller.dart';
-import 'package:glamour_queen/controllers/uplift_sale_controller.dart';
-import 'package:glamour_queen/pages/login/sign_page.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class AppRoutes {
   static final routes = [

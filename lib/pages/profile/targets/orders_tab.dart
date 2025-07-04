@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-<<<<<<< HEAD
 import 'package:woosh/models/order_model.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
-=======
-import 'package:glamour_queen/models/order_model.dart';
-import 'package:glamour_queen/widgets/gradient_widgets.dart';
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
 
 class OrdersTab extends StatelessWidget {
   final List<Order> userOrders;
@@ -81,7 +76,7 @@ class OrdersTab extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
-                '${order.orderItems?.length ?? 0} items - ${DateFormat('MMM d, yyyy').format(order.createdAt)}',
+                '${order.orderItems.length ?? 0} items - ${DateFormat('MMM d, yyyy').format(order.createdAt)}',
               ),
               trailing: Text(
                 '\$${order.totalAmount.toStringAsFixed(2)}',
@@ -168,7 +163,7 @@ class OrdersTab extends StatelessWidget {
                                     size: 12, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${order.orderItems?.length ?? 0} items',
+                                  '${order.orderItems.length ?? 0} items',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: Colors.grey[600],
@@ -196,7 +191,3 @@ class OrdersTab extends StatelessWidget {
     );
   }
 }
-<<<<<<< HEAD
-=======
-
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2

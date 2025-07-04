@@ -3,7 +3,6 @@ import '../services/hive/user_hive_service.dart' as hive;
 import '../services/api_service.dart';
 import '../services/token_service.dart';
 import '../models/hive/user_model.dart';
-import '../services/token_service.dart';
 
 class AuthController extends GetxController {
   final hive.UserHiveService _userHiveService = hive.UserHiveService();
@@ -76,14 +75,10 @@ class AuthController extends GetxController {
 
   Future<void> logout() async {
     try {
-<<<<<<< HEAD
       // Clear tokens using TokenService
       await TokenService.clearTokens();
 
       // Clear user data
-=======
-      await TokenService.clearTokens();
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
       await _userHiveService.clearUser();
       _currentUser.value = null;
       _isLoggedIn.value = false;
@@ -93,10 +88,7 @@ class AuthController extends GetxController {
     }
   }
 
-<<<<<<< HEAD
   // Check if user is authenticated
-=======
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
   bool isAuthenticated() {
     return TokenService.isAuthenticated();
   }
