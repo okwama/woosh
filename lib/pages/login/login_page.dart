@@ -3,7 +3,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/session_service.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
@@ -25,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  DateTime? _lastLoginAttempt;
 
   @override
   void dispose() {
@@ -53,66 +53,158 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 
-  void _showToast(String message, bool isError) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: isError ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT,
-      gravity: ToastGravity.TOP,
-      timeInSecForIosWeb: isError ? 3 : 1,
-      backgroundColor: isError ? Colors.red : Colors.green,
-      textColor: Colors.white,
-      fontSize: 16.0,
+  void _showMessage(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _handleLogin() async {
+    if (_isLoading) return;
+
+    // Validate inputs
+    if (_phoneNumberController.text.trim().isEmpty) {
+      _showMessage('Please enter your phone number', true);
+      return;
+    }
+
+    if (_passwordController.text.isEmpty) {
+      _showMessage('Please enter your password', true);
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
-    // Set login in progress flag
-    // TokenService.setLoginInProgress(true); // Method not available
+    // Try login with retry mechanism
+    await _loginWithRetry();
+  }
 
-    try {
-      final result = await _apiService.login(
-        _phoneNumberController.text.trim(),
-        _passwordController.text,
-      );
+  Future<void> _loginWithRetry() async {
+    const int maxRetries = 2;
+    const Duration initialDelay = Duration(seconds: 1);
 
-      if (result['success']) {
-        // Pass the result to auth controller instead of calling login again
-        await _authController.handleLoginResult(result);
-
-        // Debug token information after successful login
-        // TokenService.debugTokenInfo(); // Method not available
-
-        // Get user role from the result
-        final salesRep = result['salesRep'];
-        final userRole = salesRep?['role'] ?? '';
-
-        // Store user ID for later use
-        if (salesRep?['id'] != null) {
-          GetStorage().write('userId', salesRep!['id'].toString());
-        }
-
-        // Redirect based on role
-        if (userRole.toString().toLowerCase() == 'manager') {
-          Get.offAllNamed('/manager-home');
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Show appropriate message based on attempt
+        if (attempt == 1) {
+          _showMessage('Logging in...', false);
         } else {
-          Get.offAllNamed('/home');
+          _showMessage(
+              'Retrying login... (Attempt $attempt/$maxRetries)', false);
         }
 
-        _showToast('Login successful', false);
-      } else {
-        _showToast(result['message'] ?? 'Login failed', true);
+        final result = await _apiService.login(
+          _phoneNumberController.text.trim(),
+          _passwordController.text,
+        );
+
+        if (result['success']) {
+          // Pass the result to auth controller
+          await _authController.handleLoginResult(result);
+
+          // Get user role from the result
+          final salesRep = result['salesRep'];
+          final userRole = salesRep?['role'] ?? '';
+
+          // Store user ID for later use
+          if (salesRep?['id'] != null) {
+            GetStorage().write('userId', salesRep!['id'].toString());
+          }
+
+          // Show success message
+          _showMessage('Login successful!', false);
+
+          // Redirect based on role after a brief delay
+          await Future.delayed(const Duration(milliseconds: 800));
+
+          if (userRole.toString().toLowerCase() == 'manager') {
+            Get.offAllNamed('/manager-home');
+          } else {
+            Get.offAllNamed('/home');
+          }
+          return; // Success, exit retry loop
+        } else {
+          // Login failed but no exception thrown - show error immediately
+          _showMessage(result['message'] ?? 'Login failed', true);
+          return; // Don't retry for authentication failures
+        }
+      } catch (e) {
+        String errorMessage = 'Login failed';
+        bool shouldRetry = false;
+
+        // Handle specific error types
+        if (e.toString().toLowerCase().contains('network') ||
+            e.toString().toLowerCase().contains('socket') ||
+            e.toString().toLowerCase().contains('connection')) {
+          errorMessage = 'No internet connection. Please check your network.';
+          shouldRetry = true;
+        } else if (e.toString().toLowerCase().contains('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+          shouldRetry = true;
+        } else if (e.toString().toLowerCase().contains('401') ||
+            e.toString().toLowerCase().contains('unauthorized')) {
+          errorMessage = 'Invalid phone number or password.';
+          // Don't retry for authentication errors
+        } else if (e.toString().toLowerCase().contains('500') ||
+            e.toString().toLowerCase().contains('server')) {
+          errorMessage = 'Server temporarily unavailable.';
+          shouldRetry = true;
+        } else if (e.toString().toLowerCase().contains('429') ||
+            e.toString().toLowerCase().contains('too many requests')) {
+          errorMessage = 'Too many login attempts. Please wait a moment.';
+          // Don't retry for rate limiting
+        } else {
+          // Unknown error, retry once
+          errorMessage = 'Connection error. Please try again.';
+          shouldRetry = true;
+        }
+
+        // If this is the last attempt or we shouldn't retry
+        if (attempt == maxRetries || !shouldRetry) {
+          // Show final error message only after all retries are exhausted
+          _showMessage(errorMessage, true);
+          break;
+        }
+
+        // Wait before retry with exponential backoff (no error message during retry)
+        final delay = Duration(seconds: initialDelay.inSeconds * attempt);
+        await Future.delayed(delay);
+
+        // Check if user is still on the login page
+        if (!mounted || !_isLoading) {
+          break;
+        }
       }
-    } catch (e) {
-      _showToast(e.toString(), true);
-    } finally {
-      // Clear login in progress flag
-      // TokenService.setLoginInProgress(false); // Method not available
+    }
+
+    // Reset loading state
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
@@ -376,13 +468,27 @@ class _LoginPageState extends State<LoginPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Signing In...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
@@ -401,7 +507,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: _login,
+                  onTap: _isLoading ? null : _handleLogin,
                   borderRadius: BorderRadius.circular(14),
                   child: const Center(
                     child: Text(

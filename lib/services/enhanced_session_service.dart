@@ -4,6 +4,7 @@ import 'package:woosh/services/hive/pending_session_hive_service.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/hive/pending_session_model.dart';
 import 'package:woosh/models/hive/session_model.dart';
+import 'package:woosh/services/session_state.dart';
 
 class EnhancedSessionService {
   static late PendingSessionHiveService _pendingSessionService;
@@ -34,13 +35,9 @@ class EnhancedSessionService {
       final response = await SessionService.recordLogin(userId);
 
       if (response['error'] == null) {
-        // Success - update local session state
-        await _sessionHiveService.saveSession(SessionModel(
-          isActive: true,
-          lastCheck: DateTime.now(),
-          loginTime: DateTime.now(),
-          userId: userId,
-        ));
+        // Success - update centralized session state
+        final sessionState = Get.find<SessionState>();
+        sessionState.updateSessionState(true, DateTime.now());
 
         print('? Session started successfully (online)');
         return response;
@@ -127,13 +124,9 @@ class EnhancedSessionService {
       // Try to record logout via API first
       await SessionService.recordLogout(userId);
 
-      // Success - update local session state
-      await _sessionHiveService.saveSession(SessionModel(
-        isActive: false,
-        lastCheck: DateTime.now(),
-        loginTime: null,
-        userId: userId,
-      ));
+      // Success - update centralized session state
+      final sessionState = Get.find<SessionState>();
+      sessionState.updateSessionState(false, null);
 
       print('? Session ended successfully (online)');
       return {'success': true, 'message': 'Session ended successfully'};
@@ -222,7 +215,7 @@ class EnhancedSessionService {
   /// Check session validity with offline support
   static Future<bool> isSessionValid(String userId) async {
     try {
-      // Try to check with API first
+      // Try to check with API first using status field
       return await SessionService.isSessionValid(userId);
     } catch (e) {
       // If API fails, check local session

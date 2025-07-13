@@ -296,34 +296,19 @@ class ApiService {
   }
 
   static void handleNetworkError(dynamic error) {
-    // Log the error for debugging but don't show raw error to user
-    print('Network error occurred: $error');
+    String errorMessage = "Network error. Please check your connection.";
 
-    // Check if it's a server error (500, 501, 502, 503) - handle silently
-    if (error.toString().contains('500') ||
-        error.toString().contains('501') ||
-        error.toString().contains('502') ||
-        error.toString().contains('503')) {
-      print('Server error detected - handling silently: $error');
-      return; // Don't show any error to user for server errors
-    }
-
-    String errorMessage = "Unable to connect to the server";
-
-    if (error.toString().contains('SocketException') ||
-        error.toString().contains('XMLHttpRequest error') ||
-        error.toString().contains('Connection timeout') ||
-        error.toString().contains('Failed to fetch') ||
-        error.toString().contains('ClientException')) {
-      errorMessage = "You're offline. Please check your internet connection.";
-    } else if (error.toString().contains('TimeoutException')) {
+    if (error.toString().contains('Connection timeout') ||
+        error.toString().contains('timeout')) {
       errorMessage = "Request timed out. Please try again.";
     } else if (error.toString().contains('500')) {
       errorMessage = "Server error. Please try again later.";
     }
 
-    // Use the global error handler to show user-friendly messages (but not for server errors)
-    GlobalErrorHandler.handleApiError(error, showToast: true);
+    // Don't show error messages when we have cached data available
+    // The app will use cached data instead of showing errors
+    print('Network error occurred: $error');
+    print('Using cached data instead of showing error to user');
   }
 
   static Future<dynamic> _handleResponse(http.Response response) async {

@@ -46,6 +46,7 @@ class ProfileController extends GetxController {
 
   Future<void> fetchProfile() async {
     try {
+      print('🔄 Fetching profile data...');
       final response = await ApiService.getProfile();
       final userData = response['salesRep'];
 
@@ -61,19 +62,30 @@ class ProfileController extends GetxController {
         // Update storage with full user data
         storage.write('salesRep', userData);
 
-        print('Profile data loaded: ${userData.toString()}'); // Debug log
+        print('✅ Profile data loaded successfully: ${userData.toString()}');
       } else {
-        throw Exception('Invalid user data received');
+        print('❌ No user data in response - using cached data');
+        // Don't throw exception, just use cached data
+        loadUserData();
       }
     } catch (e) {
-      print('Error fetching profile: $e'); // Debug log
-      Get.snackbar(
-        'Error',
-        'Failed to fetch profile data: ${e.toString().replaceAll('Exception: ', '')}',
-        snackPosition: SnackPosition.TOP,
-        backgroundColor: Get.theme.colorScheme.error.withOpacity(0.1),
-        colorText: Get.theme.colorScheme.error,
-      );
+      print('❌ Error fetching profile: $e');
+
+      // Only show snackbar for specific errors, not network issues
+      if (e.toString().contains('Session expired') ||
+          e.toString().contains('Authentication failed')) {
+        Get.snackbar(
+          'Authentication Error',
+          'Please log in again',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Get.theme.colorScheme.error.withOpacity(0.1),
+          colorText: Get.theme.colorScheme.error,
+        );
+      }
+
+      // Always fall back to cached data
+      print('🔄 Falling back to cached profile data...');
+      loadUserData();
     }
   }
 

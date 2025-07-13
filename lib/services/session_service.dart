@@ -5,6 +5,17 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/token_service.dart';
 import 'package:woosh/utils/config.dart';
 
+/// Session Service with reliable status-based session detection
+///
+/// This service uses the backend's status field to determine active sessions:
+/// - Status "1" = Active session (user logged in)
+/// - Status "2" = Ended session (user logged out)
+///
+/// This approach is more reliable than checking logoutAt field because:
+/// 1. Status is explicitly set by the backend
+/// 2. No ambiguity with null values
+/// 3. Clear state management
+/// 4. Consistent across all session operations
 class SessionService {
   static const String baseUrl = '${Config.baseUrl}/api';
 
@@ -184,11 +195,29 @@ class SessionService {
         return lastKnownData ?? {'sessions': []};
       } else {
         print('Debug - Error response: ${response.body}');
-        throw Exception('Failed to fetch session history: ${response.body}');
+        // Return cached data instead of throwing error
+        final box = GetStorage();
+        final cacheKey =
+            'last_sessions_${userId}_${startDate ?? 'all'}_${endDate ?? 'all'}';
+        final cachedData = box.read(cacheKey);
+        if (cachedData != null) {
+          print('Debug - Returning cached data due to API error');
+          return cachedData;
+        }
+        return {'sessions': []};
       }
     } catch (e) {
       print('Debug - Exception: $e');
-      throw Exception('Error fetching session history: $e');
+      // Return cached data instead of throwing error
+      final box = GetStorage();
+      final cacheKey =
+          'last_sessions_${userId}_${startDate ?? 'all'}_${endDate ?? 'all'}';
+      final cachedData = box.read(cacheKey);
+      if (cachedData != null) {
+        print('Debug - Returning cached data due to network error');
+        return cachedData;
+      }
+      return {'sessions': []};
     }
   }
 
@@ -198,16 +227,103 @@ class SessionService {
       final sessions = response['sessions'] as List;
       if (sessions.isNotEmpty) {
         final lastSession = sessions.first;
-        if (lastSession['logoutAt'] == null) {
-          // Check if session is within shift hours
+        // Use status field instead of logoutAt for more reliable session detection
+        // Status "1" = Active session, Status "2" = Ended session
+        final isActive = lastSession['status'] == '1';
+
+        if (isActive) {
+          // Check if session is within shift hours (9-hour shift)
           final loginAt = DateTime.parse(lastSession['loginAt']);
           final now = DateTime.now();
-          return now.difference(loginAt).inHours < 9; // 9-hour shift
+          return now.difference(loginAt).inHours < 9;
         }
       }
       return false;
     } catch (e) {
+      print('Error checking session validity: $e');
       return false;
+    }
+  }
+
+  /// Get current session status using the reliable status field
+  static Future<bool> getCurrentSessionStatus(String userId) async {
+    try {
+      print('🔍 API: Getting session history for user $userId');
+      final response = await getSessionHistory(userId);
+      final sessions = response['sessions'] as List;
+      print('🔍 API: Found ${sessions.length} sessions');
+
+      if (sessions.isNotEmpty) {
+        final lastSession = sessions.first;
+        final status = lastSession['status'] as String?;
+        final logoutAt = lastSession['logoutAt'];
+
+        print('🔍 API: Last session status = $status');
+        print('🔍 API: Last session loginAt = ${lastSession['loginAt']}');
+        print('🔍 API: Last session logoutAt = $logoutAt');
+
+        // Use raw status codes for reliable session detection
+        // Status "1" = Active session, Status "2" = Ended session
+        final isActive = status == '1';
+        print('🔍 API: Session active = $isActive');
+        return isActive;
+      }
+
+      print('🔍 API: No sessions found, returning false');
+      return false;
+    } catch (e) {
+      print('❌ API: Error getting current session status: $e');
+      return false;
+    }
+  }
+
+  /// Check if session is active using status field (simplified version)
+  static Future<bool> isSessionActive(String userId) async {
+    return await getCurrentSessionStatus(userId);
+  }
+
+  /// Get session status with detailed information
+  static Future<Map<String, dynamic>> getSessionStatus(String userId) async {
+    try {
+      final response = await getSessionHistory(userId);
+      final sessions = response['sessions'] as List;
+
+      if (sessions.isNotEmpty) {
+        final lastSession = sessions.first;
+        final status = lastSession['status'] as String?;
+        final isActive = status == '1';
+
+        return {
+          'isActive': isActive,
+          'status': status,
+          'loginAt': lastSession['loginAt'],
+          'logoutAt': lastSession['logoutAt'],
+          'sessionStart': lastSession['sessionStart'],
+          'sessionEnd': lastSession['sessionEnd'],
+          'duration': lastSession['duration'],
+          'isLate': lastSession['isLate'],
+          'isEarly': lastSession['isEarly'],
+        };
+      }
+
+      return {
+        'isActive': false,
+        'status': null,
+        'loginAt': null,
+        'logoutAt': null,
+        'sessionStart': null,
+        'sessionEnd': null,
+        'duration': null,
+        'isLate': null,
+        'isEarly': null,
+      };
+    } catch (e) {
+      print('Error getting session status: $e');
+      return {
+        'isActive': false,
+        'status': 'error',
+        'error': e.toString(),
+      };
     }
   }
 

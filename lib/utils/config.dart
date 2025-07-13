@@ -1,6 +1,6 @@
 class Config {
-  static const String baseUrl = 'https://woosh-api-mocha.vercel.app';
-// static const String baseUrl = 'http://192.168.100.10:5000';
+  //static const String baseUrl = 'https://woosh-api-mocha.vercel.app';
+  static const String baseUrl = 'https://woosh-api.vercel.app';
   static const String apiVersion = 'v1';
   static const String imageBaseUrl =
       'https://woosh-api-mocha.vercel.app/uploads';
@@ -9,7 +9,12 @@ class Config {
   static const String loginEndpoint = '/auth/login';
   static const String productsEndpoint = '/products';
   static const String ordersEndpoint = '/orders';
-  static const String outletsEndpoint = '/outlets';
+  static const String clientsEndpoint = '/clients';
+  static const String usersEndpoint = '/users';
+  static const String targetsEndpoint = '/targets';
+  static const String journeyPlansEndpoint = '/journey-plans';
+  static const String noticesEndpoint = '/notices';
+  static const String tasksEndpoint = '/tasks';
 
   // Cache Configuration
   static const Duration defaultCacheValidity = Duration(minutes: 5);

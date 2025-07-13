@@ -27,34 +27,52 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    // Critical initializations only
     await GetStorage.init();
-    // Initialize Hive with all adapters
-    await HiveInitializer.initialize();
 
-    // Initialize enhanced services
-    await EnhancedSessionService.initialize();
-    await EnhancedJourneyPlanService.initialize();
+    // Initialize Hive with minimal setup
+    await HiveInitializer.initializeMinimal();
 
-    // Initialize offline sync service
-    Get.put(OfflineSyncService());
-
-    // Request permissions at startup
-    await PermissionService.requestInitialPermissions();
-
-    // Initialize services
-    Get.put(OutletService());
-
+    // Initialize only essential services
     Get.put(AuthController());
     Get.put(UpliftCartController());
 
-    // Debug token information on app start
-    // TokenService.debugTokenInfo(); // Method not available
+    // Defer non-critical initializations
+    _initializeNonCriticalServices();
 
     runApp(MyApp());
   } catch (e) {
     print('? Error initializing services: $e');
     // Continue with app launch even if some services fail
   }
+}
+
+// Defer non-critical initializations to background
+Future<void> _initializeNonCriticalServices() async {
+  // Run in background to avoid blocking UI
+  Future.microtask(() async {
+    try {
+      // Complete Hive initialization
+      await HiveInitializer.initializeRemaining();
+
+      // Initialize enhanced services
+      await EnhancedSessionService.initialize();
+      await EnhancedJourneyPlanService.initialize();
+
+      // Initialize offline sync service
+      Get.put(OfflineSyncService());
+
+      // Request permissions at startup (non-blocking)
+      PermissionService.requestInitialPermissions();
+
+      // Initialize services
+      Get.put(OutletService());
+
+      print('✅ Non-critical services initialized successfully');
+    } catch (e) {
+      print('⚠️ Non-critical services initialization failed: $e');
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {

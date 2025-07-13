@@ -52,30 +52,41 @@ class _HomePageState extends State<HomePage> {
   int _pendingTasks = 0;
   int _unreadNotices = 0;
   bool _isLoading = true;
-  bool _isSessionActive = false;
-  bool _isCheckingSessionState = false;
   final TaskService _taskService = TaskService();
   final CartController _cartController = Get.put(CartController());
   final SessionState _sessionState = Get.put(SessionState());
-  final SessionHiveService _sessionHiveService = SessionHiveService();
 
   @override
   void initState() {
     super.initState();
-    // VersionCheckService().checkForUpdate(context); // Disabled - no backend API
+    // Load user data immediately (fast, local)
     _loadUserData();
-    _loadPendingJourneyPlans();
-    _loadPendingTasks();
-    _loadUnreadNotices();
-    _initSessionService();
-    _checkSessionStatus();
 
-    // Add periodic session check every 5 minutes
-    Timer.periodic(const Duration(minutes: 5), (timer) {
+    // Initialize session service (fast, local)
+    _initSessionService();
+
+    // Load data asynchronously to avoid blocking UI
+    _loadDataAsync();
+  }
+
+  void _loadDataAsync() {
+    // Load data in parallel to reduce total time
+    Future.wait([
+      _loadPendingJourneyPlans(),
+      _loadPendingTasks(),
+      _loadUnreadNotices(),
+    ]).then((_) {
       if (mounted) {
-        _checkSessionStatus();
-      } else {
-        timer.cancel();
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }).catchError((e) {
+      print('Error loading dashboard data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     });
   }
@@ -113,13 +124,9 @@ class _HomePageState extends State<HomePage> {
               localDate.month == today.month &&
               localDate.day == today.day;
         }).length;
-        _isLoading = false;
       });
     } catch (e) {
       print('Error loading pending journey plans: $e');
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -223,7 +230,7 @@ class _HomePageState extends State<HomePage> {
         _loadPendingJourneyPlans(),
         _loadPendingTasks(),
         _loadUnreadNotices(),
-        _checkSessionStatus(),
+        _sessionState.checkSessionStatus(),
       ]);
       _loadUserData();
 
@@ -279,185 +286,174 @@ class _HomePageState extends State<HomePage> {
 
       if (shouldLogout != true) return;
 
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: GradientCircularProgressIndicator(),
+      // Show immediate loading feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Logging out...'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
         ),
       );
 
-      // 1. Server-side session invalidation (attempt first, but don't block logout)
-      try {
-        await ApiService
-            .logout(); // Should call /api/logout endpoint to invalidate server session
-      } catch (e) {
-        print('Server logout failed (continuing with local logout): $e');
-        // Continue with local logout even if server logout fails
-      }
+      // Clear user data immediately for fast logout
+      final box = GetStorage();
+      await box.remove('salesRep');
+      await box.remove('token');
+      await box.remove('userId');
 
-      // 2. Clear cart data (session-specific)
-      await _cartController.clear();
+      // Navigate immediately
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (route) => false,
+      );
 
-      // 3. Clear authentication data from GetStorage (selective clearing)
+      // Clear caches in background (non-blocking)
+      _clearCachesInBackground();
+    } catch (e) {
+      // Even if there's an error, still logout
+      final box = GetStorage();
+      await box.remove('salesRep');
+      await box.remove('token');
+      await box.remove('userId');
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (route) => false,
+      );
+    }
+  }
+
+  // Background cache clearing (non-blocking)
+  Future<void> _clearCachesInBackground() async {
+    try {
       final box = GetStorage();
 
-      // Remove authentication-related data
-      await box.remove('userId');
-      await box.remove('salesRep');
-      await box.remove('authToken');
-      await box.remove('refreshToken');
-      await box.remove('accessToken');
-      await box.remove('userCredentials');
-      await box.remove('userSession');
-      await box.remove('loginTime');
-      await box.remove('sessionId');
+      // Clear all cached data
+      await box.remove('cached_products');
+      await box.remove('products_last_update');
+      await box.remove('cached_clients');
+      await box.remove('cached_routes');
+      await box.remove('cached_outlets');
 
-      // Keep non-sensitive user preferences and app settings
-      // Examples of data to preserve:
-      // - Theme settings
-      // - Language preferences
-      // - App configuration
-      // - Non-sensitive cached data
-      // - User interface preferences
-
-      // 4. Clear Hive session-specific data
+      // Clear Hive caches
       try {
-        final sessionHiveService = SessionHiveService();
-        await sessionHiveService.clearSession();
+        final hiveService = Get.find<dynamic>();
+        if (hiveService != null) {
+          await hiveService.clearAll();
+        }
       } catch (e) {
-        print('Error clearing session from Hive: $e');
+        // Ignore Hive errors
       }
 
-      // 5. Clear any pending session data
+      // Clear API caches
       try {
-        // Clear any offline session data that might be pending sync
-        final pendingSessionService = Get.find<PendingSessionHiveService>();
-        await pendingSessionService.clearAllPendingSessions();
+        ApiService
+            .clearCache(); // Changed from ApiCache.clear() to ApiService.clearCache()
       } catch (e) {
-        print('Error clearing pending sessions: $e');
+        // Ignore cache errors
       }
-
-      // 6. Update auth controller state
-      final authController = Get.find<AuthController>();
-      await authController.logout();
-
-      // Close loading indicator
-      if (!mounted) return;
-      Get.back();
-
-      // Navigate to login page and clear all previous routes
-      Get.offAllNamed('/login');
-
-      // Show success message
-      Get.snackbar(
-        'Logged Out',
-        'You have been successfully logged out',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
     } catch (e) {
-      print('Error during logout: $e');
-      if (!mounted) return;
-
-      // Close loading indicator if it's showing
-      if (Navigator.canPop(context)) {
-        Get.back();
-      }
-
-      // Handle server errors silently but still perform local logout
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during logout - performing local logout: $e');
-
-        // Force local logout for server errors
-        final box = GetStorage();
-        await box.remove('userId');
-        await box.remove('salesRep');
-        await box.remove('authToken');
-        await box.remove('refreshToken');
-        await box.remove('accessToken');
-
-        Get.offAllNamed('/login');
-        Get.snackbar(
-          'Logged Out',
-          'Logged out locally (server unavailable)',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-      } else {
-        // Show error message for other errors
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to logout properly. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      // Silent fail - user is already logged out
     }
   }
 
   Future<void> _initSessionService() async {
-    await _sessionHiveService.init();
+    // SessionState handles initialization automatically
   }
 
-  Future<void> _checkSessionStatus() async {
-    if (_isCheckingSessionState) return;
-
-    setState(() => _isCheckingSessionState = true);
-    final box = GetStorage();
-    final userId = box.read<String>('userId');
-
-    // First check Hive cache
-    final cachedSession = await _sessionHiveService.getSession();
-    if (cachedSession != null &&
-        cachedSession.lastCheck != null &&
-        DateTime.now().difference(cachedSession.lastCheck!) <
-            const Duration(minutes: 1)) {
-      setState(() {
-        _isSessionActive = cachedSession.isActive;
-        _isCheckingSessionState = false;
-      });
+  void _handleJourneyPlansNavigation() {
+    // Use centralized SessionState for session status
+    if (_sessionState.isCheckingSession.value) {
+      // Show loading dialog while checking session status
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Checking session status...'),
+            ],
+          ),
+        ),
+      );
       return;
     }
 
-    if (userId != null) {
-      try {
-        final response = await SessionService.getSessionHistory(userId);
-        final sessions = response['sessions'] as List;
-        if (sessions.isNotEmpty) {
-          final lastSession = sessions.first;
-          final isActive = lastSession['logoutAt'] == null;
-          final loginTime = DateTime.parse(lastSession['loginAt']);
-
-          // Save to Hive
-          await _sessionHiveService.saveSession(SessionModel(
-            isActive: isActive,
-            lastCheck: DateTime.now(),
-            loginTime: loginTime,
-            userId: userId,
-          ));
-
-          setState(() {
-            _isSessionActive = isActive;
-          });
-          _sessionState.updateSessionState(isActive, loginTime);
-        }
-      } catch (e) {
-        print('Error checking session status: $e');
-        // If API call fails, use cached value if available
-        if (cachedSession != null) {
-          setState(() {
-            _isSessionActive = cachedSession.isActive;
-          });
-        }
-      }
+    if (!_sessionState.isSessionActive.value) {
+      // Show dialog to start session
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.orange),
+              SizedBox(width: 8),
+              const Text('Session Required'),
+            ],
+          ),
+          content: const Text(
+            'You need to start your work session to access Journey Plans. Would you like to start your session now?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // Navigate to profile page to start session
+                Get.to(
+                  () => const ProfilePage(),
+                  preventDuplicates: true,
+                  transition: Transition.rightToLeft,
+                )?.then((_) {
+                  // Check session status when returning from profile page
+                  _sessionState.checkSessionStatus().then((isActive) {
+                    // If session is now active, automatically navigate to journey plans
+                    if (isActive) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const JourneyPlansLoadingScreen(),
+                        ),
+                      );
+                    }
+                  });
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Start Session'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Session is active, proceed to journey plans
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const JourneyPlansLoadingScreen(),
+        ),
+      );
     }
-    setState(() => _isCheckingSessionState = false);
   }
 
   @override
@@ -600,36 +596,35 @@ class _HomePageState extends State<HomePage> {
                   mainAxisSpacing: 1.0,
                   children: [
                     // User Profile Tile (always active)
-                    MenuTile(
-                      title: 'Merchandiser',
-                      subtitle: _isCheckingSessionState
-                          ? '$salesRepName\n$salesRepPhone\nChecking session...'
-                          : _isSessionActive
-                              ? '$salesRepName\n$salesRepPhone\n🟢 Session Active'
-                              : '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
-                      icon: Icons.person,
-                      onTap: () {
-                        Get.to(
-                          () => ProfilePage(),
-                          preventDuplicates: true,
-                          transition: Transition.rightToLeft,
-                        )?.then((_) =>
-                            _checkSessionStatus()); // Refresh session status when returning
-                      },
-                    ),
+                    Obx(() => MenuTile(
+                          title: 'Merchandiser',
+                          subtitle: _sessionState.isCheckingSession.value
+                              ? '$salesRepName\n$salesRepPhone\nChecking session...'
+                              : _sessionState.isSessionActive.value
+                                  ? '$salesRepName\n$salesRepPhone\n🟢 Session Active'
+                                  : '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
+                          icon: Icons.person,
+                          onTap: () {
+                            Get.to(
+                              () => ProfilePage(),
+                              preventDuplicates: true,
+                              transition: Transition.rightToLeft,
+                            )?.then((_) => _sessionState
+                                .checkSessionStatus()); // Refresh session status when returning
+                          },
+                        )),
                     // Restricted tiles with opacity
-                    MenuTile(
-                      title: 'Journey Plans',
-                      icon: Icons.map,
-                      badgeCount: _isLoading ? null : _pendingJourneyPlans,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const JourneyPlansLoadingScreen(),
-                        ),
-                      ),
-                    ),
+                    Obx(() => MenuTile(
+                          title: 'Journey Plans',
+                          icon: Icons.map,
+                          badgeCount: _isLoading ? null : _pendingJourneyPlans,
+                          onTap: () => _handleJourneyPlansNavigation(),
+                          subtitle: !_sessionState.isSessionActive.value
+                              ? '🔒 Session Required'
+                              : null,
+                          opacity:
+                              _sessionState.isSessionActive.value ? 1.0 : 0.6,
+                        )),
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,

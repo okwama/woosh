@@ -36,232 +36,47 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
   final SessionState _sessionState = Get.put(SessionState());
-  final SessionHiveService _sessionHiveService = SessionHiveService();
-  bool isSessionActive = false;
   bool isProcessing = false;
-  bool isCheckingSessionState = false;
   Timer? _durationTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initHive();
     _initEnhancedSessionService();
-    _checkSessionStatus();
-    // Add periodic session check
-    Timer.periodic(const Duration(minutes: 5), (timer) {
-      _checkSessionTimeout();
-    });
+    // Force refresh session status on profile page load
+    _sessionState.forceRefreshSessionStatus();
   }
 
   Future<void> _initEnhancedSessionService() async {
     await EnhancedSessionService.initialize();
   }
 
-  Future<void> _initHive() async {
-    await _sessionHiveService.init();
-  }
-
-  Future<void> _checkSessionStatus() async {
-    if (isCheckingSessionState) return;
-
-    setState(() => isCheckingSessionState = true);
-    final box = GetStorage();
-    final userId = box.read<String>('userId');
-
-    // First check Hive cache
-    final cachedSession = await _sessionHiveService.getSession();
-    if (cachedSession != null &&
-        cachedSession.lastCheck != null &&
-        DateTime.now().difference(cachedSession.lastCheck!) <
-            const Duration(minutes: 1)) {
-      setState(() {
-        isSessionActive = cachedSession.isActive;
-        isCheckingSessionState = false;
-      });
-      return;
-    }
-
-    if (userId != null) {
-      try {
-        final response = await SessionService.getSessionHistory(userId);
-        final sessions = response['sessions'] as List;
-        if (sessions.isNotEmpty) {
-          final lastSession = sessions.first;
-          final isActive = lastSession['logoutAt'] == null;
-          final loginTime = DateTime.parse(lastSession['loginAt']);
-
-          // Save to Hive
-          await _sessionHiveService.saveSession(SessionModel(
-            isActive: isActive,
-            lastCheck: DateTime.now(),
-            loginTime: loginTime,
-            userId: userId,
-          ));
-
-          setState(() {
-            isSessionActive = isActive;
-          });
-          _sessionState.updateSessionState(isActive, loginTime);
-
-          // Start/stop duration timer based on session state
-          if (isActive) {
-            _startDurationTimer();
-          } else {
-            _stopDurationTimer();
-          }
-        }
-      } catch (e) {
-        print('Error checking session status: $e');
-        // If API call fails, use cached value if available
-        if (cachedSession != null) {
-          setState(() {
-            isSessionActive = cachedSession.isActive;
-          });
-        }
-      }
-    }
-    setState(() => isCheckingSessionState = false);
-  }
-
-  Future<void> _checkSessionTimeout() async {
-    final box = GetStorage();
-    final userId = box.read<String>('userId');
-    if (userId == null) return;
-
-    // Check Hive cache first
-    final cachedSession = await _sessionHiveService.getSession();
-    if (cachedSession != null &&
-        cachedSession.lastCheck != null &&
-        DateTime.now().difference(cachedSession.lastCheck!) <
-            const Duration(minutes: 1)) {
-      if (!cachedSession.isActive && isSessionActive) {
-        setState(() {
-          isSessionActive = false;
-        });
-        _stopDurationTimer();
-        Get.snackbar(
-          'Session Expired',
-          'Your session has expired. Please start a new session.',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-      }
-      return;
-    }
-
-    final isValid = await SessionService.isSessionValid(userId);
-    if (!isValid && isSessionActive) {
-      setState(() {
-        isSessionActive = false;
-      });
-      _stopDurationTimer();
-
-      // Update Hive cache
-      await _sessionHiveService.saveSession(SessionModel(
-        isActive: false,
-        lastCheck: DateTime.now(),
-        loginTime: cachedSession?.loginTime,
-        userId: userId,
-      ));
-
-      Get.snackbar(
-        'Session Expired',
-        'Your session has expired. Please start a new session.',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
-    }
-  }
-
   Future<void> _toggleSession() async {
     if (isProcessing) return;
 
-    // Show confirmation dialog
-    final shouldProceed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: GradientText(
-          isSessionActive ? 'End Session' : 'Start Session',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          isSessionActive
-              ? 'Are you sure you want to end your current session?'
-              : 'Are you sure you want to start a new session?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          GoldGradientButton(
-            onPressed: () => Get.back(result: true),
-            child: Text(isSessionActive ? 'End Session' : 'Start Session'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldProceed != true) {
-      return;
-    }
-
     setState(() => isProcessing = true);
-    final box = GetStorage();
-    final userId = box.read<String>('userId');
-
-    if (userId == null) {
-      Get.snackbar(
-        'Error',
-        'User ID not found',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      setState(() => isProcessing = false);
-      return;
-    }
 
     try {
-      if (!isSessionActive) {
+      final box = GetStorage();
+      final userId = box.read<String>('userId');
+
+      if (userId == null) {
+        Get.snackbar(
+          'Error',
+          'User ID not found',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      if (!_sessionState.isSessionActive.value) {
         // Start session using enhanced service with offline support
         final response = await EnhancedSessionService.recordLogin(userId);
 
-        if (response['error'] != null) {
-          // Show dialog for early login attempt
-          if (response['error']
-              .toString()
-              .contains('Sessions can only be started from 9:00 AM')) {
-            await showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Cannot Start Session'),
-                content: const Text(
-                    'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
-                actions: [
-                  GoldGradientButton(
-                    onPressed: () => Get.back(),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-            return;
-          }
-          // Show snackbar for other errors
-          Get.snackbar(
-            'Cannot Start Session',
-            response['error'],
-            backgroundColor: Colors.white,
-            colorText: Colors.orange,
-            duration: const Duration(seconds: 5),
-          );
-          return;
-        }
-
-        setState(() => isSessionActive = true);
-        _sessionState.updateSessionState(true, DateTime.now());
+        // Use the new startSession method to cache the session
+        await _sessionState.startSession();
         _startDurationTimer();
 
         // Show appropriate success message
@@ -278,24 +93,16 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           colorText: color,
         );
       } else {
-        // End session using enhanced service with offline support
-        final response = await EnhancedSessionService.recordLogout(userId);
-
-        setState(() => isSessionActive = false);
-        _sessionState.updateSessionState(false, null);
+        // Use the new endSession method to clear cache and end session
+        await _sessionState.endSession();
         _stopDurationTimer();
 
-        // Show appropriate success message
-        final message = response['offline'] == true
-            ? 'Session ended (will sync when online)'
-            : 'Session ended successfully';
-        final color = response['offline'] == true ? Colors.orange : Colors.blue;
-
+        // Show success message
         Get.snackbar(
           'Success',
-          message,
+          'Session ended successfully',
           backgroundColor: Colors.white,
-          colorText: color,
+          colorText: Colors.blue,
         );
       }
     } catch (e) {
@@ -309,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       }
 
       String errorMessage =
-          'Failed to ${isSessionActive ? 'end' : 'start'} session';
+          'Failed to ${_sessionState.isSessionActive.value ? 'end' : 'start'} session';
       Color errorColor = Colors.red;
 
       // Show dialog for early login attempt
@@ -425,7 +232,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   void _startDurationTimer() {
     _stopDurationTimer(); // Stop any existing timer
     _durationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && isSessionActive) {
+      if (mounted && _sessionState.isSessionActive.value) {
         setState(() {}); // Trigger rebuild to update duration
       } else {
         timer.cancel();
@@ -999,40 +806,39 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        // Enhanced Session Control Button
-        Container(
-          margin: const EdgeInsets.only(top: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isSessionActive
-                  ? [Colors.red.shade400, Colors.red.shade600]
-                  : [Colors.green.shade400, Colors.green.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: (isSessionActive ? Colors.red : Colors.green)
-                    .withOpacity(0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+        // Simplified Session Control Button
+        Obx(() => Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: _sessionState.isSessionActive.value
+                      ? [Colors.red.shade400, Colors.red.shade600]
+                      : [Colors.green.shade400, Colors.green.shade600],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: (_sessionState.isSessionActive.value
+                            ? Colors.red
+                            : Colors.green)
+                        .withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: isProcessing || isCheckingSessionState
-                  ? null
-                  : _toggleSession,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: isProcessing || _sessionState.isCheckingSession.value
+                      ? null
+                      : _toggleSession,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
@@ -1041,7 +847,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            isSessionActive
+                            _sessionState.isSessionActive.value
                                 ? Icons.stop_circle
                                 : Icons.play_circle,
                             color: Colors.white,
@@ -1054,90 +860,31 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isSessionActive
+                                _sessionState.isSessionActive.value
                                     ? 'End Session'
-                                    : 'Start Work Session',
+                                    : 'Start Session',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                isSessionActive
-                                    ? 'Tap to end your current work session'
-                                    : 'Tap to begin your work session',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white.withOpacity(0.9),
+                              if (_sessionState.isSessionActive.value &&
+                                  _sessionState.sessionStartTime.value !=
+                                      null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Duration: ${_getSessionDuration()}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),
-                        if (isCheckingSessionState)
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (isSessionActive &&
-                        _sessionState.sessionStartTime.value != null) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.access_time,
-                              color: Colors.white.withOpacity(0.8),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Started: ${_formatTime(_sessionState.sessionStartTime.value!)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'Duration: ${_getSessionDuration()}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white.withOpacity(0.9),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (isProcessing) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
+                        if (isProcessing)
                           const SizedBox(
                             width: 16,
                             height: 16,
@@ -1147,25 +894,12 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            isSessionActive
-                                ? 'Ending session...'
-                                : 'Starting session...',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ),
+            )),
         const SizedBox(height: 16), // Add extra padding at the bottom
       ],
     );
