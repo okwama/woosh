@@ -228,8 +228,15 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
     setState(() => _isSubmitting = true);
 
     try {
-      // Optimistically show success
+      // Optimistically show success and navigate back
       widget.onReportSubmitted?.call();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Report submitted successfully'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
 
       String? imageUrl;
       String? imageError;
@@ -260,8 +267,7 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
           salesRepData is Map<String, dynamic> ? salesRepData['id'] : null;
 
       if (salesRepId == null) {
-        throw Exception(
-            "User not authenticated: Could not determine salesRep ID");
+        throw Exception("Authentication error");
       }
 
       print(
@@ -286,10 +292,9 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
         print('? Report submitted successfully');
       } catch (e) {
         print('? Report submission error: $e');
-        if (e.toString().contains('SocketException') ||
-            e.toString().contains('XMLHttpRequest error')) {
-          // Store report locally for later sync
-          // TODO: Implement local storage for offline reports
+        if (e.toString().toLowerCase().contains('socket') ||
+            e.toString().toLowerCase().contains('network') ||
+            e.toString().toLowerCase().contains('connection')) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -305,46 +310,24 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
         rethrow;
       }
 
-      stopwatch.stop();
-      print('?? Total submission time: ${stopwatch.elapsedMilliseconds}ms');
-
-      if (mounted) {
-        // Show success with animation
-        await _animationController.reverse();
-        Navigator.pop(context);
-
-        // Show appropriate success message
-        if (imageError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(imageError),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Report submitted successfully'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+      if (mounted && imageError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Image upload pending. Will be uploaded when connection is available.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 5),
+          ),
+        );
       }
     } catch (e) {
-      stopwatch.stop();
-      print(
-          '? Total submission failed after ${stopwatch.elapsedMilliseconds}ms');
-      print('Error details: $e');
-
       if (mounted) {
-        String errorMessage = 'Error submitting report';
-        if (e.toString().contains('SocketException') ||
-            e.toString().contains('XMLHttpRequest error')) {
+        String errorMessage = 'Unable to submit report';
+        if (e.toString().toLowerCase().contains('socket') ||
+            e.toString().toLowerCase().contains('network') ||
+            e.toString().toLowerCase().contains('connection')) {
           errorMessage =
               'No internet connection. Please try again when online.';
-        } else {
-          errorMessage = 'Error submitting report: $e';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(

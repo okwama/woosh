@@ -56,13 +56,15 @@ class _ProductReportPageState extends State<ProductReportPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isOnline = true;
   bool _hasUnsyncedData = false;
+  bool _isUsingCachedData = false;
+  DateTime? _lastProductUpdate;
 
   @override
   void initState() {
     super.initState();
     _initHiveService();
     _checkConnectivity();
-    _initializeProducts();
+    _loadProductsWithCache();
     _scrollController.addListener(_onScroll);
 
     // Listen for connectivity changes
@@ -153,7 +155,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
     }
   }
 
-  Future<void> _initializeProducts() async {
+  Future<void> _loadProductsWithCache() async {
     try {
       setState(() => _isLoading = true);
 
@@ -164,18 +166,53 @@ class _ProductReportPageState extends State<ProductReportPage> {
         return;
       }
 
-      // Otherwise load from API or local storage
-      if (_isOnline) {
+      // Check if we have cached products and if they're fresh (less than 24 hours old)
+      final cachedProducts = await _getCachedProducts();
+      final shouldUseCache = _shouldUseCachedProducts();
+
+      if (cachedProducts.isNotEmpty && shouldUseCache) {
+        // Use cached data
+        setState(() {
+          _isUsingCachedData = true;
+          _isLoading = false;
+        });
+        _setupProductsState(cachedProducts);
+
+        // Load fresh data in background if online
+        if (_isOnline) {
+          _loadFreshProductsInBackground();
+        }
+      } else if (_isOnline) {
+        // Load fresh data from API
         final products =
             await ApiService.getProducts(page: 1, limit: _pageSize);
+        await _cacheProducts(products);
         _setupProductsState(products);
       } else {
-        // If offline, show a message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Working offline. Some features may be limited.')),
-        );
-        setState(() => _isLoading = false);
+        // Offline mode - use cached data even if stale
+        if (cachedProducts.isNotEmpty) {
+          setState(() {
+            _isUsingCachedData = true;
+            _isLoading = false;
+          });
+          _setupProductsState(cachedProducts);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Using cached products. Refresh when online for latest data.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'No cached products available. Please connect to internet.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
 
       // Load saved quantities from Hive if available
@@ -183,10 +220,75 @@ class _ProductReportPageState extends State<ProductReportPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading products: $e')),
+          SnackBar(
+            content: const Text('Unable to load products. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _loadProductsWithCache,
+            ),
+          ),
         );
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<List<Product>> _getCachedProducts() async {
+    try {
+      final box = GetStorage();
+      final cachedData = box.read('cached_products');
+      final lastUpdate = box.read('products_last_update');
+
+      if (cachedData != null && lastUpdate != null) {
+        _lastProductUpdate = DateTime.parse(lastUpdate);
+        return List<Product>.from(cachedData.map((x) => Product.fromJson(x)));
+      }
+    } catch (e) {
+      print('Error reading cached products: $e');
+    }
+    return [];
+  }
+
+  Future<void> _cacheProducts(List<Product> products) async {
+    try {
+      final box = GetStorage();
+      final productsJson = products.map((p) => p.toJson()).toList();
+      await box.write('cached_products', productsJson);
+      await box.write('products_last_update', DateTime.now().toIso8601String());
+      _lastProductUpdate = DateTime.now();
+    } catch (e) {
+      print('Error caching products: $e');
+    }
+  }
+
+  bool _shouldUseCachedProducts() {
+    if (_lastProductUpdate == null) return false;
+
+    // Use cache if data is less than 24 hours old
+    final cacheAge = DateTime.now().difference(_lastProductUpdate!);
+    return cacheAge.inHours < 24;
+  }
+
+  Future<void> _loadFreshProductsInBackground() async {
+    try {
+      final products = await ApiService.getProducts(page: 1, limit: _pageSize);
+      await _cacheProducts(products);
+
+      if (mounted && _isUsingCachedData) {
+        setState(() {
+          _isUsingCachedData = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Products updated in background'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Background product update failed: $e');
     }
   }
 
@@ -234,14 +336,11 @@ class _ProductReportPageState extends State<ProductReportPage> {
 
     try {
       final nextPage = _currentPage + 1;
-
-      // Use await for API call
       final moreProducts =
           await ApiService.getProducts(page: nextPage, limit: _pageSize);
 
       if (!mounted) return;
 
-      // Update state with new products
       setState(() {
         _products.addAll(moreProducts);
         _productQuantities
@@ -256,19 +355,58 @@ class _ProductReportPageState extends State<ProductReportPage> {
       });
     } catch (e) {
       if (!mounted) return;
-
       setState(() => _isLoadingMore = false);
-
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading more products: $e'),
+          content: const Text('Unable to load more products'),
+          behavior: SnackBarBehavior.floating,
           action: SnackBarAction(
             label: 'Retry',
             onPressed: _loadMoreProducts,
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _refreshProducts() async {
+    setState(() {
+      _isLoading = true;
+      _currentPage = 1;
+      _hasMoreProducts = true;
+      _products.clear();
+      _productQuantities.clear();
+      _quantityControllers.clear();
+      _isUsingCachedData = false;
+    });
+
+    try {
+      final products = await ApiService.getProducts(page: 1, limit: _pageSize);
+      await _cacheProducts(products);
+      _setupProductsState(products);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Products refreshed successfully'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Unable to refresh products'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _refreshProducts,
+            ),
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -288,6 +426,13 @@ class _ProductReportPageState extends State<ProductReportPage> {
     setState(() => _isSubmitting = true);
 
     try {
+      // Optimistically show success and navigate back
+      widget.onReportSubmitted?.call();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted successfully')),
+      );
+
       // Save to Hive first (works offline)
       await _saveReportToHive();
 
@@ -300,17 +445,29 @@ class _ProductReportPageState extends State<ProductReportPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text(
-                    'Report saved offline. It will be submitted when you are back online.')),
+                    'Report saved offline. Will sync when connection is available.')),
           );
           setState(() => _hasUnsyncedData = true);
-          widget.onReportSubmitted?.call();
-          Navigator.pop(context);
         }
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Unable to save report';
+        if (e.toString().toLowerCase().contains('network') ||
+            e.toString().toLowerCase().contains('socket') ||
+            e.toString().toLowerCase().contains('connection')) {
+          errorMessage =
+              'No internet connection. Report will sync when online.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving report: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _submitReport,
+            ),
+          ),
         );
       }
     } finally {
@@ -428,6 +585,36 @@ class _ProductReportPageState extends State<ProductReportPage> {
       backgroundColor: appBackground,
       appBar: GradientAppBar(
         title: 'Product Availability Report',
+        actions: [
+          if (_isUsingCachedData)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.cloud_download,
+                    color: Colors.orange.shade300,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Cached',
+                    style: TextStyle(
+                      color: Colors.orange.shade300,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh Products',
+            onPressed: _isLoading ? null : _refreshProducts,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         controller: _scrollController,
@@ -470,6 +657,46 @@ class _ProductReportPageState extends State<ProductReportPage> {
             ),
             const SizedBox(height: 16),
 
+            // Cache Status Card (if using cached data)
+            if (_isUsingCachedData) ...[
+              Card(
+                color: Colors.orange.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.orange.shade700,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Using cached products. Tap refresh for latest data.',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _refreshProducts,
+                        child: Text(
+                          'Refresh',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Product Report Form
             Card(
               child: Padding(
@@ -480,13 +707,27 @@ class _ProductReportPageState extends State<ProductReportPage> {
                     if (_isLoading)
                       const Center(child: CircularProgressIndicator())
                     else if (_products.isEmpty)
-                      const Center(
-                        child: Text(
-                          'No products available',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                          ),
+                      Center(
+                        child: Column(
+                          children: [
+                            const Text(
+                              'No products available',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: _refreshProducts,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     else ...[

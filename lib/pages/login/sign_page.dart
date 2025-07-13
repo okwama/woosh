@@ -4,7 +4,6 @@ import 'package:woosh/services/api_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -46,15 +45,15 @@ class _SignUpPageState extends State<SignUpPage> {
   final Map<String, Map<String, dynamic>> _countries = {
     'Kenya': {
       'id': 1,
-      'regions': ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru']
+      'regions': ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret']
+    },
+    'Uganda': {
+      'id': 2,
+      'regions': ['Kampala', 'Jinja', 'Mbale', 'Arua', 'Gulu']
     },
     'Tanzania': {
-      'id': 2,
-      'regions': ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma']
-    },
-    'Nigeria': {
       'id': 3,
-      'regions': ['Lagos', 'Abuja', 'Kano', 'Port Harcourt']
+      'regions': ['Dar es Salaam', 'Arusha', 'Mwanza', 'Dodoma', 'Zanzibar']
     },
   };
 
@@ -65,11 +64,13 @@ class _SignUpPageState extends State<SignUpPage> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _countryController.dispose();
     _countryIdController.dispose();
     _regionIdController.dispose();
     _regionController.dispose();
     _routeIdController.dispose();
     _routeController.dispose();
+    _departmentController.dispose();
     super.dispose();
   }
 
@@ -132,15 +133,33 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
-  void _showToast(String message, bool isError) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: isError ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT,
-      gravity: ToastGravity.TOP,
-      timeInSecForIosWeb: isError ? 3 : 1,
-      backgroundColor: isError ? Colors.red : Colors.green,
-      textColor: Colors.white,
-      fontSize: 16.0,
+  void _showMessage(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
@@ -171,13 +190,36 @@ class _SignUpPageState extends State<SignUpPage> {
       final response = await _apiService.register(userData);
 
       if (response['success']) {
-        _showToast('Account created successfully!', false);
+        _showMessage('Account created successfully!', false);
+
+        // Wait a moment before going back
+        await Future.delayed(const Duration(milliseconds: 1000));
         Get.back(); // Return to login page
       } else {
-        _showToast(response['message'] ?? 'Registration failed', true);
+        _showMessage(response['message'] ?? 'Registration failed', true);
       }
     } catch (e) {
-      _showToast(e.toString(), true);
+      String errorMessage = 'Registration failed';
+
+      // Handle specific error types
+      if (e.toString().toLowerCase().contains('network') ||
+          e.toString().toLowerCase().contains('socket') ||
+          e.toString().toLowerCase().contains('connection')) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e.toString().toLowerCase().contains('timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else if (e.toString().toLowerCase().contains('409') ||
+          e.toString().toLowerCase().contains('conflict')) {
+        errorMessage = 'Phone number already exists.';
+      } else if (e.toString().toLowerCase().contains('400') ||
+          e.toString().toLowerCase().contains('bad request')) {
+        errorMessage = 'Please check your input and try again.';
+      } else if (e.toString().toLowerCase().contains('500') ||
+          e.toString().toLowerCase().contains('server')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+
+      _showMessage(errorMessage, true);
     } finally {
       setState(() {
         _isLoading = false;

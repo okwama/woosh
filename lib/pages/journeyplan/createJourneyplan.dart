@@ -100,16 +100,11 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
 
         // Only fetch from API if we don't have enough clients or if explicitly needed
         if (_allClients.length < 10) {
-          print(
-              '?? Fetching all clients (no route filtering) - only ${_allClients.length} clients available');
-
           final response = await ApiService.fetchClients(
-            routeId: null, // Don't filter by route - get all clients
+            routeId: null,
             page: 1,
             limit: 2000,
           );
-
-          print('? Fetched ${response.data.length} clients from API');
 
           setState(() {
             _allClients = response.data;
@@ -123,16 +118,21 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
             _loadMoreClients();
           }
         } else {
-          print(
-              '? Using ${_allClients.length} preloaded clients - no need to fetch from API');
           setState(() {
             _currentPage = 1;
-            _hasMoreData = false; // Assume we have all clients if we have many
+            _hasMoreData = false;
           });
         }
       } catch (e) {
-        // Silent fail for connection errors
-        print('Failed to initialize clients');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text('Unable to load clients. Please check your connection.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       } finally {
         setState(() {
           _isLoading = false;
@@ -162,16 +162,11 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     });
 
     try {
-      print(
-          '?? Loading more clients (no route filtering) - page ${_currentPage + 1}');
-
       final response = await ApiService.fetchClients(
-        routeId: null, // Don't filter by route - get all clients
+        routeId: null,
         page: _currentPage + 1,
         limit: 2000,
       );
-
-      print('? Fetched ${response.data.length} more clients from API');
 
       if (response.data.isEmpty) {
         setState(() {
@@ -179,7 +174,6 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       } else {
         setState(() {
-          // Use a Set to prevent duplicates
           final existingIds = _allClients.map((c) => c.id).toSet();
           final newClients =
               response.data.where((c) => !existingIds.contains(c.id)).toList();
@@ -190,8 +184,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         });
       }
     } catch (e) {
-      // Silent fail for all errors in background loading
-      print('Failed to load more clients');
+      // Silent fail for background loading
+      setState(() => _hasMoreData = false);
     } finally {
       setState(() {
         _isLoadingMore = false;
@@ -207,24 +201,39 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     });
 
     try {
-      print('?? Refreshing all clients (no route filtering)');
-
       final response = await ApiService.fetchClients(
-        routeId: null, // Don't filter by route - get all clients
+        routeId: null,
         page: 1,
         limit: 2000,
       );
-
-      print('? Refreshed ${response.data.length} clients from API');
 
       setState(() {
         _allClients = response.data;
         _hasMoreData = response.page < response.totalPages;
         _updateFilteredClients();
       });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Client list updated'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
-      // Silent fail for all refresh errors
-      print('Failed to refresh clients');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Unable to refresh clients. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _refreshClients,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -458,6 +467,23 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
     int? routeId,
     String? routeName,
   }) async {
+    if (routeId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.white),
+              const SizedBox(width: 8),
+              const Text('Please select a route first'),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -543,9 +569,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
+              onPressed: () => Navigator.of(context).pop(false),
               style: TextButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -559,9 +583,7 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
+              onPressed: () => Navigator.of(context).pop(true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
@@ -666,10 +688,10 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: const [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Journey plan created successfully'),
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text('Journey plan created successfully'),
               ],
             ),
             backgroundColor: Colors.green.shade600,
@@ -679,14 +701,15 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
           ),
         );
       } else {
-        // Saved offline (server error)
+        // Saved offline
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: const [
-                Icon(Icons.cloud_off, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Journey plan saved offline - will sync when online'),
+              children: [
+                const Icon(Icons.cloud_off, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                    'Journey plan saved offline - will sync when online'),
               ],
             ),
             backgroundColor: Colors.orange.shade600,
@@ -699,15 +722,31 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
 
       Navigator.pop(context);
     } catch (e) {
-      // Silent fail for server errors, but still log them
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print(
-            'Server error during journey plan creation - handled silently: $e');
-      } else {
-        print('Failed to create journey plan: $e');
+      String errorMessage = 'Unable to create journey plan';
+      if (e.toString().toLowerCase().contains('network') ||
+          e.toString().toLowerCase().contains('socket') ||
+          e.toString().toLowerCase().contains('connection')) {
+        errorMessage = 'No internet connection. Please try again when online.';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => createJourneyPlan(
+                context,
+                clientId,
+                date,
+                notes: notes,
+                routeId: routeId,
+                onSuccess: onSuccess,
+              ),
+            ),
+          ),
+        );
       }
     } finally {
       setState(() {
@@ -764,11 +803,12 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Row(
-                                    children: const [
-                                      Icon(Icons.warning_amber_rounded,
+                                    children: [
+                                      const Icon(Icons.warning_amber_rounded,
                                           color: Colors.white),
-                                      SizedBox(width: 8),
-                                      Text('Please select a route first.'),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                          'Please select a route first.'),
                                     ],
                                   ),
                                   backgroundColor: Colors.orange.shade700,
@@ -879,10 +919,10 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                     SnackBar(
                       content: Row(
                         children: [
-                          Icon(Icons.check_circle,
+                          const Icon(Icons.check_circle,
                               color: Colors.white, size: 20),
                           const SizedBox(width: 8),
-                          Text('Client list refreshed'),
+                          const Text('Client list refreshed'),
                         ],
                       ),
                       backgroundColor: Colors.green.shade600,

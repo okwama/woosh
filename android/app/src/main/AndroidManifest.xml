@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-package="com.cit.glamourqueen">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
         <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -11,14 +10,11 @@ package="com.cit.glamourqueen">
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     
     <application
-<<<<<<< HEAD
         android:label="WOOSH"
-=======
-        android:label="Glamour Queen"
->>>>>>> bbae5e015fc753bdada7d71b1e6421572860e4a2
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"

@@ -3,7 +3,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/session_service.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
@@ -25,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  DateTime? _lastLoginAttempt;
 
   @override
   void dispose() {
@@ -53,27 +53,53 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 
-  void _showToast(String message, bool isError) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: isError ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT,
-      gravity: ToastGravity.TOP,
-      timeInSecForIosWeb: isError ? 3 : 1,
-      backgroundColor: isError ? Colors.red : Colors.green,
-      textColor: Colors.white,
-      fontSize: 16.0,
+  void _showMessage(String message, bool isError) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isError ? 4 : 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Prevent multiple login attempts
+    if (_isLoading) return;
+
+    // Debounce rapid clicks (prevent multiple attempts within 2 seconds)
+    final now = DateTime.now();
+    if (_lastLoginAttempt != null &&
+        now.difference(_lastLoginAttempt!).inSeconds < 2) {
+      return;
+    }
+    _lastLoginAttempt = now;
+
     setState(() {
       _isLoading = true;
     });
-
-    // Set login in progress flag
-    // TokenService.setLoginInProgress(true); // Method not available
 
     try {
       final result = await _apiService.login(
@@ -85,9 +111,6 @@ class _LoginPageState extends State<LoginPage> {
         // Pass the result to auth controller instead of calling login again
         await _authController.handleLoginResult(result);
 
-        // Debug token information after successful login
-        // TokenService.debugTokenInfo(); // Method not available
-
         // Get user role from the result
         final salesRep = result['salesRep'];
         final userRole = salesRep?['role'] ?? '';
@@ -97,25 +120,98 @@ class _LoginPageState extends State<LoginPage> {
           GetStorage().write('userId', salesRep!['id'].toString());
         }
 
-        // Redirect based on role
+        // Show success message
+        _showMessage('Login successful!', false);
+
+        // Redirect based on role after a brief delay
+        await Future.delayed(const Duration(milliseconds: 800));
+        
         if (userRole.toString().toLowerCase() == 'manager') {
           Get.offAllNamed('/manager-home');
         } else {
           Get.offAllNamed('/home');
         }
-
-        _showToast('Login successful', false);
       } else {
-        _showToast(result['message'] ?? 'Login failed', true);
+        _showMessage(result['message'] ?? 'Login failed', true);
       }
     } catch (e) {
-      _showToast(e.toString(), true);
+      String errorMessage = 'Login failed';
+      bool shouldRetry = false;
+      
+      // Handle specific error types
+      if (e.toString().toLowerCase().contains('network') ||
+          e.toString().toLowerCase().contains('socket') ||
+          e.toString().toLowerCase().contains('connection')) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e.toString().toLowerCase().contains('timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else if (e.toString().toLowerCase().contains('401') ||
+                 e.toString().toLowerCase().contains('unauthorized')) {
+        errorMessage = 'Invalid phone number or password.';
+      } else if (e.toString().toLowerCase().contains('500') ||
+                 e.toString().toLowerCase().contains('server')) {
+        errorMessage = 'Server temporarily unavailable. Retrying...';
+        shouldRetry = true;
+      } else if (e.toString().toLowerCase().contains('429') ||
+                 e.toString().toLowerCase().contains('too many requests')) {
+        errorMessage = 'Too many login attempts. Please wait a moment.';
+      }
+      
+      if (shouldRetry) {
+        // Show retry message
+        _showMessage(errorMessage, true);
+        
+        // Wait 2 seconds then retry automatically
+        await Future.delayed(const Duration(seconds: 2));
+        
+        if (mounted && _isLoading) {
+          // Retry the login
+          try {
+            final retryResult = await _apiService.login(
+              _phoneNumberController.text.trim(),
+              _passwordController.text,
+            );
+
+            if (retryResult['success']) {
+              // Pass the result to auth controller
+              await _authController.handleLoginResult(retryResult);
+
+              // Get user role from the result
+              final salesRep = retryResult['salesRep'];
+              final userRole = salesRep?['role'] ?? '';
+
+              // Store user ID for later use
+              if (salesRep?['id'] != null) {
+                GetStorage().write('userId', salesRep!['id'].toString());
+              }
+
+              // Show success message
+              _showMessage('Login successful!', false);
+
+              // Redirect based on role after a brief delay
+              await Future.delayed(const Duration(milliseconds: 800));
+              
+              if (userRole.toString().toLowerCase() == 'manager') {
+                Get.offAllNamed('/manager-home');
+              } else {
+                Get.offAllNamed('/home');
+              }
+            } else {
+              _showMessage(retryResult['message'] ?? 'Login failed after retry', true);
+            }
+          } catch (retryError) {
+            _showMessage('Login failed after retry. Please try again.', true);
+          }
+        }
+      } else {
+        _showMessage(errorMessage, true);
+      }
     } finally {
-      // Clear login in progress flag
-      // TokenService.setLoginInProgress(false); // Method not available
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -376,13 +472,27 @@ class _LoginPageState extends State<LoginPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Signing In...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
@@ -401,7 +511,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: _login,
+                  onTap: _isLoading ? null : _login,
                   borderRadius: BorderRadius.circular(14),
                   child: const Center(
                     child: Text(

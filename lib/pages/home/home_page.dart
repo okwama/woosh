@@ -262,125 +262,85 @@ class _HomePageState extends State<HomePage> {
 
       if (shouldLogout != true) return;
 
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: GradientCircularProgressIndicator(),
+      // Show immediate loading feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Logging out...'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
         ),
       );
 
-      // 1. Server-side session invalidation (attempt first, but don't block logout)
-      try {
-        await ApiService
-            .logout(); // Should call /api/logout endpoint to invalidate server session
-      } catch (e) {
-        print('Server logout failed (continuing with local logout): $e');
-        // Continue with local logout even if server logout fails
-      }
+      // Clear user data immediately for fast logout
+      final box = GetStorage();
+      await box.remove('salesRep');
+      await box.remove('token');
+      await box.remove('userId');
 
-      // 2. Clear cart data (session-specific)
-      await _cartController.clear();
+      // Navigate immediately
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (route) => false,
+      );
 
-      // 3. Clear authentication data from GetStorage (selective clearing)
+      // Clear caches in background (non-blocking)
+      _clearCachesInBackground();
+    } catch (e) {
+      // Even if there's an error, still logout
+      final box = GetStorage();
+      await box.remove('salesRep');
+      await box.remove('token');
+      await box.remove('userId');
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (route) => false,
+      );
+    }
+  }
+
+  // Background cache clearing (non-blocking)
+  Future<void> _clearCachesInBackground() async {
+    try {
       final box = GetStorage();
 
-      // Remove authentication-related data
-      await box.remove('userId');
-      await box.remove('salesRep');
-      await box.remove('authToken');
-      await box.remove('refreshToken');
-      await box.remove('accessToken');
-      await box.remove('userCredentials');
-      await box.remove('userSession');
-      await box.remove('loginTime');
-      await box.remove('sessionId');
+      // Clear all cached data
+      await box.remove('cached_products');
+      await box.remove('products_last_update');
+      await box.remove('cached_clients');
+      await box.remove('cached_routes');
+      await box.remove('cached_outlets');
 
-      // Keep non-sensitive user preferences and app settings
-      // Examples of data to preserve:
-      // - Theme settings
-      // - Language preferences
-      // - App configuration
-      // - Non-sensitive cached data
-      // - User interface preferences
-
-      // 4. Clear Hive session-specific data
+      // Clear Hive caches
       try {
-        final sessionHiveService = SessionHiveService();
-        await sessionHiveService.clearSession();
+        final hiveService = Get.find<dynamic>();
+        if (hiveService != null) {
+          await hiveService.clearAll();
+        }
       } catch (e) {
-        print('Error clearing session from Hive: $e');
+        // Ignore Hive errors
       }
 
-      // 5. Clear any pending session data
+      // Clear API caches
       try {
-        // Clear any offline session data that might be pending sync
-        final pendingSessionService = Get.find<PendingSessionHiveService>();
-        await pendingSessionService.clearAllPendingSessions();
+        ApiService
+            .clearCache(); // Changed from ApiCache.clear() to ApiService.clearCache()
       } catch (e) {
-        print('Error clearing pending sessions: $e');
+        // Ignore cache errors
       }
-
-      // 6. Update auth controller state
-      final authController = Get.find<AuthController>();
-      await authController.logout();
-
-      // Close loading indicator
-      if (!mounted) return;
-      Get.back();
-
-      // Navigate to login page and clear all previous routes
-      Get.offAllNamed('/login');
-
-      // Show success message
-      Get.snackbar(
-        'Logged Out',
-        'You have been successfully logged out',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
     } catch (e) {
-      print('Error during logout: $e');
-      if (!mounted) return;
-
-      // Close loading indicator if it's showing
-      if (Navigator.canPop(context)) {
-        Get.back();
-      }
-
-      // Handle server errors silently but still perform local logout
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during logout - performing local logout: $e');
-
-        // Force local logout for server errors
-        final box = GetStorage();
-        await box.remove('userId');
-        await box.remove('salesRep');
-        await box.remove('authToken');
-        await box.remove('refreshToken');
-        await box.remove('accessToken');
-
-        Get.offAllNamed('/login');
-        Get.snackbar(
-          'Logged Out',
-          'Logged out locally (server unavailable)',
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-      } else {
-        // Show error message for other errors
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to logout properly. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      // Silent fail - user is already logged out
     }
   }
 
