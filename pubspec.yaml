@@ -1,7 +1,7 @@
 name: woosh
 description: "A new Flutter project."
 
-version: 1.0.1+16  # Small fix/update
+version: 1.0.3+22  # Increment version for App Store submission
 
 
 environment:

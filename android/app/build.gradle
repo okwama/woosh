@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.cit.glamourqueen"
+    namespace = "com.cit.woosh"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

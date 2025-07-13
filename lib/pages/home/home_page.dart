@@ -36,6 +36,7 @@ import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/session_model.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/services/version_check_service.dart';
+import 'dart:async';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,8 +52,12 @@ class _HomePageState extends State<HomePage> {
   int _pendingTasks = 0;
   int _unreadNotices = 0;
   bool _isLoading = true;
+  bool _isSessionActive = false;
+  bool _isCheckingSessionState = false;
   final TaskService _taskService = TaskService();
   final CartController _cartController = Get.put(CartController());
+  final SessionState _sessionState = Get.put(SessionState());
+  final SessionHiveService _sessionHiveService = SessionHiveService();
 
   @override
   void initState() {
@@ -62,6 +67,17 @@ class _HomePageState extends State<HomePage> {
     _loadPendingJourneyPlans();
     _loadPendingTasks();
     _loadUnreadNotices();
+    _initSessionService();
+    _checkSessionStatus();
+
+    // Add periodic session check every 5 minutes
+    Timer.periodic(const Duration(minutes: 5), (timer) {
+      if (mounted) {
+        _checkSessionStatus();
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
   void _loadUserData() {
@@ -207,6 +223,7 @@ class _HomePageState extends State<HomePage> {
         _loadPendingJourneyPlans(),
         _loadPendingTasks(),
         _loadUnreadNotices(),
+        _checkSessionStatus(),
       ]);
       _loadUserData();
 
@@ -384,6 +401,65 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _initSessionService() async {
+    await _sessionHiveService.init();
+  }
+
+  Future<void> _checkSessionStatus() async {
+    if (_isCheckingSessionState) return;
+
+    setState(() => _isCheckingSessionState = true);
+    final box = GetStorage();
+    final userId = box.read<String>('userId');
+
+    // First check Hive cache
+    final cachedSession = await _sessionHiveService.getSession();
+    if (cachedSession != null &&
+        cachedSession.lastCheck != null &&
+        DateTime.now().difference(cachedSession.lastCheck!) <
+            const Duration(minutes: 1)) {
+      setState(() {
+        _isSessionActive = cachedSession.isActive;
+        _isCheckingSessionState = false;
+      });
+      return;
+    }
+
+    if (userId != null) {
+      try {
+        final response = await SessionService.getSessionHistory(userId);
+        final sessions = response['sessions'] as List;
+        if (sessions.isNotEmpty) {
+          final lastSession = sessions.first;
+          final isActive = lastSession['logoutAt'] == null;
+          final loginTime = DateTime.parse(lastSession['loginAt']);
+
+          // Save to Hive
+          await _sessionHiveService.saveSession(SessionModel(
+            isActive: isActive,
+            lastCheck: DateTime.now(),
+            loginTime: loginTime,
+            userId: userId,
+          ));
+
+          setState(() {
+            _isSessionActive = isActive;
+          });
+          _sessionState.updateSessionState(isActive, loginTime);
+        }
+      } catch (e) {
+        print('Error checking session status: $e');
+        // If API call fails, use cached value if available
+        if (cachedSession != null) {
+          setState(() {
+            _isSessionActive = cachedSession.isActive;
+          });
+        }
+      }
+    }
+    setState(() => _isCheckingSessionState = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     print(
@@ -526,14 +602,19 @@ class _HomePageState extends State<HomePage> {
                     // User Profile Tile (always active)
                     MenuTile(
                       title: 'Merchandiser',
-                      subtitle: '$salesRepName\n$salesRepPhone',
+                      subtitle: _isCheckingSessionState
+                          ? '$salesRepName\n$salesRepPhone\nChecking session...'
+                          : _isSessionActive
+                              ? '$salesRepName\n$salesRepPhone\n🟢 Session Active'
+                              : '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
                       icon: Icons.person,
                       onTap: () {
                         Get.to(
                           () => ProfilePage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
-                        );
+                        )?.then((_) =>
+                            _checkSessionStatus()); // Refresh session status when returning
                       },
                     ),
                     // Restricted tiles with opacity

@@ -40,6 +40,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   bool isSessionActive = false;
   bool isProcessing = false;
   bool isCheckingSessionState = false;
+  Timer? _durationTimer;
 
   @override
   void initState() {
@@ -103,6 +104,13 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
             isSessionActive = isActive;
           });
           _sessionState.updateSessionState(isActive, loginTime);
+
+          // Start/stop duration timer based on session state
+          if (isActive) {
+            _startDurationTimer();
+          } else {
+            _stopDurationTimer();
+          }
         }
       } catch (e) {
         print('Error checking session status: $e');
@@ -132,6 +140,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
         setState(() {
           isSessionActive = false;
         });
+        _stopDurationTimer();
         Get.snackbar(
           'Session Expired',
           'Your session has expired. Please start a new session.',
@@ -147,6 +156,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
       setState(() {
         isSessionActive = false;
       });
+      _stopDurationTimer();
 
       // Update Hive cache
       await _sessionHiveService.saveSession(SessionModel(
@@ -252,6 +262,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
         setState(() => isSessionActive = true);
         _sessionState.updateSessionState(true, DateTime.now());
+        _startDurationTimer();
 
         // Show appropriate success message
         final message = response['offline'] == true
@@ -272,6 +283,7 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
 
         setState(() => isSessionActive = false);
         _sessionState.updateSessionState(false, null);
+        _stopDurationTimer();
 
         // Show appropriate success message
         final message = response['offline'] == true
@@ -389,8 +401,46 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     }
   }
 
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _getSessionDuration() {
+    if (_sessionState.sessionStartTime.value == null) return 'N/A';
+
+    final now = DateTime.now();
+    final startTime = _sessionState.sessionStartTime.value!;
+    final duration = now.difference(startTime);
+
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    } else {
+      return '${minutes}m';
+    }
+  }
+
+  void _startDurationTimer() {
+    _stopDurationTimer(); // Stop any existing timer
+    _durationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted && isSessionActive) {
+        setState(() {}); // Trigger rebuild to update duration
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _stopDurationTimer() {
+    _durationTimer?.cancel();
+    _durationTimer = null;
+  }
+
   @override
   void dispose() {
+    _stopDurationTimer();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -949,55 +999,169 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        // Session Control Button
-        Card(
-          elevation: 1,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+        // Enhanced Session Control Button
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isSessionActive
+                  ? [Colors.red.shade400, Colors.red.shade600]
+                  : [Colors.green.shade400, Colors.green.shade600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: (isSessionActive ? Colors.red : Colors.green)
+                    .withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: InkWell(
-            onTap:
-                isProcessing || isCheckingSessionState ? null : _toggleSession,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isSessionActive
-                          ? Colors.red.withOpacity(0.1)
-                          : Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: isProcessing || isCheckingSessionState
+                  ? null
+                  : _toggleSession,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            isSessionActive
+                                ? Icons.stop_circle
+                                : Icons.play_circle,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isSessionActive
+                                    ? 'End Session'
+                                    : 'Start Work Session',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isSessionActive
+                                    ? 'Tap to end your current work session'
+                                    : 'Tap to begin your work session',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isCheckingSessionState)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    child: Icon(
-                      isSessionActive ? Icons.stop_circle : Icons.play_circle,
-                      color: isSessionActive ? Colors.red : Colors.green,
-                      size: 16,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      isSessionActive ? 'End Session' : 'Start Session',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: isSessionActive ? Colors.red : Colors.green,
+                    if (isSessionActive &&
+                        _sessionState.sessionStartTime.value != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              color: Colors.white.withOpacity(0.8),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Started: ${_formatTime(_sessionState.sessionStartTime.value!)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'Duration: ${_getSessionDuration()}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  if (isCheckingSessionState)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                    ],
+                    if (isProcessing) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isSessionActive
+                                ? 'Ending session...'
+                                : 'Starting session...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                ],
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
