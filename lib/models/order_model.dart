@@ -174,21 +174,21 @@ class Order {
 
       return Order(
         id: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
-        soNumber: json['so_number'] ?? '',
-        clientId: json['client_id'] ?? 0,
+        soNumber: json['soNumber'] ?? '',
+        clientId: json['clientId'] ?? 0,
         orderDate: orderDate,
         expectedDeliveryDate: expectedDeliveryDate,
         subtotal: json['subtotal'] != null
             ? double.tryParse(json['subtotal'].toString())
             : null,
-        taxAmount: json['tax_amount'] != null
-            ? double.tryParse(json['tax_amount'].toString())
+        taxAmount: json['taxAmount'] != null
+            ? double.tryParse(json['taxAmount'].toString())
             : null,
-        totalAmount: json['total_amount'] != null
-            ? double.tryParse(json['total_amount'].toString())
+        totalAmount: json['totalAmount'] != null
+            ? double.tryParse(json['totalAmount'].toString())
             : null,
-        netPrice: json['net_price'] != null
-            ? double.tryParse(json['net_price'].toString()) ?? 0.0
+        netPrice: json['netPrice'] != null
+            ? double.tryParse(json['netPrice'].toString()) ?? 0.0
             : 0.0,
         notes: json['notes'],
         createdBy: json['created_by'] ?? 0,

@@ -99,7 +99,8 @@ class JourneyPlanModel extends HiveObject {
       checkoutTime: json['checkoutTime'] != null
           ? DateTime.parse(json['checkoutTime'])
           : null,
-      showUpdateLocation: json['showUpdateLocation'] ?? true,
+      showUpdateLocation:
+          json['showUpdateLocation'] == 1 || json['showUpdateLocation'] == true,
       routeId: json['routeId'],
     );
   }

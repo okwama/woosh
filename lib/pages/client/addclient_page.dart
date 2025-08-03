@@ -173,23 +173,44 @@ class _AddClientPageState extends State<AddClientPage> {
 
       setState(() {
         _isLoading = true;
+        _error = null;
       });
 
       try {
+        print('🚀 Creating new client...');
+        print('📊 Client data:');
+        print('   - Name: ${_nameController.text}');
+        print('   - Address: ${_addressController.text}');
+        print('   - Phone: ${_phoneController.text}');
+        print('   - Email: ${_emailController.text}');
+        print('   - Tax Pin: ${_kraPinController.text}');
+        print(
+            '   - Location: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
+        print('   - Country ID: $_countryId');
+        print('   - Region: $_region');
+        print('   - Region ID: $_regionId');
+
         final outlet = await ApiService.createOutlet(
-          name: _nameController.text,
-          address: _addressController.text,
-          taxPin:
-              _kraPinController.text.isEmpty ? null : _kraPinController.text,
-          email: _emailController.text.isEmpty ? null : _emailController.text,
-          contact: _phoneController.text,
+          name: _nameController.text.trim(),
+          address: _addressController.text.trim(),
+          taxPin: _kraPinController.text.trim().isEmpty
+              ? null
+              : _kraPinController.text.trim(),
+          email: _emailController.text.trim().isEmpty
+              ? null
+              : _emailController.text.trim(),
+          contact: _phoneController.text.trim(),
           latitude: _currentPosition?.latitude ?? 0.0,
           longitude: _currentPosition?.longitude ?? 0.0,
           countryId: _countryId,
           region: _region,
           regionId: _regionId,
-          clientType: 1,
+          clientType: 1, // Default client type
         );
+
+        print('✅ Client created successfully:');
+        print('   - ID: ${outlet.id}');
+        print('   - Name: ${outlet.name}');
 
         // Notify the ClientService about the new client
         await ClientService.createClient({
@@ -207,9 +228,16 @@ class _AddClientPageState extends State<AddClientPage> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Client added successfully'),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Text('Client added successfully'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
             ),
           );
 
@@ -217,33 +245,45 @@ class _AddClientPageState extends State<AddClientPage> {
           Get.back(result: true);
         }
       } catch (e) {
+        print('❌ Error creating client: $e');
+
         if (mounted) {
-          // Handle duplicate client error from backend
+          String errorMessage = 'Unable to add client. Please try again.';
+
+          // Handle specific error cases
           if (e.toString().contains('409')) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Client already exists in the database.'),
-                duration: Duration(seconds: 3),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-          // Handle server errors silently
-          else if (e.toString().contains('500') ||
-              e.toString().contains('501') ||
+            errorMessage = 'A client with this name already exists.';
+          } else if (e.toString().contains('400')) {
+            errorMessage = 'Please check your input and try again.';
+          } else if (e.toString().contains('401')) {
+            errorMessage = 'Authentication required. Please log in again.';
+          } else if (e.toString().contains('500') ||
               e.toString().contains('502') ||
               e.toString().contains('503')) {
-            print('Server error during client creation - handled silently: $e');
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Unable to add client. Please check your connection and try again.'),
-                duration: Duration(seconds: 3),
-                backgroundColor: Colors.red,
-              ),
-            );
+            errorMessage =
+                'Server is temporarily unavailable. Please try again later.';
           }
+
+          setState(() {
+            _error = errorMessage;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(errorMessage)),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
           setState(() {
             _isLoading = false;
           });
@@ -283,10 +323,17 @@ class _AddClientPageState extends State<AddClientPage> {
                       decoration: const InputDecoration(
                         labelText: 'Client Name *',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
                       ),
-                      validator: (value) => value?.isEmpty == true
-                          ? 'Please enter client name'
-                          : null,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter client name';
+                        }
+                        if (value.trim().length < 2) {
+                          return 'Client name must be at least 2 characters';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -294,6 +341,7 @@ class _AddClientPageState extends State<AddClientPage> {
                       decoration: InputDecoration(
                         labelText: CountryTaxLabels.getTaxPinLabel(_countryId),
                         border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.receipt),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -302,7 +350,17 @@ class _AddClientPageState extends State<AddClientPage> {
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email),
                       ),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty) {
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                            return 'Please enter a valid email address';
+                          }
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -310,10 +368,18 @@ class _AddClientPageState extends State<AddClientPage> {
                       decoration: const InputDecoration(
                         labelText: 'Phone Number *',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
                       ),
-                      validator: (value) => value?.isEmpty == true
-                          ? 'Please enter phone number'
-                          : null,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter phone number';
+                        }
+                        if (value.trim().length < 10) {
+                          return 'Please enter a valid phone number';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -321,13 +387,90 @@ class _AddClientPageState extends State<AddClientPage> {
                       decoration: const InputDecoration(
                         labelText: 'Address *',
                         border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on),
                       ),
-                      validator: (value) => value?.isEmpty == true
-                          ? 'Please enter address'
-                          : null,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter address';
+                        }
+                        if (value.trim().length < 5) {
+                          return 'Please enter a detailed address';
+                        }
+                        return null;
+                      },
                       maxLines: 3,
                     ),
                     const SizedBox(height: 12),
+                    
+                    // Location Status
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _isLocationLoading 
+                            ? Colors.blue.withOpacity(0.1)
+                            : _currentPosition != null 
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _isLocationLoading 
+                              ? Colors.blue.withOpacity(0.3)
+                              : _currentPosition != null 
+                                  ? Colors.green.withOpacity(0.3)
+                                  : Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isLocationLoading 
+                                ? Icons.location_searching
+                                : _currentPosition != null 
+                                    ? Icons.location_on
+                                    : Icons.location_off,
+                            color: _isLocationLoading 
+                                ? Colors.blue
+                                : _currentPosition != null 
+                                    ? Colors.green
+                                    : Colors.orange,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _isLocationLoading 
+                                      ? 'Getting location...'
+                                      : _currentPosition != null 
+                                          ? 'Location captured'
+                                          : 'Location not available',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (_currentPosition != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (_isLocationLoading)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _submitForm,

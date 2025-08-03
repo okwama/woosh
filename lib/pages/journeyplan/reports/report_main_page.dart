@@ -20,6 +20,7 @@ import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/report/report_service.dart';
 import 'package:woosh/services/shared_data_service.dart';
+import 'package:woosh/services/journeyplan/journey_plan_state_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 
@@ -1048,6 +1049,16 @@ class _ReportsOrdersPageState extends State<ReportsOrdersPage> {
 
         // Clear all caches after successful checkout
         await _sharedDataService.clearAllCaches();
+
+        // Refresh journey plan status in state service
+        try {
+          final journeyPlanStateService = Get.find<JourneyPlanStateService>();
+          await journeyPlanStateService
+              .refreshJourneyPlanStatus(widget.journeyPlan.id!);
+          print('✅ Journey plan status refreshed after checkout');
+        } catch (e) {
+          print('⚠️ Failed to refresh journey plan status: $e');
+        }
 
         // Call the callback if provided
         widget.onAllReportsSubmitted?.call();

@@ -48,7 +48,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late String salesRepName;
   late String salesRepPhone;
   int _pendingJourneyPlans = 0;
@@ -61,14 +61,33 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Load user data immediately (fast, local)
+    WidgetsBinding.instance.addObserver(this);
+
+    // Load cached user data immediately for fast UI
     _loadUserData();
 
     // Initialize session service (fast, local)
     _initSessionService();
 
-    // Load data asynchronously to avoid blocking UI
-    _loadDataAsync();
+    // Load fresh data from API and update cache
+    _loadFreshDataFromAPI();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      print('🔄 App resumed - refreshing data from API...');
+      // Refresh data when app comes back to foreground
+      _loadFreshDataFromAPI();
+    }
   }
 
   void _loadDataAsync() {
@@ -93,6 +112,57 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _loadFreshDataFromAPI() async {
+    try {
+      print('🔄 Loading fresh data from API...');
+
+      // Load fresh profile data from API
+      await _loadFreshProfileData();
+
+      // Load other data in parallel
+      _loadDataAsync();
+
+      print('✅ Fresh data loaded successfully');
+    } catch (e) {
+      print('❌ Error loading fresh data: $e');
+      // Fallback to cached data
+      _loadDataAsync();
+    }
+  }
+
+  Future<void> _loadFreshProfileData() async {
+    try {
+      print('🔄 Fetching fresh profile data from API...');
+      final response = await ApiService.getProfile();
+
+      if (response['salesRep'] != null) {
+        final userData = response['salesRep'];
+
+        // Update cache with fresh data
+        final box = GetStorage();
+        box.write('salesRep', userData);
+
+        // Update UI with fresh data
+        if (mounted) {
+          setState(() {
+            salesRepName = userData['name'] ?? 'User';
+            salesRepPhone = userData['phoneNumber'] ??
+                userData['phone'] ??
+                'No phone number';
+          });
+        }
+
+        print(
+            '✅ Profile data updated from API - Name: $salesRepName, Phone: $salesRepPhone');
+      } else {
+        print('⚠️ No profile data in API response, using cached data');
+      }
+    } catch (e) {
+      print('❌ Error fetching profile data: $e');
+      // Continue with cached data
+    }
+  }
+
   void _loadUserData() {
     final box = GetStorage();
     final salesRep = box.read('salesRep');
@@ -100,10 +170,14 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       if (salesRep != null && salesRep is Map<String, dynamic>) {
         salesRepName = salesRep['name'] ?? 'User';
-        salesRepPhone = salesRep['phoneNumber'] ?? 'No phone number';
+        salesRepPhone =
+            salesRep['phoneNumber'] ?? salesRep['phone'] ?? 'No phone number';
+        print(
+            '📱 Loaded user data - Name: $salesRepName, Phone: $salesRepPhone');
       } else {
         salesRepName = 'User';
         salesRepPhone = 'No phone number';
+        print('⚠️ No cached sales rep data found');
       }
     });
   }
@@ -165,8 +239,18 @@ class _HomePageState extends State<HomePage> {
 
     try {
       // Clear all app caches
-      print('?? Clearing app cache...');
+      print('🔄 Clearing app cache...');
       ApiService.clearCache();
+
+      // Clear specific caches
+      ApiService.clearOutletsCache();
+      ApiService.clearProductCache();
+
+      // Clear GetStorage cache
+      final storageBox = GetStorage();
+      storageBox.remove('salesRep');
+
+      print('✅ Cache cleared successfully');
 
       // Clear specific caches that might be stale
       ApiService.clearOutletsCache();
@@ -635,8 +719,13 @@ class _HomePageState extends State<HomePage> {
                                   () => ProfilePage(),
                                   preventDuplicates: true,
                                   transition: Transition.rightToLeft,
-                                )?.then((_) => _clockState
-                                    .refreshStatus()); // Refresh session status when returning
+                                )?.then((_) {
+                                  // Defer the refresh call until after the build is complete
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    _clockState.refreshStatus();
+                                  });
+                                });
                               },
                             ));
                       } catch (e) {

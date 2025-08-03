@@ -255,8 +255,8 @@ class JourneyPlan {
           json['checkoutTime'] != null ? parseDate(json['checkoutTime']) : null,
       checkoutLatitude: checkoutLatitude,
       checkoutLongitude: checkoutLongitude,
-      showUpdateLocation:
-          json['showUpdateLocation'] ?? true, // Parse the new flag
+      showUpdateLocation: json['showUpdateLocation'] == 1 ||
+          json['showUpdateLocation'] == true, // Convert int to bool
       routeId: routeId, // Add routeId
       routeName: json['routeName'], // Add routeName
     );

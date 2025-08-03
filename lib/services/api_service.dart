@@ -1286,6 +1286,8 @@ class ApiService {
             print('Sample order dates from API:');
             print('createdAt: ${data[0]['createdAt']}');
             print('updatedAt: ${data[0]['updatedAt']}');
+            print('Sample order totalAmount: ${data[0]['totalAmount']}');
+            print('Sample order raw data: ${data[0]}');
           }
 
           return PaginatedResponse<Order>(
@@ -2425,16 +2427,51 @@ class ApiService {
   // Get client payments
   static Future<List<Map<String, dynamic>>> getClientPayments(
       int clientId) async {
+    print('\n=== 🌐 PAYMENT API DEBUG ===');
+    print('📡 Making GET request to: $baseUrl/outlets/$clientId/payments');
+    print('📡 Client ID: $clientId');
+
     final token = _getAuthToken();
-    final response = await http.get(
-      Uri.parse('$baseUrl/outlets/$clientId/payments'),
-      headers: await _headers(),
-    );
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.cast<Map<String, dynamic>>();
-    } else {
-      throw Exception('Failed to fetch client payments');
+    print('🔑 Token exists: ${token != null}');
+    print('🔑 Token length: ${token?.length ?? 0}');
+
+    final headers = await _headers();
+    print('📋 Request headers: ${headers.keys.toList()}');
+
+    try {
+      print('🚀 Sending HTTP GET request...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/outlets/$clientId/payments'),
+        headers: headers,
+      );
+
+      print('📡 Response received:');
+      print('📊 Status code: ${response.statusCode}');
+      print('📊 Response headers: ${response.headers}');
+      print('📊 Response body length: ${response.body.length}');
+      print('📊 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        print('✅ Successfully parsed JSON response');
+        print('📊 Data type: ${data.runtimeType}');
+        print('📊 Data length: ${data.length}');
+        print('📊 Data: ${data.toString()}');
+
+        final result = data.cast<Map<String, dynamic>>();
+        print('✅ Successfully cast to Map<String, dynamic>');
+        print('📊 Final result length: ${result.length}');
+        return result;
+      } else {
+        print('❌ HTTP Error: ${response.statusCode}');
+        print('❌ Error body: ${response.body}');
+        throw Exception(
+            'Failed to fetch client payments: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Network error: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      rethrow;
     }
   }
 

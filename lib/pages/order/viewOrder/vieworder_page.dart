@@ -18,6 +18,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:woosh/utils/country_currency_labels.dart';
+import 'package:get_storage/get_storage.dart';
 
 class ViewOrdersPage extends StatefulWidget {
   const ViewOrdersPage({super.key});
@@ -456,6 +457,14 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
     }
   }
 
+  double _calculateOrderTotal(Order order) {
+    return order.orderItems.fold(0.0, (sum, item) {
+      final unitPrice = item.unitPrice ?? 0.0;
+      final quantity = item.quantity ?? 1;
+      return sum + (unitPrice * quantity);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -526,9 +535,6 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                 }
 
                                 final order = _orders[index];
-                                final firstItem = order.orderItems.isNotEmpty
-                                    ? order.orderItems.first
-                                    : null;
                                 final totalItems = order.orderItems.length;
 
                                 return Container(
@@ -567,9 +573,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                             'Unknown Product',
                                                         quantity: item.quantity,
                                                         unitPrice:
-                                                            (item.unitPrice ??
-                                                                    0.0)
-                                                                .toDouble(),
+                                                            item.unitPrice ??
+                                                                0.0,
                                                       ))
                                                   .toList(),
                                             ),
@@ -718,7 +723,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                       CrossAxisAlignment.end,
                                                   children: [
                                                     Text(
-                                                      'Amount: ${CountryCurrencyLabels.formatCurrency(order.totalAmount ?? 0.0, null)}',
+                                                      'Amount: ${CountryCurrencyLabels.formatCurrency(_calculateOrderTotal(order), GetStorage().read('salesRep')?['countryId'])}',
                                                       style: const TextStyle(
                                                         fontSize: 12,
                                                         fontWeight:

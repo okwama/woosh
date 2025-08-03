@@ -134,7 +134,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     if (widget.preloadedPlans != null) {
       _journeyPlanStateService.journeyPlans.assignAll(widget.preloadedPlans!);
     } else {
-      _loadData();
+      // Force refresh when no preloaded data (e.g., after checkout)
+      _journeyPlanStateService.forceRefresh();
     }
 
     _scrollController.addListener(_onScroll);
@@ -185,9 +186,64 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
 
   Future<void> _refreshData() async {
     try {
+      // Provide haptic feedback
+      HapticFeedback.lightImpact();
+
+      // Clear any hidden journey plans to show all plans after refresh
+      setState(() {
+        _hiddenJourneyPlans.clear();
+      });
+
+      // Force refresh all data
       await _journeyPlanStateService.forceRefresh();
+
+      // Also refresh active visit status
+      await _checkActiveVisit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.refresh, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Journey plans refreshed successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       print('Failed to refresh journey plans: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Failed to refresh journey plans. Please try again.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _refreshData,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -546,10 +602,19 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
               });
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
-          ),
+          Obx(() => IconButton(
+                icon: _journeyPlanStateService.isLoading.value
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                onPressed: _journeyPlanStateService.isLoading.value
+                    ? null
+                    : _refreshData,
+                tooltip: 'Refresh journey plans',
+              )),
         ],
       ),
       body: _journeyPlanStateService.isLoading.value &&
@@ -571,9 +636,37 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
                 ),
                 Expanded(
                   child: RefreshIndicator(
-                    onRefresh: _loadData,
+                    onRefresh: _refreshData,
+                    color: Colors.blue,
+                    backgroundColor: Colors.white,
+                    strokeWidth: 3.0,
+                    displacement: 20.0,
                     child: _getFilteredPlans().isEmpty
-                        ? const Center(child: Text('No journey plans found'))
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.inbox_outlined,
+                                    size: 64, color: Colors.grey),
+                                SizedBox(height: 16),
+                                Text(
+                                  'No journey plans found',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Pull down to refresh',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
                         : ListView.builder(
                             controller: _scrollController,
                             itemCount: _getFilteredPlans().length +

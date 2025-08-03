@@ -21,6 +21,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:get/get.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:woosh/services/journeyplan/jouneyplan_service.dart';
+import 'package:woosh/services/journeyplan/journey_plan_state_service.dart';
 import 'package:woosh/utils/safe_error_handler.dart';
 
 class JourneyView extends StatefulWidget {
@@ -667,24 +668,36 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Visit completed successfully'),
+                Text('Visit completed successfully - Status updated'),
               ],
             ),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 3),
           ),
         );
+
+        // Refresh journey plan status in state service
+        try {
+          final journeyPlanStateService = Get.find<JourneyPlanStateService>();
+          await journeyPlanStateService
+              .refreshJourneyPlanStatus(widget.journeyPlan.id!);
+          print('✅ Journey plan status refreshed after completion');
+        } catch (e) {
+          print('⚠️ Failed to refresh journey plan status: $e');
+        }
 
         // Update parent if needed
         if (widget.onCheckInSuccess != null) {
           widget.onCheckInSuccess!(completedPlan);
         }
 
-        // Navigate to journey plans page instead of just popping back
+        // Navigate to journey plans page with force refresh
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const JourneyPlansPage(),
+            builder: (context) => JourneyPlansPage(
+                // Force refresh by not passing preloaded data
+                ),
           ),
         );
       }
@@ -1105,14 +1118,14 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                   const SizedBox(height: 6),
                                   _buildInfoItem(
                                     'Location',
-                                      widget.journeyPlan.client.address ?? '',
+                                    widget.journeyPlan.client.address ?? '',
                                     Icons.location_on,
                                   ),
                                   const SizedBox(height: 6),
                                   if (widget
                                       .journeyPlan.showUpdateLocation) ...[
                                     Row(
-                                      children: [   
+                                      children: [
                                         Expanded(
                                           child: ElevatedButton.icon(
                                             onPressed: _isFetchingLocation

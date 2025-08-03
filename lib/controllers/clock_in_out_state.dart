@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/clockInOut/clock_in_out_service.dart';
 import 'dart:async';
+import 'package:flutter/widgets.dart'; // Added for WidgetsBinding
 
 /// Clock In/Out State Controller
 ///
@@ -239,7 +240,14 @@ class ClockInOutState extends GetxController {
 
   /// Refresh status manually
   Future<void> refreshStatus() async {
-    await _refreshStatus();
+    // Safety check to prevent calling during build phase
+    if (Get.isRegistered<ClockInOutState>()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _refreshStatus();
+      });
+    } else {
+      await _refreshStatus();
+    }
   }
 
   /// Get formatted duration string

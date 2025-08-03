@@ -6,20 +6,18 @@ import 'package:geocoding/geocoding.dart';
 import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/utils/app_theme.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
-import 'package:path_provider/path_provider.dart' as path_provider;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:woosh/utils/country_tax_labels.dart';
 import 'package:woosh/pages/client/client_stock_page.dart';
 import 'package:woosh/services/client_stock_service.dart';
+import 'package:woosh/pages/client/add_payment_page.dart';
 
 class ClientDetailsPage extends StatefulWidget {
   final Client client;
 
-  const ClientDetailsPage({super.key, required this.client, required Outlet outlet});
+  const ClientDetailsPage(
+      {super.key, required this.client, required Outlet outlet});
 
   @override
   State<ClientDetailsPage> createState() => _ClientDetailsPageState();
@@ -31,7 +29,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   bool _loadingPayments = false;
   String? _errorMessage;
   final ptr.RefreshController _refreshController = ptr.RefreshController();
-  bool _clientStockEnabled = true; // Track if client stock feature is enabled
+  bool _clientStockEnabled = false; // Track if client stock feature is enabled
 
   @override
   void initState() {
@@ -64,30 +62,67 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   Future<void> _fetchPayments() async {
     if (_loadingPayments) return;
 
+    print('\n=== 🔍 PAYMENT FETCH DEBUG ===');
+    print('📱 Client ID: ${widget.client.id}');
+    print('📱 Client Name: ${widget.client.name}');
+    print('📱 Loading State: $_loadingPayments');
+
     setState(() {
       _loadingPayments = true;
       _errorMessage = null;
     });
 
     try {
+      print('🔄 Calling ApiService.getClientPayments...');
       final paymentsData = await ApiService.getClientPayments(widget.client.id);
+
+      print('✅ API Response received:');
+      print('📊 Payments count: ${paymentsData.length}');
+      print('📊 Raw payments data: ${paymentsData.toString()}');
+
       setState(() {
-        _payments = paymentsData.map((e) => ClientPayment.fromJson(e)).toList();
+        _payments = paymentsData.map((e) {
+          print('🔄 Converting payment: ${e.toString()}');
+          return ClientPayment.fromJson(e);
+        }).toList();
       });
+
+      print('✅ Payments converted successfully:');
+      print('📊 Final payments count: ${_payments.length}');
+      for (int i = 0; i < _payments.length; i++) {
+        final payment = _payments[i];
+        print('📋 Payment ${i + 1}:');
+        print('   - ID: ${payment.id}');
+        print('   - Client ID: ${payment.clientId}');
+        print('   - User ID: ${payment.userId}');
+        print('   - Amount: ${payment.amount}');
+        print('   - Method: ${payment.method}');
+        print('   - Status: ${payment.status}');
+        print('   - Date: ${payment.date}');
+        print('   - Image URL: ${payment.imageUrl}');
+      }
     } catch (e) {
+      print('❌ Error during payment fetch:');
+      print('🚨 Error type: ${e.runtimeType}');
+      print('🚨 Error message: ${e.toString()}');
+      print('🚨 Error stack trace: ${StackTrace.current}');
+
       // Handle server errors silently
       if (e.toString().contains('500') ||
           e.toString().contains('501') ||
           e.toString().contains('502') ||
           e.toString().contains('503')) {
-        print('Server error during payment fetch - handled silently: $e');
+        print('⚠️ Server error during payment fetch - handled silently: $e');
       } else {
+        print('❌ Non-server error - showing error dialog');
         setState(() {
           _errorMessage = 'Failed to load payments. Please try again.';
         });
         _showErrorDialog();
       }
     } finally {
+      print('🏁 Payment fetch completed');
+      print('📊 Final loading state: false');
       setState(() => _loadingPayments = false);
       _refreshController.refreshCompleted();
     }
@@ -157,198 +192,20 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   }
 
   Future<void> _showAddPaymentDialog() async {
-    final amountController = TextEditingController();
-    String? selectedMethod;
-    XFile? pickedFile;
-    bool uploading = false;
-    String? errorMessage;
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Add Client Payment'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  TextField(
-                    controller: amountController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Amount'),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: selectedMethod,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment Method',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Cash',
-                        child: Text('Cash'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Cheque',
-                        child: Text('Cheque'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Mpesa',
-                        child: Text('Mpesa'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Bank',
-                        child: Text('Bank'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        selectedMethod = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: uploading
-                            ? null
-                            : () async {
-                                try {
-                                  final picker = ImagePicker();
-                                  final file = await picker.pickImage(
-                                    source: ImageSource.gallery,
-                                    maxWidth: 1024,
-                                    maxHeight: 1024,
-                                    imageQuality: 85,
-                                  );
-                                  if (file != null) {
-                                    setState(() => pickedFile = file);
-                                  }
-                                } catch (e) {
-                                  print('Error picking image: $e');
-                                  setState(() {
-                                    errorMessage =
-                                        'Failed to select image. Please try again.';
-                                  });
-                                }
-                              },
-                        icon: const Icon(Icons.image),
-                        label: const Text('Select Image'),
-                      ),
-                      const SizedBox(width: 8),
-                      if (pickedFile != null)
-                        const Text('Selected',
-                            style: TextStyle(color: Colors.green)),
-                    ],
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: uploading ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: uploading
-                      ? null
-                      : () async {
-                          final amount = double.tryParse(amountController.text);
-                          if (amount == null || pickedFile == null) {
-                            setState(() {
-                              errorMessage =
-                                  'Please enter a valid amount and select an image.';
-                            });
-                            return;
-                          }
-
-                          if (selectedMethod == null) {
-                            setState(() {
-                              errorMessage = 'Please select a payment method.';
-                            });
-                            return;
-                          }
-
-                          setState(() {
-                            uploading = true;
-                            errorMessage = null;
-                          });
-
-                          try {
-                            File? imageFile;
-
-                            if (kIsWeb) {
-                              imageFile = null;
-                            } else {
-                              imageFile = File(pickedFile!.path);
-                            }
-
-                            await ApiService.uploadClientPayment(
-                              clientId: widget.client.id,
-                              amount: amount,
-                              imageFile: imageFile ?? File(pickedFile!.path),
-                              imageBytes: kIsWeb
-                                  ? await pickedFile!.readAsBytes()
-                                  : null,
-                              method: selectedMethod,
-                            );
-
-                            if (mounted) {
-                              Navigator.pop(context);
-                              _fetchPayments();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text('Payment uploaded successfully'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            print('Error uploading payment: $e');
-                            // Handle server errors silently
-                            if (e.toString().contains('500') ||
-                                e.toString().contains('501') ||
-                                e.toString().contains('502') ||
-                                e.toString().contains('503')) {
-                              print(
-                                  'Server error during payment upload - handled silently: $e');
-                              // Close dialog silently for server errors
-                              Navigator.pop(context);
-                            } else {
-                              setState(() {
-                                errorMessage =
-                                    'Failed to upload payment. Please try again.';
-                                uploading = false;
-                              });
-                            }
-                          }
-                        },
-                  child: uploading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Upload'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddPaymentPage(
+          clientId: widget.client.id,
+          clientName: widget.client.name,
+        ),
+      ),
     );
+
+    // Refresh payments if payment was successfully uploaded
+    if (result == true) {
+      _fetchPayments();
+    }
   }
 
   @override
@@ -471,86 +328,84 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                 ],
                               ),
                             ],
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.upload_file),
-                                label: const Text('Add Payment'),
-                                onPressed: _showAddPaymentDialog,
-                                style: ElevatedButton.styleFrom(
-                                  shape: const StadiumBorder(),
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 10),
-                                  backgroundColor:
-                                      Theme.of(context).primaryColor,
-                                  foregroundColor: Colors.white,
-                                  textStyle: const TextStyle(fontSize: 13),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            if (_clientStockEnabled) ...[
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.inventory),
-                                  label: const Text('Manage Stock'),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ClientStockPage(
-                                          clientId: client.id,
-                                          clientName: client.name,
-                                        ),
+                            const SizedBox(height: 16),
+
+                            // Action Buttons
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon:
+                                        const Icon(Icons.upload_file, size: 20),
+                                    label: const Text(
+                                      'Add Payment',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    shape: const StadiumBorder(),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 10),
-                                    backgroundColor: Colors.orange,
-                                    foregroundColor: Colors.white,
-                                    textStyle: const TextStyle(fontSize: 13),
+                                    ),
+                                    onPressed: _showAddPaymentDialog,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          Theme.of(context).primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 2,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                // Temporarily hidden - will be used later
+                                // if (_clientStockEnabled) ...[
+                                //   const SizedBox(width: 12),
+                                //   Expanded(
+                                //     child: ElevatedButton.icon(
+                                //       icon:
+                                //           const Icon(Icons.inventory, size: 20),
+                                //       label: const Text(
+                                //         'Manage Stock',
+                                //         style: TextStyle(
+                                //           fontSize: 14,
+                                //           fontWeight: FontWeight.w600,
+                                //         ),
+                                //       ),
+                                //       onPressed: () {
+                                //         Navigator.push(
+                                //           context,
+                                //           MaterialPageRoute(
+                                //             builder: (context) =>
+                                //                 ClientStockPage(
+                                //               clientId: client.id,
+                                //               clientName: client.name,
+                                //             ),
+                                //           ),
+                                //         );
+                                //       },
+                                //       style: ElevatedButton.styleFrom(
+                                //         backgroundColor: Colors.orange,
+                                //         foregroundColor: Colors.white,
+                                //         padding: const EdgeInsets.symmetric(
+                                //             vertical: 12),
+                                //         shape: RoundedRectangleBorder(
+                                //           borderRadius:
+                                //               BorderRadius.circular(12),
+                                //         ),
+                                //         elevation: 2,
+                                //       ),
+                                //     ),
+                                //   ),
+                                // ],
+                              ],
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Payments',
-                              style: TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.bold)),
-                          ElevatedButton.icon(
-                            onPressed: _showAddPaymentDialog,
-                            icon: const Icon(Icons.upload_file, size: 16),
-                            label: const Text('Add',
-                                style: TextStyle(fontSize: 11)),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 6),
-                              minimumSize: Size.zero,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (_errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: Colors.red),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+
+                      // Payment History Section
                       PaymentHistoryCard(
                         payments: _payments,
                         loading: _loadingPayments,
@@ -564,17 +419,34 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
           ],
         ),
       ),
-      // floatingActionButton: Container(
-      //   decoration: GradientDecoration.goldCircular(),
-      //   child: FloatingActionButton(
-      //     backgroundColor: Colors.transparent,
-      //     elevation: 0,
-      //     onPressed: () {
-      //       Navigator.pop(context);
-      //     },
-      //     child: const Icon(Icons.arrow_back, color: Colors.white),
-      //   ),
-      // ),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Theme.of(context).primaryColor,
+              Theme.of(context).primaryColor.withOpacity(0.8),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).primaryColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          onPressed: _showAddPaymentDialog,
+          child: const Icon(
+            Icons.add,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+      ),
     );
   }
 
@@ -705,199 +577,459 @@ class _PaymentHistoryCardState extends State<PaymentHistoryCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Payment History',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            DropdownButton<String>(
-              value: _selectedStatus,
-              items: const [
-                DropdownMenuItem(
-                    value: 'ALL',
-                    child: Text('All',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'PENDING',
-                    child: Text('Pending',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'VERIFIED',
-                    child: Text('Verified',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'REJECTED',
-                    child: Text('Rejected',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-              ],
-              onChanged: (val) {
-                setState(() => _selectedStatus = val!);
-              },
-              style: const TextStyle(fontSize: 11, color: Colors.black),
-              isDense: true,
-              iconSize: 16,
-              dropdownColor: Colors.white,
+            const Text(
+              'Payment History',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            DropdownButton<String>(
-              value: _selectedSort,
-              items: const [
-                DropdownMenuItem(
-                    value: 'NEWEST',
-                    child: Text('Newest',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'OLDEST',
-                    child: Text('Oldest',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'AMOUNT_HIGH',
-                    child: Text('Amount ?',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-                DropdownMenuItem(
-                    value: 'AMOUNT_LOW',
-                    child: Text('Amount ?',
-                        style: TextStyle(fontSize: 11, color: Colors.black))),
-              ],
-              onChanged: (val) {
-                setState(() => _selectedSort = val!);
-              },
-              style: const TextStyle(fontSize: 11, color: Colors.black),
-              isDense: true,
-              iconSize: 16,
-              dropdownColor: Colors.white,
+            Text(
+              '${_filteredPayments.length} payments',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        Card(
-          elevation: 1,
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          child: Padding(
-            padding: const EdgeInsets.all(6.0),
-            child: widget.loading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredPayments.isEmpty
-                    ? const Text('No payments yet.',
-                        style: TextStyle(fontSize: 11))
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _filteredPayments.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, idx) {
-                          final p = _filteredPayments[idx];
-                          return InkWell(
-                            onTap: p.imageUrl != null
-                                ? () => showDialog(
-                                      context: context,
-                                      builder: (_) => Dialog(
-                                        child: Image.network(p.imageUrl!),
-                                      ),
-                                    )
-                                : null,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 8, horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Left side: Image or Icon
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(4),
-                                      color: Colors.grey[100],
-                                    ),
-                                    child: p.imageUrl != null
-                                        ? ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                            child: Image.network(
-                                              p.imageUrl!,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          )
-                                        : const Icon(Icons.receipt_long,
-                                            size: 20),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // Middle: Payment details
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          p.method ?? 'No Method',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: _getStatusColor(p.status)
-                                                .withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                          child: Text(
-                                            p.status,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: _getStatusColor(p.status),
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // Right side: Date and Amount
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        p.date
-                                            .toLocal()
-                                            .toString()
-                                            .split(".")[0],
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'Ksh ${p.amount.toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+        const SizedBox(height: 16),
+
+        // Filters Row
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedStatus,
+                    isExpanded: true,
+                    items: [
+                      DropdownMenuItem(
+                        value: 'ALL',
+                        child: Row(
+                          children: [
+                            Icon(Icons.list, size: 16, color: Colors.grey[600]),
+                            const SizedBox(width: 8),
+                            const Text('All Status'),
+                          ],
+                        ),
                       ),
-          ),
+                      DropdownMenuItem(
+                        value: 'PENDING',
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule,
+                                size: 16, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            const Text('Pending'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'VERIFIED',
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle,
+                                size: 16, color: Colors.green),
+                            const SizedBox(width: 8),
+                            const Text('Verified'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'REJECTED',
+                        child: Row(
+                          children: [
+                            Icon(Icons.cancel, size: 16, color: Colors.red),
+                            const SizedBox(width: 8),
+                            const Text('Rejected'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      setState(() => _selectedStatus = val!);
+                    },
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedSort,
+                  items: [
+                    DropdownMenuItem(
+                      value: 'NEWEST',
+                      child: Row(
+                        children: [
+                          Icon(Icons.sort, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Newest'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'OLDEST',
+                      child: Row(
+                        children: [
+                          Icon(Icons.sort, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Oldest'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'AMOUNT_HIGH',
+                      child: Row(
+                        children: [
+                          Icon(Icons.trending_up,
+                              size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Amount High'),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'AMOUNT_LOW',
+                      child: Row(
+                        children: [
+                          Icon(Icons.trending_down,
+                              size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Amount Low'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    setState(() => _selectedSort = val!);
+                  },
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+
+        // Payment List
+        if (widget.loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_filteredPayments.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.payment,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No payments yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Payments will appear here once uploaded',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _filteredPayments.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, idx) {
+              final p = _filteredPayments[idx];
+              return _buildPaymentCard(p);
+            },
+          ),
       ],
     );
+  }
+
+  Widget _buildPaymentCard(ClientPayment payment) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey[200]!,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: payment.imageUrl != null
+            ? () => _showPaymentImage(payment.imageUrl!)
+            : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Payment Method Icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _getMethodColor(payment.method).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _getMethodIcon(payment.method),
+                  color: _getMethodColor(payment.method),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Payment Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            payment.method ?? 'Unknown Method',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'Ksh ${payment.amount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(payment.status)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            payment.status ?? 'Unknown',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: _getStatusColor(payment.status),
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          _formatDate(payment.date),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (payment.imageUrl != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.image,
+                            size: 16,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Tap to view receipt',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+                color: Colors.grey[100],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Text(
+                    'Payment Receipt',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(16)),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 300,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 300,
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 48, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('Failed to load image'),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getMethodColor(String? method) {
+    switch (method?.toUpperCase()) {
+      case 'MPESA':
+        return Colors.orange;
+      case 'BANK':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getMethodIcon(String? method) {
+    switch (method?.toUpperCase()) {
+      case 'MPESA':
+        return Icons.phone_android;
+      case 'BANK':
+        return Icons.account_balance;
+      default:
+        return Icons.payment;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   Color _getStatusColor(String? status) {

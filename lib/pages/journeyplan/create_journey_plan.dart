@@ -339,9 +339,8 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
 
         setState(() {
           final existingIds = _allClients.map((c) => c.id).toSet();
-          final newClients = clients
-              .where((c) => !existingIds.contains(c.id))
-              .toList();
+          final newClients =
+              clients.where((c) => !existingIds.contains(c.id)).toList();
           _allClients.addAll(newClients);
           _currentPage++;
           _hasMoreData = response['page'] < response['totalPages'];
@@ -1437,47 +1436,216 @@ class _CreateJourneyPlanPageState extends State<CreateJourneyPlanPage> {
                                     final routes = snapshot.data ?? [];
                                     return Container(
                                       height: 42,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12),
                                       decoration: BoxDecoration(
                                         color: Colors.grey.shade50,
                                         border: Border.all(
-                                          color: Colors.grey.shade300,
+                                          color: selectedRouteId != null
+                                              ? Theme.of(context)
+                                                  .primaryColor
+                                                  .withOpacity(0.3)
+                                              : Colors.grey.shade300,
                                           width: 1.5,
                                         ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<int>(
-                                          value: selectedRouteId,
-                                          isExpanded: true,
-                                          icon:
-                                              Icon(Icons.expand_more, size: 20),
-                                          hint: const Text(
-                                            'Select route',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.black54,
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          onTap: () {
+                                            showModalBottomSheet(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              shape:
+                                                  const RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.vertical(
+                                                  top: Radius.circular(20),
+                                                ),
+                                              ),
+                                              builder: (context) => Container(
+                                                constraints: BoxConstraints(
+                                                  maxHeight:
+                                                      MediaQuery.of(context)
+                                                              .size
+                                                              .height *
+                                                          0.6,
+                                                ),
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    // Handle bar
+                                                    Container(
+                                                      margin:
+                                                          const EdgeInsets.only(
+                                                              top: 8),
+                                                      width: 40,
+                                                      height: 4,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors
+                                                            .grey.shade300,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(2),
+                                                      ),
+                                                    ),
+                                                    // Header
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              16),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons.route,
+                                                            color: Theme.of(
+                                                                    context)
+                                                                .primaryColor,
+                                                            size: 20,
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 8),
+                                                          const Text(
+                                                            'Select Route',
+                                                            style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                          ),
+                                                          const Spacer(),
+                                                          TextButton(
+                                                            onPressed: () =>
+                                                                Navigator.pop(
+                                                                    context),
+                                                            child: const Text(
+                                                                'Cancel'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    // Route list
+                                                    Flexible(
+                                                      child: ListView.builder(
+                                                        shrinkWrap: true,
+                                                        itemCount:
+                                                            routes.length,
+                                                        itemBuilder:
+                                                            (context, index) {
+                                                          final route =
+                                                              routes[index];
+                                                          final isSelected =
+                                                              route['id'] ==
+                                                                  selectedRouteId;
+                                                          return ListTile(
+                                                            leading: Icon(
+                                                              Icons.route,
+                                                              color: isSelected
+                                                                  ? Theme.of(
+                                                                          context)
+                                                                      .primaryColor
+                                                                  : Colors.grey
+                                                                      .shade600,
+                                                              size: 20,
+                                                            ),
+                                                            title: Text(
+                                                              route['name'],
+                                                              style: TextStyle(
+                                                                fontWeight: isSelected
+                                                                    ? FontWeight
+                                                                        .w600
+                                                                    : FontWeight
+                                                                        .normal,
+                                                                color: isSelected
+                                                                    ? Theme.of(
+                                                                            context)
+                                                                        .primaryColor
+                                                                    : Colors
+                                                                        .black87,
+                                                              ),
+                                                            ),
+                                                            trailing: isSelected
+                                                                ? Icon(
+                                                                    Icons
+                                                                        .check_circle,
+                                                                    color: Theme.of(
+                                                                            context)
+                                                                        .primaryColor,
+                                                                    size: 20,
+                                                                  )
+                                                                : null,
+                                                            onTap: () {
+                                                              setState(() {
+                                                                selectedRouteId =
+                                                                    route['id'];
+                                                              });
+                                                              Navigator.pop(
+                                                                  context);
+                                                            },
+                                                          );
+                                                        },
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.route,
+                                                  size: 16,
+                                                  color: selectedRouteId != null
+                                                      ? Theme.of(context)
+                                                          .primaryColor
+                                                      : Colors.grey.shade600,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    selectedRouteId != null
+                                                        ? routes.firstWhere(
+                                                            (r) =>
+                                                                r['id'] ==
+                                                                selectedRouteId,
+                                                            orElse: () => {
+                                                              'name':
+                                                                  'Select route'
+                                                            },
+                                                          )['name']
+                                                        : 'Select route',
+                                                    style: TextStyle(
+                                                      fontSize: 14,
+                                                      color: selectedRouteId !=
+                                                              null
+                                                          ? Colors.black87
+                                                          : Colors.black54,
+                                                      fontWeight:
+                                                          selectedRouteId !=
+                                                                  null
+                                                              ? FontWeight.w500
+                                                              : FontWeight
+                                                                  .normal,
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  Icons.expand_more,
+                                                  size: 20,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          items: routes
-                                              .map((route) =>
-                                                  DropdownMenuItem<int>(
-                                                    value: route['id'],
-                                                    child: Text(
-                                                      route['name'],
-                                                      style: const TextStyle(
-                                                          fontSize: 14),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ))
-                                              .toList(),
-                                          onChanged: (value) {
-                                            setState(() {
-                                              selectedRouteId = value;
-                                            });
-                                          },
                                         ),
                                       ),
                                     );

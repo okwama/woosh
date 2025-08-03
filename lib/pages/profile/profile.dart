@@ -56,24 +56,144 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     final shouldProceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: GradientText(
-          _clockState.isClockedIn.value ? 'Clock Out' : 'Clock In',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-        content: Text(
-          _clockState.isClockedIn.value
-              ? 'Are you sure you want to clock out? This will end your current session.'
-              : 'Are you sure you want to clock in? This will start your session.',
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color:
+                    (_clockState.isClockedIn.value ? Colors.red : Colors.green)
+                        .withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _clockState.isClockedIn.value
+                    ? Icons.stop_circle
+                    : Icons.play_circle,
+                color:
+                    _clockState.isClockedIn.value ? Colors.red : Colors.green,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _clockState.isClockedIn.value ? 'Clock Out' : 'Clock In',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _clockState.isClockedIn.value
+                  ? 'Are you sure you want to clock out?'
+                  : 'Are you ready to start your work session?',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _clockState.isClockedIn.value
+                  ? 'This will end your current session and record your work duration.'
+                  : 'This will start tracking your work session and time.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+            if (_clockState.isClockedIn.value) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.orange.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Current Session',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                          Text(
+                            'Duration: ${_clockState.formattedDuration}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-          GoldGradientButton(
+          ElevatedButton(
             onPressed: () => Get.back(result: true),
-            child:
-                Text(_clockState.isClockedIn.value ? 'Clock Out' : 'Clock In'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  _clockState.isClockedIn.value ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 2,
+            ),
+            child: Text(
+              _clockState.isClockedIn.value ? 'Clock Out' : 'Clock In',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -819,78 +939,156 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        // Clock In/Out Button
-        Card(
-          elevation: 1,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+        // Enhanced Clock In/Out Button
+        Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: _clockState.isClockedIn.value
+                  ? [Colors.red.shade400, Colors.red.shade600]
+                  : [Colors.green.shade400, Colors.green.shade600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    (_clockState.isClockedIn.value ? Colors.red : Colors.green)
+                        .withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: InkWell(
-            onTap: isProcessing ? null : _toggleClock,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _clockState.isClockedIn.value
-                          ? Colors.red.withOpacity(0.1)
-                          : Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      _clockState.isClockedIn.value
-                          ? Icons.stop_circle
-                          : Icons.play_circle,
-                      color: _clockState.isClockedIn.value
-                          ? Colors.red
-                          : Colors.green,
-                      size: 16,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _clockState.isClockedIn.value
-                              ? 'Clock Out'
-                              : 'Clock In',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: isProcessing ? null : _toggleClock,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    // Animated Icon Container
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1,
                         ),
-                        if (_clockState.isClockedIn.value) ...[
-                          const SizedBox(height: 4),
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: isProcessing
+                            ? const SizedBox(
+                                key: ValueKey('loading'),
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : Icon(
+                                key: ValueKey(_clockState.isClockedIn.value
+                                    ? 'stop'
+                                    : 'play'),
+                                _clockState.isClockedIn.value
+                                    ? Icons.stop_circle_outlined
+                                    : Icons.play_circle_outlined,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Text Content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Main Text
                           Text(
-                            'Duration: ${_clockState.formattedDuration}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
+                            _clockState.isClockedIn.value
+                                ? 'Clock Out'
+                                : 'Clock In',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
+                          const SizedBox(height: 4),
+
+                          // Status Text
+                          Text(
+                            _clockState.isClockedIn.value
+                                ? 'End your current session'
+                                : 'Start your work session',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+
+                          // Duration (only show when clocked in)
+                          if (_clockState.isClockedIn.value) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.timer,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Duration: ${_clockState.formattedDuration}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  if (isProcessing)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: Colors.grey.shade600,
-                    )
-                ],
+
+                    // Arrow Icon
+                    if (!isProcessing)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
