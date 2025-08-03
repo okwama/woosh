@@ -17,7 +17,27 @@ class AuthController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _initialize();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    await _userHiveService.init();
+    final user = _userHiveService.getCurrentUser();
+    final isAuthenticated = TokenService.isAuthenticated();
+
+    if (user != null && isAuthenticated) {
+      _currentUser.value = user;
+      _isLoggedIn.value = true;
+      _isInitialized.value = true;
+    } else {
+      // Clear both to avoid partial state
+      await TokenService.clearTokens();
+      await _userHiveService.clearUser();
+      _currentUser.value = null;
+      _isLoggedIn.value = false;
+      _isInitialized.value = true;
+      // Optionally: trigger navigation to login page here if needed
+    }
   }
 
   Future<void> _initialize() async {

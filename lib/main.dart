@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:woosh/pages/404/offlineToast.dart';
+import 'package:woosh/pages/404/offline_toast.dart';
 import 'package:woosh/pages/home/home_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/routes/app_routes.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/clockInOut/clock_in_out_service.dart';
 import 'package:woosh/services/token_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/controllers/uplift_cart_controller.dart';
@@ -16,12 +17,18 @@ import 'package:hive/hive.dart';
 import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/services/permission_service.dart';
-import 'package:woosh/services/outlet_service.dart';
-import 'package:woosh/pages/activation_page.dart';
 import 'package:woosh/pages/test/error_test_page.dart';
 import 'package:woosh/services/offline_sync_service.dart';
-import 'package:woosh/services/enhanced_session_service.dart';
 import 'package:woosh/services/enhanced_journey_plan_service.dart';
+import 'package:woosh/services/progressive_login_service.dart';
+import 'package:woosh/services/hive/client_hive_service.dart';
+import 'package:woosh/services/hive/product_report_hive_service.dart';
+import 'package:woosh/models/hive/product_report_hive_model.dart';
+import 'package:woosh/models/hive/client_model.dart';
+import 'package:woosh/models/hive/product_model.dart';
+import 'package:woosh/services/client/index.dart';
+import 'package:woosh/services/shared_data_service.dart';
+import 'package:woosh/services/journeyplan/journey_plan_state_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,11 +38,69 @@ void main() async {
     await GetStorage.init();
 
     // Initialize Hive with minimal setup
-    await HiveInitializer.initializeMinimal();
+    try {
+      await HiveInitializer.initializeMinimal();
+    } catch (e) {
+      print('⚠️ Hive initialization failed, clearing boxes and retrying: $e');
+      try {
+        await HiveInitializer.clearAllBoxes();
+        await HiveInitializer.initializeMinimal();
+      } catch (retryError) {
+        print('⚠️ Hive retry failed: $retryError');
+        // Continue without Hive if all else fails
+      }
+    }
 
     // Initialize only essential services
     Get.put(AuthController());
     Get.put(UpliftCartController());
+    Get.put(
+        SharedDataService()); // Initialize shared data service to prevent excessive API calls
+    Get.put(
+        JourneyPlanStateService()); // Initialize journey plan state service to prevent excessive API calls
+
+    // Initialize ClientHiveService early to prevent "not found" errors
+    try {
+      // Ensure all Hive adapters are registered first
+      if (!Hive.isAdapterRegistered(6)) {
+        Hive.registerAdapter(ClientModelAdapter());
+      }
+      if (!Hive.isAdapterRegistered(21)) {
+        Hive.registerAdapter(ProductHiveModelAdapter());
+      }
+      if (!Hive.isAdapterRegistered(10)) {
+        Hive.registerAdapter(ProductReportHiveModelAdapter());
+      }
+      if (!Hive.isAdapterRegistered(11)) {
+        Hive.registerAdapter(ProductQuantityHiveModelAdapter());
+      }
+
+      final clientHiveService = ClientHiveService();
+      await clientHiveService.init();
+      Get.put(clientHiveService);
+    } catch (e) {
+      print('Warning: Failed to initialize ClientHiveService: $e');
+      // Try to clear corrupted cache and retry
+      try {
+        await HiveInitializer.clearAllBoxes();
+        final clientHiveService = ClientHiveService();
+        await clientHiveService.init();
+        Get.put(clientHiveService);
+        print('✅ ClientHiveService initialized after cache clear');
+      } catch (retryError) {
+        print(
+            '❌ Failed to initialize ClientHiveService even after cache clear: $retryError');
+      }
+    }
+
+    // Initialize ProductReportHiveService early to prevent LateInitializationError
+    try {
+      final productReportHiveService = ProductReportHiveService();
+      await productReportHiveService.init();
+      Get.put(productReportHiveService);
+    } catch (e) {
+      print('Warning: Failed to initialize ProductReportHiveService: $e');
+    }
 
     // Defer non-critical initializations
     _initializeNonCriticalServices();
@@ -44,6 +109,7 @@ void main() async {
   } catch (e) {
     print('? Error initializing services: $e');
     // Continue with app launch even if some services fail
+    runApp(MyApp());
   }
 }
 
@@ -56,17 +122,20 @@ Future<void> _initializeNonCriticalServices() async {
       await HiveInitializer.initializeRemaining();
 
       // Initialize enhanced services
-      await EnhancedSessionService.initialize();
       await EnhancedJourneyPlanService.initialize();
 
       // Initialize offline sync service
       Get.put(OfflineSyncService());
 
+      // Initialize progressive login service
+      Get.put(ProgressiveLoginService());
+
       // Request permissions at startup (non-blocking)
       PermissionService.requestInitialPermissions();
 
       // Initialize services
-      Get.put(OutletService());
+      Get.put(ClientService());
+      Get.put(ClientStateService());
 
       print('✅ Non-critical services initialized successfully');
     } catch (e) {

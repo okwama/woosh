@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:woosh/services/version_check_service.dart';
 
 class VersionInfoWidget extends StatefulWidget {
@@ -50,10 +51,19 @@ class _VersionInfoWidgetState extends State<VersionInfoWidget>
   }
 
   Future<void> _loadAppInfo() async {
-    final info = await VersionCheckService().getAppInfo();
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
     setState(() {
-      _appInfo = info;
+        _appInfo = {
+          'appName': packageInfo.appName,
+          'packageName': packageInfo.packageName,
+          'version': packageInfo.version,
+          'buildNumber': packageInfo.buildNumber,
+        };
     });
+    } catch (e) {
+      print('Error loading app info: $e');
+    }
   }
 
   Future<void> _openAppStore() async {
@@ -68,7 +78,10 @@ class _VersionInfoWidgetState extends State<VersionInfoWidget>
     });
 
     try {
-      await VersionCheckService().launchStore();
+      final versionData = VersionCheckService.getStoredVersionData();
+      if (versionData != null) {
+        await VersionCheckService.openAppStore(versionData);
+      }
     } finally {
       setState(() {
         _isLoading = false;

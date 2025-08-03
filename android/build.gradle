@@ -43,6 +43,11 @@ subprojects {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
+                
+                // Auto-generate namespace for libraries that don't have one
+                if (!android.hasProperty('namespace') || android.namespace == null) {
+                    namespace = "com.example.${project.name}"
+                }
             }
         }
     }

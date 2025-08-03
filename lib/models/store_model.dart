@@ -20,11 +20,14 @@ class Store {
       print('[Store] Parsing JSON: $json');
       return Store(
         id: json['id'] ?? 0,
-        name: json['name'] ?? '',
+        name: json['storeName'] ?? json['store_name'] ?? json['name'] ?? '',
         regionId: json['regionId'] ?? json['region_id'],
         countryId: json['countryId'] ?? json['country_id'],
-        region: json['region'] != null ? Region.fromJson(json['region']) : null,
-        status: json['status'] ?? 0,
+        region:
+            json['Country'] != null ? Region.fromJson(json['Country']) : null,
+        status: json['is_active'] == true
+            ? 0
+            : (json['status'] ?? 1), // Convert is_active to status
       );
     } catch (e, stackTrace) {
       print('[Store] Error parsing JSON: $e');

@@ -14,7 +14,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:woosh/models/hive/route_model.dart';
 // Generated files cannot be directly imported
 import 'package:woosh/models/noticeboard_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/models/user_model.dart';
@@ -29,7 +29,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as path;
 import 'package:image_picker/image_picker.dart';
 import 'package:woosh/services/target_service.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:woosh/models/uplift_sale_model.dart';
 import 'package:woosh/models/store_model.dart';
 // Handle platform-specific imports
@@ -38,6 +38,8 @@ import 'package:image/image.dart' as img;
 import 'package:woosh/services/offline_toast_service.dart';
 import 'package:woosh/utils/error_handler.dart';
 import 'package:woosh/services/token_service.dart';
+import 'package:woosh/services/token_debug_service.dart';
+import 'package:woosh/services/version_check_service.dart';
 
 // API Caching System
 class ApiCache {
@@ -103,7 +105,7 @@ class PaginatedResponse<T> {
 }
 
 class ApiService {
-  static const String baseUrl = '${Config.baseUrl}/api';
+  static const String baseUrl = Config.baseUrl;
   static const Duration tokenExpirationDuration = Duration(hours: 9);
   static bool _isRefreshing = false;
   static Future<bool>? _refreshFuture;
@@ -133,28 +135,31 @@ class ApiService {
     try {
       final refreshToken = TokenService.getRefreshToken();
       if (refreshToken == null) {
-        print('?? No refresh token available');
+        print('🔄 No refresh token available');
+        await TokenDebugService.logTokenRefreshAttempt(false,
+            error: 'No refresh token');
         return false;
       }
 
-      print('?? Attempting to refresh token');
-      final response = await http.post(
+      print('🔄 Attempting to refresh token');
+      final response = await http
+          .post(
         Uri.parse('$baseUrl/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'refreshToken': refreshToken}),
+      )
+          .timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('⏰ Token refresh timeout');
+          throw Exception('Token refresh timeout');
+        },
       );
 
-      print('?? Refresh response status: ${response.statusCode}');
-      print('?? Refresh response body: ${response.body}');
+      print('🔄 Refresh response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // Debug the response structure
-        print('?? Refresh response structure:');
-        print('?? Data type: ${data.runtimeType}');
-        print('?? Access token type: ${data['accessToken']?.runtimeType}');
-        print('?? Expires in type: ${data['expiresIn']?.runtimeType}');
 
         // Extract access token with proper type checking
         String? newAccessToken;
@@ -163,39 +168,24 @@ class ApiService {
         // Handle access token
         if (data['accessToken'] is String) {
           newAccessToken = data['accessToken'] as String;
-          print(
-              '?? Access token extracted as String (length: ${newAccessToken.length})');
         } else if (data['accessToken'] is Map<String, dynamic>) {
-          // If it's a map, try to extract the token value
           final tokenMap = data['accessToken'] as Map<String, dynamic>;
-          print('?? Access token is Map, keys: ${tokenMap.keys.toList()}');
           newAccessToken =
               tokenMap['token']?.toString() ?? tokenMap['value']?.toString();
-          print(
-              '?? Access token extracted from Map: ${newAccessToken != null ? 'success' : 'failed'}');
         } else if (data['accessToken'] != null) {
           newAccessToken = data['accessToken'].toString();
-          print(
-              '?? Access token converted to String (length: ${newAccessToken.length})');
-        } else {
-          print('?? WARNING: Access token is null in refresh response');
         }
 
         // Handle expiresIn
         if (data['expiresIn'] is int) {
           expiresIn = data['expiresIn'] as int;
-          print('?? Expires in extracted as int: $expiresIn');
         } else if (data['expiresIn'] is String) {
           expiresIn = int.tryParse(data['expiresIn'] as String);
-          print('?? Expires in parsed from String: $expiresIn');
-        } else {
-          print('?? WARNING: Expires in is null or invalid type');
         }
 
         // Validate that we have the required access token
         if (newAccessToken == null || newAccessToken.isEmpty) {
-          print(
-              '?? ERROR: Access token is missing or invalid in refresh response');
+          print('❌ Access token is missing or invalid in refresh response');
           return false;
         }
 
@@ -206,14 +196,19 @@ class ApiService {
           expiresIn: expiresIn,
         );
 
-        print('?? Token refreshed successfully');
+        print('✅ Token refreshed successfully');
+        await TokenDebugService.logTokenRefreshAttempt(true);
         return true;
       }
-      print('?? Token refresh failed: ${response.body}');
+
+      print('❌ Token refresh failed: ${response.body}');
+      await TokenDebugService.logTokenRefreshAttempt(false,
+          error: 'HTTP ${response.statusCode}: ${response.body}');
       return false;
     } catch (e) {
-      print('?? Error refreshing token: $e');
-      print('?? Error type: ${e.runtimeType}');
+      print('❌ Error refreshing token: $e');
+      await TokenDebugService.logTokenRefreshAttempt(false,
+          error: e.toString());
       return false;
     }
   }
@@ -313,24 +308,42 @@ class ApiService {
 
   static Future<dynamic> _handleResponse(http.Response response) async {
     if (response.statusCode == 401) {
+      print('🔄 401 Unauthorized - attempting token refresh...');
+      await TokenDebugService.log401Error(Get.currentRoute);
+
       // Try to refresh token first
       final refreshed = await refreshAccessToken();
       if (!refreshed) {
-        // Refresh failed, clear all tokens and logout
-        await TokenService.clearTokens();
+        print('❌ Token refresh failed - checking if user should be logged out');
 
-        // Clear other stored data
-        final box = GetStorage();
-        await box.remove('salesRep');
+        // Check if this is a critical operation that requires logout
+        // For non-critical operations, just return the error without logging out
+        final currentRoute = Get.currentRoute;
+        final isCriticalRoute = currentRoute == '/home' ||
+            currentRoute == '/login' ||
+            currentRoute == '/profile';
 
-        // Force logout and redirect to login
-        final authController = Get.find<AuthController>();
-        await authController.logout();
-        Get.offAllNamed('/login');
-
-        throw Exception("Session expired. Please log in again.");
+        if (isCriticalRoute) {
+          print('⚠️ Critical route detected - logging out user');
+          await TokenDebugService.logLogout('401_critical_route');
+          // Only logout for critical routes
+          await TokenService.clearTokens();
+          final box = GetStorage();
+          await box.remove('salesRep');
+          final authController = Get.find<AuthController>();
+          await authController.logout();
+          Get.offAllNamed('/login');
+          throw Exception("Session expired. Please log in again.");
+        } else {
+          print('✅ Non-critical route - not logging out, returning 401 error');
+          await TokenDebugService.logEvent('401_non_critical_route',
+              details: {'route': currentRoute});
+          // For non-critical routes, just return the 401 error
+          return response;
+        }
       }
       // If refresh succeeded, the original request should be retried
+      print('✅ Token refreshed successfully - retry request');
       throw Exception("Token refreshed, retry request");
     }
 
@@ -380,7 +393,7 @@ class ApiService {
       };
 
       final uri =
-          Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
+          Uri.parse('$baseUrl/clients').replace(queryParameters: queryParams);
       final response = await http
           .get(
         uri,
@@ -434,6 +447,7 @@ class ApiService {
                   id: json['id'],
                   name: json['name'],
                   address: json['address'] ?? '',
+                  contact: json['contact'] ?? '',
                   latitude: json['latitude'] != null
                       ? (json['latitude'] as num).toDouble()
                       : null,
@@ -569,7 +583,7 @@ class ApiService {
       };
 
       final uri =
-          Uri.parse('$baseUrl/outlets').replace(queryParameters: queryParams);
+          Uri.parse('$baseUrl/clients').replace(queryParameters: queryParams);
       final response = await http.get(
         uri,
         headers: await _headers(),
@@ -608,12 +622,12 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      print('Fetching notices from: $baseUrl/notice-board');
+      print('Fetching notices from: $baseUrl/notices');
       print(
           'Using token: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
 
       final response = await http.get(
-        Uri.parse('$baseUrl/notice-board'),
+        Uri.parse('$baseUrl/notices'),
         headers: await _headers(),
       );
 
@@ -655,7 +669,7 @@ class ApiService {
         throw Exception("Authentication token is missing");
       }
 
-      final url = Uri.parse('$baseUrl/upload-image');
+      final url = Uri.parse('$baseUrl/uploads/upload');
       final authHeaders = await _headers('multipart/form-data');
 
       // Create the multipart request
@@ -981,11 +995,29 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['data'] != null && data['data'] is List) {
-          final List<dynamic> productData = data['data'];
-          return productData.map((json) => Product.fromJson(json)).toList();
+        print('📦 Products API Response: ${data.runtimeType}');
+        if (data is List) {
+          print('📦 Products API: Array response with ${data.length} items');
+        } else if (data is Map) {
+          print(
+              '📦 Products API: Object response with keys: ${data.keys.toList()}');
         }
-        return [];
+
+        // Handle both array response (NestJS) and object with data field
+        List<dynamic> productData;
+        if (data is List) {
+          // Direct array response from NestJS
+          productData = data;
+        } else if (data['data'] != null && data['data'] is List) {
+          // Object with data field (legacy format)
+          productData = data['data'];
+        } else {
+          print('⚠️ Unexpected response format: $data');
+          return [];
+        }
+
+        print('📦 Products API: Processing ${productData.length} products');
+        return productData.map((json) => Product.fromJson(json)).toList();
       } else {
         print(
             'Failed to load products: ${response.statusCode} - ${response.body}');
@@ -993,6 +1025,10 @@ class ApiService {
       }
     } catch (e) {
       print('Error fetching products: $e');
+
+      // Clear product cache on error to force fresh data
+      clearProductCache();
+      print('🗑️ Cleared product cache due to error');
 
       // Try to return cached data if available
       final cacheKey =
@@ -1558,7 +1594,7 @@ class ApiService {
         throw Exception('User is not authenticated');
       }
 
-      final response = await http.put(
+      final response = await http.patch(
         Uri.parse('$baseUrl/orders/$orderId'),
         headers: await _headers(),
         body: jsonEncode({
@@ -1591,162 +1627,6 @@ class ApiService {
     return TokenService.isAuthenticated();
   }
 
-  static Future<Leave> submitLeaveApplication({
-    required String leaveType,
-    required String startDate,
-    required String endDate,
-    required String reason,
-    dynamic attachmentFile, // Accepts File for mobile, Uint8List for web
-  }) async {
-    try {
-      final token = _getAuthToken();
-      if (token == null) {
-        throw Exception('User is not authenticated');
-      }
-
-      print('Submitting leave application with data:');
-      print('leaveType: $leaveType');
-      print('startDate: $startDate');
-      print('endDate: $endDate');
-      print('reason: $reason');
-      print('attachment: ${attachmentFile != null ? "Yes" : "No file"}');
-
-      final uri = Uri.parse('$baseUrl/leave');
-
-      // Handle request when no attachment is present
-      if (attachmentFile == null) {
-        final response = await http.post(
-          uri,
-          headers: await _headers(),
-          body: jsonEncode({
-            'leaveType': leaveType,
-            'startDate': startDate,
-            'endDate': endDate,
-            'reason': reason,
-          }),
-        );
-
-        if (response.statusCode == 201) {
-          return Leave.fromJson(jsonDecode(response.body));
-        } else {
-          throw Exception(jsonDecode(response.body)['error'] ??
-              'Failed to submit leave application');
-        }
-      } else {
-        // Handle Multipart File Upload
-        final request = http.MultipartRequest('POST', uri)
-          ..headers.addAll(await _headers());
-
-        request.fields['leaveType'] = leaveType;
-        request.fields['startDate'] = startDate;
-        request.fields['endDate'] = endDate;
-        request.fields['reason'] = reason;
-
-        // Handle different file types based on platform
-        if (kIsWeb) {
-          print('Web file upload: Adding bytes to multipart request');
-          // Web file upload (bytes)
-          request.files.add(
-            http.MultipartFile.fromBytes(
-              'attachment',
-              attachmentFile,
-              filename:
-                  'web_document_${DateTime.now().millisecondsSinceEpoch}.jpg',
-              contentType: MediaType('application', 'octet-stream'),
-            ),
-          );
-        } else {
-          print('Mobile file upload: Adding file from path');
-          // Mobile/desktop file upload (File object)
-          request.files.add(
-            await http.MultipartFile.fromPath(
-              'attachment',
-              attachmentFile.path,
-              filename: attachmentFile.path.split('/').last,
-            ),
-          );
-        }
-
-        print('Sending multipart request for leave application');
-        final streamedResponse = await request.send();
-        print('Response status code: ${streamedResponse.statusCode}');
-
-        final response = await http.Response.fromStream(streamedResponse);
-        print('Response status code: ${streamedResponse.statusCode}');
-        print('Raw response body: ${response.body}'); // Added detailed logging
-
-        if (response.statusCode == 201) {
-          return Leave.fromJson(jsonDecode(response.body));
-        } else {
-          print('Leave application failed: ${response.body}');
-          throw Exception(jsonDecode(response.body)['error'] ??
-              'Failed to submit leave application');
-        }
-      }
-    } catch (e) {
-      print('Error in submitLeaveApplication: $e');
-      rethrow;
-    }
-  }
-
-  // Get user's leave applications
-  static Future<List<Leave>> getUserLeaves() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/leave/my-leaves'),
-        headers: await _headers(),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Leave.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to fetch leave applications');
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Get all leave applications (admin only)
-  static Future<List<Leave>> getAllLeaves() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/leave/all'),
-        headers: await _headers(),
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Leave.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to fetch all leave applications');
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Update leave status (admin only)
-  static Future<Leave> updateLeaveStatus(
-      int leaveId, LeaveStatus status) async {
-    try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/leave/$leaveId/status'),
-        headers: await _headers(),
-        body: jsonEncode({'status': status.toString().split('.').last}),
-      );
-
-      if (response.statusCode == 200) {
-        return Leave.fromJson(jsonDecode(response.body));
-      } else {
-        throw Exception('Failed to update leave status');
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
   // Fix for SocketException catch blocks
   static Future<List<Outlet>> fetchOutletsByGeolocation(
     double latitude,
@@ -1766,7 +1646,7 @@ class ApiService {
       };
 
       final response = await http.get(
-        Uri.parse('$baseUrl/outlets/nearby')
+        Uri.parse('$baseUrl/clients/nearby')
             .replace(queryParameters: queryParams),
         headers: await _headers(),
       );
@@ -1842,6 +1722,9 @@ class ApiService {
       if (responseData['salesRep'] == null) {
         throw Exception('Unable to fetch profile data');
       }
+
+      // Check for app updates after successful API call
+      VersionCheckService.checkVersionSilently();
 
       return responseData;
     } catch (e) {
@@ -1928,10 +1811,20 @@ class ApiService {
         // Handle HTTP status codes
         switch (response.statusCode) {
           case 200:
-            return {
-              'success': true,
-              'message': 'Password updated successfully'
-            };
+            try {
+              final Map<String, dynamic> responseData =
+                  json.decode(response.body);
+              return {
+                'success': responseData['success'] ?? true,
+                'message':
+                    responseData['message'] ?? 'Password updated successfully'
+              };
+            } catch (e) {
+              return {
+                'success': true,
+                'message': 'Password updated successfully'
+              };
+            }
           case 400:
             final Map<String, dynamic> errorData = json.decode(response.body);
             return {
@@ -2084,6 +1977,8 @@ class ApiService {
 
   static Future<void> logout() async {
     try {
+      await TokenDebugService.logLogout('manual_logout');
+
       // Call logout API endpoint if we have a token
       final accessToken = TokenService.getAccessToken();
       if (accessToken != null) {
@@ -2097,6 +1992,8 @@ class ApiService {
           );
         } catch (e) {
           print('Logout API call failed: $e');
+          await TokenDebugService.logEvent('logout_api_failed',
+              details: {'error': e.toString()});
           // Continue with local logout even if API call fails
         }
       }
@@ -2113,6 +2010,8 @@ class ApiService {
       await authController.logout();
     } catch (e) {
       print('Error during logout: $e');
+      await TokenDebugService.logEvent('logout_error',
+          details: {'error': e.toString()});
       // Ensure tokens are cleared even if there's an error
       await TokenService.clearTokens();
     }
@@ -2350,11 +2249,13 @@ class ApiService {
             id: outlet.id,
             name: outlet.name,
             address: outlet.address,
-            balance: outlet.balance,
+            contact: outlet.contact ?? '',
+            balance: outlet.balance != null
+                ? double.tryParse(outlet.balance!)
+                : null,
             latitude: outlet.latitude,
             longitude: outlet.longitude,
             email: outlet.email,
-            contact: outlet.contact,
             taxPin: outlet.taxPin,
             location: outlet.location,
             clientType: outlet.clientType,
@@ -2444,7 +2345,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> upliftData = data['data'] ?? [];
+        // Handle both direct array response and wrapped data response
+        final List<dynamic> upliftData =
+            data is List ? data : (data['data'] ?? []);
         return upliftData.map((json) => UpliftSale.fromJson(json)).toList();
       }
       return null;
@@ -2463,7 +2366,10 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return UpliftSale.fromJson(data['data']);
+        // Handle both direct object response and wrapped data response
+        final upliftSaleData =
+            data is Map && data.containsKey('data') ? data['data'] : data;
+        return UpliftSale.fromJson(upliftSaleData);
       }
       return null;
     } catch (e) {
@@ -2636,7 +2542,10 @@ class ApiService {
           id: responseData['id'] ?? 0,
           name: responseData['name'] ?? '',
           address: responseData['address'] ?? '',
-          balance: responseData['balance']?.toString() ?? '0',
+          contact: responseData['contact'] ?? '',
+          balance: responseData['balance'] != null
+              ? double.tryParse(responseData['balance'].toString())
+              : null,
           latitude: responseData['latitude'] != null
               ? (responseData['latitude'] as num).toDouble()
               : null,
@@ -2644,7 +2553,6 @@ class ApiService {
               ? (responseData['longitude'] as num).toDouble()
               : null,
           email: responseData['email'] ?? '',
-          contact: responseData['contact'] ?? '',
           taxPin: responseData['tax_pin'] ?? '',
           location: responseData['location'] ?? '',
           clientType: responseData['client_type'] ?? 1,
@@ -2986,5 +2894,42 @@ class ApiService {
       clientId: clientId,
       forceRefresh: true,
     );
+  }
+
+  // Get leave types
+  static Future<List<Map<String, dynamic>>> getLeaveTypes() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/leave/types/all'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => json as Map<String, dynamic>).toList();
+      } else {
+        throw Exception('Failed to fetch leave types');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Get leave balance
+  static Future<Map<String, dynamic>> getLeaveBalance() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/leave/balance/user'),
+        headers: await _headers(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to fetch leave balance');
+      }
+    } catch (e) {
+      rethrow;
+    }
   }
 }

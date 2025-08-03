@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/feedbackReport_model.dart';
+import 'package:woosh/models/report/feedback_report_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/report/report_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 
@@ -69,7 +70,7 @@ class _FeedbackReportPageState extends State<FeedbackReportPage> {
       );
 
       // Submit in background
-      await _apiService.submitReport(report);
+      await ReportsService.submitReport(report);
     } catch (e) {
       // If background submission fails, show error but don't disrupt flow
       if (mounted) {
@@ -159,7 +160,7 @@ class _FeedbackReportPageState extends State<FeedbackReportPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.journeyPlan.client.address,
+                        widget.journeyPlan.client.address ?? '',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                         ),

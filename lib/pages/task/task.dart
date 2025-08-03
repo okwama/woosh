@@ -44,7 +44,7 @@ class _TaskPageState extends State<TaskPage> {
     );
   }
 
-  Future<void> _completeTask(Task task) async {
+  Future<void> _receiveTask(Task task) async {
     // Show confirmation dialog
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -53,22 +53,97 @@ class _TaskPageState extends State<TaskPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.0),
           ),
-          title: const Text('Complete Task'),
+          title: Row(
+            children: [
+              Icon(
+                Icons.task_alt,
+                color: Theme.of(context).primaryColor,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              const Text('Receive Task'),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Are you sure you want to mark this task as complete?',
+                'Confirm that you have received this task and are ready to work on it?',
                 style: TextStyle(
                   color: Colors.grey.shade700,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                task.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      task.description,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getPriorityColor(task.priority)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            task.priority,
+                            style: TextStyle(
+                              color: _getPriorityColor(task.priority),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Pending',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -83,13 +158,157 @@ class _TaskPageState extends State<TaskPage> {
                 ),
               ),
             ),
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.check_circle_outline),
+              label: const Text('Receive'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
+                backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Complete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      // Update task status to "received"
+      await _taskService.updateTaskStatus(task.id, 'received');
+      _showSuccessSnackBar('Task received successfully');
+      _refreshTasks();
+    } catch (e) {
+      _showErrorSnackBar('Failed to receive task');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _completeTask(Task task) async {
+    // Show confirmation dialog
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              const Text('Complete Task'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to mark this task as complete?',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      task.description,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getPriorityColor(task.priority)
+                                .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            task.priority,
+                            style: TextStyle(
+                              color: _getPriorityColor(task.priority),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Received',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.check_circle),
+              label: const Text('Complete'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         );
@@ -242,37 +461,12 @@ class _TaskPageState extends State<TaskPage> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              // Text(
-                              //   'Sales Rep ID: ${task.salesRepId}',
-                              //   style: const TextStyle(fontSize: 12),
-                              // ),
+                              const SizedBox(height: 4),
+                              _buildStatusChip(task),
                             ],
                           ),
                           if (!task.isCompleted)
-                            ElevatedButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () {
-                                      Navigator.pop(context);
-                                      _completeTask(task);
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Colors.white),
-                                      ),
-                                    )
-                                  : const Text('Complete Task'),
-                            ),
+                            _buildActionButton(task),
                         ],
                       ),
                     ],
@@ -336,23 +530,113 @@ class _TaskPageState extends State<TaskPage> {
                         fontSize: 10,
                       ),
                     ),
-                    if (!task.isCompleted)
-                      Text(
-                        'Tap to complete',
-                        style: TextStyle(
-                          color: Theme.of(context).primaryColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                    _buildStatusChip(task),
                   ],
                 ),
+                if (!task.isCompleted) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _buildActionButton(task),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildStatusChip(Task task) {
+    Color chipColor;
+    Color textColor;
+    String statusText;
+    IconData icon;
+
+    if (task.isCompleted) {
+      chipColor = Colors.green.shade100;
+      textColor = Colors.green.shade700;
+      statusText = 'Completed';
+      icon = Icons.check_circle;
+    } else if (task.status == 'received') {
+      chipColor = Colors.blue.shade100;
+      textColor = Colors.blue.shade700;
+      statusText = 'Received';
+      icon = Icons.task_alt;
+    } else {
+      chipColor = Colors.orange.shade100;
+      textColor = Colors.orange.shade700;
+      statusText = 'Pending';
+      icon = Icons.schedule;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: chipColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            statusText,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w500,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(Task task) {
+    if (task.isCompleted) {
+      return const SizedBox.shrink();
+    }
+
+    if (task.status == 'received') {
+      // Task is received, show complete button
+      return ElevatedButton.icon(
+        onPressed: _isLoading
+            ? null
+            : () {
+                Navigator.pop(context);
+                _completeTask(task);
+              },
+        icon: const Icon(Icons.check_circle, size: 16),
+        label: const Text('Complete'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+      );
+    } else {
+      // Task is pending, show receive button
+      return ElevatedButton.icon(
+        onPressed: _isLoading
+            ? null
+            : () {
+                Navigator.pop(context);
+                _receiveTask(task);
+              },
+        icon: const Icon(Icons.task_alt, size: 16),
+        label: const Text('Receive'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+      );
+    }
   }
 
   Color _getPriorityColor(String priority) {

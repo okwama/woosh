@@ -1,25 +1,28 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/hive/client_model.dart';
 import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/report/productReturn_model.dart';
+import 'package:woosh/models/report/product_return_model.dart';
 import 'package:woosh/models/report/product_return_item_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/report/report_service.dart';
+import 'package:woosh/services/shared_data_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 
 class ProductReturnPage extends StatefulWidget {
-  final Outlet outlet;
+  final ClientModel client;
   final VoidCallback? onReportSubmitted;
 
   const ProductReturnPage({
     super.key,
-    required this.outlet,
+    required this.client,
     this.onReportSubmitted,
   });
 
@@ -28,24 +31,30 @@ class ProductReturnPage extends StatefulWidget {
 }
 
 class _ProductReturnPageState extends State<ProductReturnPage> {
+  final _commentController = TextEditingController();
   final _quantityController = TextEditingController();
   final _reasonController = TextEditingController();
   final _apiService = ApiService();
+  late final SharedDataService _sharedDataService;
   bool _isSubmitting = false;
   bool _isLoading = true;
   Product? _selectedProduct;
   List<Product> _products = [];
   final List<Map<String, dynamic>> _cart = [];
+  final Map<int, int> _productQuantities = {}; // Map of productId to quantity
+  final Map<int, TextEditingController> _quantityControllers =
+      {}; // Controllers for quantity fields
 
   @override
   void initState() {
     super.initState();
+    _sharedDataService = Get.find<SharedDataService>();
     _loadProducts();
   }
 
   Future<void> _loadProducts() async {
     try {
-      final products = await ApiService.getProducts();
+      final products = _sharedDataService.getProducts();
       setState(() {
         _products = products;
         _isLoading = false;
@@ -122,7 +131,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
         final reason = item['reason'] as String;
         // Add imageUrl if you support it
         return ProductReturnItem(
-          productName: product.name,
+          productName: product.productName,
           quantity: quantity,
           reason: reason,
           imageUrl: item['imageUrl'], // optional
@@ -133,10 +142,10 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
       final report = Report(
         type: ReportType.PRODUCT_RETURN,
         salesRepId: salesRepId,
-        clientId: widget.outlet.id, // Use the id from the outlet as clientId
+        clientId: widget.client.id, // Use the id from the outlet as clientId
         productReturnItems: items,
       );
-      await _apiService.submitReport(report);
+      await ReportsService.submitReport(report);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -184,7 +193,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            widget.outlet.name,
+                            widget.client.name,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -195,7 +204,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      widget.outlet.address,
+                      widget.client.address ?? '',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                       ),
@@ -235,7 +244,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
                         items: _products.map((product) {
                           return DropdownMenuItem(
                             value: product,
-                            child: Text(product.name),
+                            child: Text(product.productName),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -305,7 +314,7 @@ class _ProductReturnPageState extends State<ProductReturnPage> {
                           final quantity = item['quantity'] as int;
                           final reason = item['reason'] as String;
                           return ListTile(
-                            title: Text(product.name),
+                            title: Text(product.productName),
                             subtitle: Text('Qty: $quantity\nReason: $reason'),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),

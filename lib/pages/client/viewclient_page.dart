@@ -1,23 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/hive/client_model.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:woosh/models/clients/client_model.dart';
+import 'package:woosh/services/client/index.dart';
 import 'package:woosh/pages/order/addorder_page.dart';
 import 'package:woosh/pages/client/addclient_page.dart';
 import 'package:woosh/pages/client/clientdetails.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/skeleton_loader.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/pages/pos/uplift_sale_cart_page.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
-import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
-import 'package:get_storage/get_storage.dart';
+import 'package:woosh/models/hive/client_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 
-enum SortOption { nameAsc, nameDesc, addressAsc, addressDesc }
+enum SortOption { nameAsc, nameDesc, contactAsc, contactDesc }
 
 enum DateFilter { all, today, thisWeek, thisMonth }
 
@@ -39,17 +37,12 @@ class ViewClientPage extends StatefulWidget {
 
 class _ViewClientPageState extends State<ViewClientPage> {
   bool _isLoading = false;
-  bool _isLoadingMore = false;
   bool _isSearching = false;
   bool _isOnline = true;
-  List<Outlet> _outlets = [];
+  List<Client> _clients = [];
   String? _errorMessage;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  int _currentPage = 1;
-  bool _hasMore = true;
-  static const int _pageSize = 2000;
-  static const int _prefetchThreshold = 200;
   Timer? _debounce;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
@@ -60,11 +53,15 @@ class _ViewClientPageState extends State<ViewClientPage> {
   bool _showOnlyWithEmail = false;
   DateFilter _dateFilter = DateFilter.all;
 
+  // Client state service
+  late final ClientStateService _clientStateService;
+
   @override
   void initState() {
     super.initState();
+    _clientStateService = Get.find<ClientStateService>();
     _initConnectivity();
-    _loadOutlets();
+    _loadClients();
     _scrollController.addListener(_onScroll);
   }
 
@@ -85,8 +82,8 @@ class _ViewClientPageState extends State<ViewClientPage> {
         _isOnline = results.isNotEmpty &&
             results.any((result) => result != ConnectivityResult.none);
       });
-      if (_isOnline && _outlets.isEmpty) {
-        _loadOutlets();
+      if (_isOnline && _clients.isEmpty) {
+        _loadClients();
       }
     });
 
@@ -98,10 +95,10 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - _prefetchThreshold &&
-        !_isLoadingMore &&
-        _hasMore) {
-      _loadMoreOutlets();
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_clientStateService.isLoading.value &&
+        _clientStateService.hasMoreData.value) {
+      _loadMoreClients();
     }
   }
 
@@ -113,18 +110,14 @@ class _ViewClientPageState extends State<ViewClientPage> {
     _debounce = Timer(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
-          // If we have a search query and we haven't loaded all pages yet,
-          // load more pages until we find the result or reach the end
-          if (query.isNotEmpty && _hasMore) {
-            _loadMoreUntilFound(query);
-          }
           _isSearching = false;
         });
+        _searchClients(query);
       }
     });
   }
 
-  Future<void> _loadOutlets() async {
+  Future<void> _loadClients() async {
     if (!_isOnline) {
       _loadFromCache();
       return;
@@ -133,87 +126,32 @@ class _ViewClientPageState extends State<ViewClientPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
-      _currentPage = 1;
-      _hasMore = true;
     });
 
     try {
-      // First load from cache for quick display
+      // Load from cache first for quick display
       await _loadFromCache();
-      print('?? Loaded ${_outlets.length} clients from cache');
 
-      // Then fetch from API
-      final routeId = ApiService.getCurrentUserRouteId();
-      print('?? Route ID: $routeId');
-
-      // Debug: Check what's in salesRep data
-      final box = GetStorage();
-      final salesRep = box.read('salesRep');
-      print('?? SalesRep data: $salesRep');
-
-      print('?? Fetching page 1 with limit $_pageSize');
-
-      // Use the newer fetchClients method instead of deprecated fetchOutlets
-      // Make route filtering optional - only filter if routeId is not null
-      final paginatedResponse = await ApiService.fetchClients(
-        routeId: null, // Temporarily disable route filtering to get all clients
-        page: 1,
-        limit: _pageSize,
-      );
-      final outlets = paginatedResponse.data
-          .map((client) => Outlet(
-                id: client.id,
-                name: client.name,
-                address: client.address,
-                latitude: client.latitude,
-                longitude: client.longitude,
-                email: '',
-                contact: '',
-                regionId: client.regionId,
-                region: client.region,
-                countryId: client.countryId,
-              ))
-          .toList();
-
-      print('? Fetched ${outlets.length} clients from API');
-
-      // Save to local cache
-      final clientHiveService = Get.find<ClientHiveService>();
-      final clientModels = outlets
-          .map((outlet) => ClientModel(
-                id: outlet.id,
-                name: outlet.name,
-                address: outlet.address,
-                phone: outlet.contact ?? '',
-                email: outlet.email ?? '',
-                latitude: outlet.latitude ?? 0.0,
-                longitude: outlet.longitude ?? 0.0,
-                status: 'active',
-              ))
-          .toList();
-
-      await clientHiveService.saveClients(clientModels);
-      print('?? Saved ${clientModels.length} clients to cache');
+      // Fetch from API using basic fields for better performance
+      await _clientStateService.fetchClientsBasic(refresh: true);
 
       if (mounted) {
         setState(() {
-          _outlets = outlets;
+          _clients = _clientStateService.clients;
           _isLoading = false;
-          _hasMore = outlets.length >= _pageSize;
         });
-        print('?? Total clients loaded: ${_outlets.length}');
-        print('?? Has more clients: $_hasMore');
+        print('?? Loaded ${_clients.length} clients');
       }
     } catch (e) {
       print('? Error loading clients: $e');
       if (mounted) {
         setState(() {
           _errorMessage =
-              'Failed to load clients. ${_outlets.isEmpty ? 'No cached data available.' : 'Showing cached data.'}';
+              'Failed to load clients. ${_clients.isEmpty ? 'No cached data available.' : 'Showing cached data.'}';
           _isLoading = false;
         });
 
-        if (_outlets.isEmpty) {
+        if (_clients.isEmpty) {
           _showErrorDialog();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -229,151 +167,48 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   Future<void> _loadFromCache() async {
     try {
-      final clientHiveService = Get.find<ClientHiveService>();
-      final cachedClients = clientHiveService.getAllClients();
-      print('?? Found ${cachedClients.length} clients in cache');
-
+      final cachedClients = ClientCacheService.getCachedClients();
       if (cachedClients.isNotEmpty) {
-        final cachedOutlets = cachedClients
-            .map((client) => Outlet(
-                  id: client.id,
-                  name: client.name,
-                  address: client.address,
-                  latitude: client.latitude,
-                  longitude: client.longitude,
-                  email: client.email,
-                  contact: client.phone,
-                  regionId: 0,
-                  region: '',
-                  countryId: 0,
-                ))
-            .toList();
-
-        if (mounted) {
-          setState(() {
-            _outlets = cachedOutlets;
-          });
-          print('?? Loaded ${cachedOutlets.length} clients from cache');
-        }
+        setState(() {
+          _clients = cachedClients;
+        });
+        print('?? Loaded ${cachedClients.length} clients from cache');
       }
     } catch (e) {
       print('? Error loading from cache: $e');
     }
   }
 
-  Future<void> _loadMoreOutlets() async {
-    if (!_isOnline || _isLoadingMore || !_hasMore) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
+  Future<void> _loadMoreClients() async {
+    if (!_isOnline || _clientStateService.isLoading.value) return;
 
     try {
-      final routeId = ApiService.getCurrentUserRouteId();
-      print('?? Route ID: $routeId');
-      print('?? Fetching page ${_currentPage + 1} with limit $_pageSize');
-
-      // Use the newer fetchClients method instead of deprecated fetchOutlets
-      // Make route filtering optional - only filter if routeId is not null
-      final paginatedResponse = await ApiService.fetchClients(
-        routeId: null, // Temporarily disable route filtering to get all clients
-        page: _currentPage + 1,
-        limit: _pageSize,
-      );
-      final newOutlets = paginatedResponse.data
-          .map((client) => Outlet(
-                id: client.id,
-                name: client.name,
-                address: client.address,
-                latitude: client.latitude,
-                longitude: client.longitude,
-                email: '',
-                contact: '',
-                regionId: client.regionId,
-                region: client.region,
-                countryId: client.countryId,
-              ))
-          .toList();
-
-      print('? Fetched ${newOutlets.length} more clients from API');
-
-      // Save to local cache
-      final clientHiveService = Get.find<ClientHiveService>();
-      final clientModels = newOutlets
-          .map((outlet) => ClientModel(
-                id: outlet.id,
-                name: outlet.name,
-                address: outlet.address,
-                phone: outlet.contact ?? '',
-                email: outlet.email ?? '',
-                latitude: outlet.latitude ?? 0.0,
-                longitude: outlet.longitude ?? 0.0,
-                status: 'active',
-              ))
-          .toList();
-
-      await clientHiveService.saveClients(clientModels);
-      print('?? Saved ${clientModels.length} more clients to cache');
-
+      await _clientStateService.loadMoreClients();
       if (mounted) {
         setState(() {
-          _outlets.addAll(newOutlets);
-          _currentPage++;
-          _isLoadingMore = false;
-          _hasMore = newOutlets.length >= _pageSize;
+          _clients = _clientStateService.clients;
         });
-        print('?? Total clients after loading more: ${_outlets.length}');
-        print('?? Has more clients: $_hasMore');
       }
     } catch (e) {
       print('? Error loading more clients: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingMore = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load more clients'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
-  Future<void> _loadMoreUntilFound(String query) async {
-    if (!_isOnline || _isLoadingMore) return;
+  Future<void> _searchClients(String query) async {
+    if (query.isEmpty) {
+      await _loadClients();
+      return;
+    }
 
-    final searchTerms = query.toLowerCase().split(' ');
-    bool foundMatch = _outlets.any((outlet) {
-      final name = outlet.name.toLowerCase();
-      final address = outlet.address.toLowerCase();
-      final contact = outlet.contact?.toLowerCase() ?? '';
-      final email = outlet.email?.toLowerCase() ?? '';
-
-      return searchTerms.every((term) =>
-          name.contains(term) ||
-          address.contains(term) ||
-          contact.contains(term) ||
-          email.contains(term));
-    });
-
-    // If we haven't found a match and there are more pages, load the next page
-    while (!foundMatch && _hasMore) {
-      await _loadMoreOutlets();
-
-      foundMatch = _outlets.any((outlet) {
-        final name = outlet.name.toLowerCase();
-        final address = outlet.address.toLowerCase();
-        final contact = outlet.contact?.toLowerCase() ?? '';
-        final email = outlet.email?.toLowerCase() ?? '';
-
-        return searchTerms.every((term) =>
-            name.contains(term) ||
-            address.contains(term) ||
-            contact.contains(term) ||
-            email.contains(term));
-      });
+    try {
+      await _clientStateService.searchClientsBasic(query: query);
+      if (mounted) {
+        setState(() {
+          _clients = _clientStateService.clients;
+        });
+      }
+    } catch (e) {
+      print('? Error searching clients: $e');
     }
   }
 
@@ -389,11 +224,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
-          if (_outlets.isEmpty)
+          if (_clients.isEmpty)
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                _loadOutlets();
+                _loadClients();
               },
               child: const Text('Retry'),
             ),
@@ -402,17 +237,17 @@ class _ViewClientPageState extends State<ViewClientPage> {
     );
   }
 
-  List<Outlet> get _filteredOutlets {
+  List<Client> get _filteredClients {
     final query = _searchController.text.toLowerCase().trim();
-    List<Outlet> filtered = _outlets;
+    List<Client> filtered = _clients;
 
     // Apply text search filter
     if (query.isNotEmpty) {
-      filtered = filtered.where((outlet) {
-        final name = outlet.name.toLowerCase();
-        final address = outlet.address.toLowerCase();
-        final contact = outlet.contact?.toLowerCase() ?? '';
-        final email = outlet.email?.toLowerCase() ?? '';
+      filtered = filtered.where((client) {
+        final name = client.name.toLowerCase();
+        final address = client.address?.toLowerCase() ?? '';
+        final contact = client.contact.toLowerCase();
+        final email = client.email?.toLowerCase() ?? '';
 
         final searchTerms = query.split(' ');
         return searchTerms.every((term) =>
@@ -425,15 +260,13 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
     // Apply contact filter
     if (_showOnlyWithContact) {
-      filtered = filtered
-          .where((outlet) => outlet.contact?.isNotEmpty == true)
-          .toList();
+      filtered = filtered.where((client) => client.contact.isNotEmpty).toList();
     }
 
     // Apply email filter
     if (_showOnlyWithEmail) {
       filtered =
-          filtered.where((outlet) => outlet.email?.isNotEmpty == true).toList();
+          filtered.where((client) => client.email?.isNotEmpty == true).toList();
     }
 
     // Apply date filter
@@ -443,17 +276,17 @@ class _ViewClientPageState extends State<ViewClientPage> {
       final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
       final startOfMonth = DateTime(now.year, now.month, 1);
 
-      filtered = filtered.where((outlet) {
-        final outletDate = outlet.createdAt;
-        if (outletDate == null) return false;
+      filtered = filtered.where((client) {
+        final clientDate = client.createdAt;
+        if (clientDate == null) return false;
 
         switch (_dateFilter) {
           case DateFilter.today:
-            return outletDate.isAfter(today);
+            return clientDate.isAfter(today);
           case DateFilter.thisWeek:
-            return outletDate.isAfter(startOfWeek);
+            return clientDate.isAfter(startOfWeek);
           case DateFilter.thisMonth:
-            return outletDate.isAfter(startOfMonth);
+            return clientDate.isAfter(startOfMonth);
           default:
             return true;
         }
@@ -468,48 +301,70 @@ class _ViewClientPageState extends State<ViewClientPage> {
       case SortOption.nameDesc:
         filtered.sort((a, b) => b.name.compareTo(a.name));
         break;
-      case SortOption.addressAsc:
-        filtered.sort((a, b) => a.address.compareTo(b.address));
+      case SortOption.contactAsc:
+        filtered.sort((a, b) => a.contact.compareTo(b.contact));
         break;
-      case SortOption.addressDesc:
-        filtered.sort((a, b) => b.address.compareTo(a.address));
+      case SortOption.contactDesc:
+        filtered.sort((a, b) => b.contact.compareTo(a.contact));
         break;
     }
 
     return filtered;
   }
 
-  void _onClientSelected(Outlet outlet) {
+  void _onClientSelected(Client client) {
     if (widget.forOrderCreation) {
       Get.to(
-        () => AddOrderPage(outlet: outlet),
+        () => AddOrderPage(outlet: _convertClientToOutlet(client)),
         transition: Transition.rightToLeft,
       );
     } else if (widget.forUpliftSale) {
       Get.off(
-        () => UpliftSaleCartPage(outlet: outlet),
+        () => UpliftSaleCartPage(
+            outlet: _convertClientToOutlet(client), client: client),
         transition: Transition.rightToLeft,
       );
     } else if (widget.forProductReturn) {
       Get.to(
-        () => ProductReturnPage(outlet: outlet),
+        () => ProductReturnPage(client: _convertClientToClientModel(client)),
         transition: Transition.rightToLeft,
       );
     } else {
       Get.to(
-        () => ClientDetailsPage(outlet: outlet),
+        () => ClientDetailsPage(
+            client: client, outlet: _convertClientToOutlet(client)),
         transition: Transition.rightToLeft,
       );
     }
   }
 
+  // Convert Client to Outlet for compatibility with existing pages
+  Outlet _convertClientToOutlet(Client client) {
+    return Outlet.fromClient(client);
+  }
+
+  // Convert Client to ClientModel for ProductReturnPage
+  ClientModel _convertClientToClientModel(Client client) {
+    return ClientModel(
+      id: client.id,
+      name: client.name,
+      address: client.address ?? '',
+      phone: client.contact,
+      email: client.email ?? '',
+      latitude: client.latitude ?? 0.0,
+      longitude: client.longitude ?? 0.0,
+      status: 'active',
+    );
+  }
+
   Widget _buildListFooter() {
-    if (_isLoadingMore) {
+    if (_clientStateService.isLoading.value) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16.0),
         child: Center(child: CircularProgressIndicator()),
       );
-    } else if (!_hasMore && _filteredOutlets.isNotEmpty) {
+    } else if (!_clientStateService.hasMoreData.value &&
+        _filteredClients.isNotEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16.0),
         child: Center(child: Text('End of list')),
@@ -549,18 +404,6 @@ class _ViewClientPageState extends State<ViewClientPage> {
               fontSize: 14,
             ),
           ),
-          if (_searchController.text.isEmpty) ...[
-            const SizedBox(height: 16),
-            // ElevatedButton.icon(
-            //   onPressed: () => Get.to(() => const AddClientPage()),
-            //   icon: const Icon(Icons.add),
-            //   label: const Text('Add Client'),
-            //   style: ElevatedButton.styleFrom(
-            //     backgroundColor: Theme.of(context).primaryColor,
-            //     foregroundColor: Colors.white,
-            //   ),
-            // ),
-          ],
         ],
       ),
     );
@@ -603,11 +446,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
                             value: SortOption.nameDesc,
                             child: Text('Name (Z-A)')),
                         DropdownMenuItem(
-                            value: SortOption.addressAsc,
-                            child: Text('Address (A-Z)')),
+                            value: SortOption.contactAsc,
+                            child: Text('Contact (A-Z)')),
                         DropdownMenuItem(
-                            value: SortOption.addressDesc,
-                            child: Text('Address (Z-A)')),
+                            value: SortOption.contactDesc,
+                            child: Text('Contact (Z-A)')),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -691,8 +534,8 @@ class _ViewClientPageState extends State<ViewClientPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredCount = _filteredOutlets.length;
-    final totalCount = _outlets.length;
+    final filteredCount = _filteredClients.length;
+    final totalCount = _clients.length;
 
     return Scaffold(
       backgroundColor: appBackground,
@@ -713,7 +556,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
-            onPressed: _loadOutlets,
+            onPressed: _loadClients,
             tooltip: 'Refresh',
           ),
         ],
@@ -808,11 +651,11 @@ class _ViewClientPageState extends State<ViewClientPage> {
               ],
             ),
           ),
-          // Outlets List
+          // Clients List
           Expanded(
-            child: _isLoading && _outlets.isEmpty
+            child: _isLoading && _clients.isEmpty
                 ? const ClientListSkeleton()
-                : _errorMessage != null && _outlets.isEmpty
+                : _errorMessage != null && _clients.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -837,7 +680,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                             ),
                             const SizedBox(height: 12),
                             ElevatedButton.icon(
-                              onPressed: _loadOutlets,
+                              onPressed: _loadClients,
                               icon: const Icon(Icons.refresh, size: 16),
                               label: const Text('Retry',
                                   style: TextStyle(fontSize: 12)),
@@ -851,21 +694,21 @@ class _ViewClientPageState extends State<ViewClientPage> {
                           ],
                         ),
                       )
-                    : _filteredOutlets.isEmpty
+                    : _filteredClients.isEmpty
                         ? _buildEmptyState()
                         : RefreshIndicator(
-                            onRefresh: _loadOutlets,
+                            onRefresh: _loadClients,
                             child: ListView.builder(
                               controller: _scrollController,
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 12),
-                              itemCount: _filteredOutlets.length + 1,
+                              itemCount: _filteredClients.length + 1,
                               itemBuilder: (context, index) {
-                                if (index == _filteredOutlets.length) {
+                                if (index == _filteredClients.length) {
                                   return _buildListFooter();
                                 }
 
-                                final outlet = _filteredOutlets[index];
+                                final client = _filteredClients[index];
                                 return Card(
                                   margin: const EdgeInsets.only(bottom: 6),
                                   elevation: 1,
@@ -873,7 +716,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: InkWell(
-                                    onTap: () => _onClientSelected(outlet),
+                                    onTap: () => _onClientSelected(client),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Padding(
                                       padding: const EdgeInsets.all(10),
@@ -902,7 +745,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  outlet.name,
+                                                  client.name,
                                                   style: const TextStyle(
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w600,
@@ -910,7 +753,8 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  outlet.address,
+                                                  client.address ??
+                                                      'No address',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade600,
                                                     fontSize: 11,
@@ -919,9 +763,8 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                 ),
-                                                if (outlet
-                                                        .contact?.isNotEmpty ??
-                                                    false) ...[
+                                                if (client
+                                                    .contact.isNotEmpty) ...[
                                                   const SizedBox(height: 2),
                                                   Row(
                                                     children: [
@@ -933,7 +776,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                       ),
                                                       const SizedBox(width: 4),
                                                       Text(
-                                                        outlet.contact!,
+                                                        client.contact,
                                                         style: TextStyle(
                                                           color: Colors
                                                               .grey.shade600,
@@ -943,8 +786,8 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                     ],
                                                   ),
                                                 ],
-                                                if (outlet.email?.isNotEmpty ??
-                                                    false) ...[
+                                                if (client.email?.isNotEmpty ==
+                                                    true) ...[
                                                   const SizedBox(height: 2),
                                                   Row(
                                                     children: [
@@ -957,7 +800,7 @@ class _ViewClientPageState extends State<ViewClientPage> {
                                                       const SizedBox(width: 4),
                                                       Expanded(
                                                         child: Text(
-                                                          outlet.email!,
+                                                          client.email!,
                                                           style: TextStyle(
                                                             color: Colors
                                                                 .grey.shade600,
@@ -993,64 +836,9 @@ class _ViewClientPageState extends State<ViewClientPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           await Get.to(() => const AddClientPage());
-          // Refresh only the first page after adding a new client
+          // Refresh after adding new client
           if (mounted) {
-            setState(() {
-              _isLoading = true;
-              _currentPage = 1;
-              _hasMore = true;
-            });
-
-            try {
-              final routeId = ApiService.getCurrentUserRouteId();
-              print('?? Refreshing after adding new client');
-              final outlets = await ApiService.fetchOutlets(
-                page: 1,
-                limit: _pageSize,
-                routeId: routeId,
-              );
-              print('? Refreshed ${outlets.length} clients');
-
-              // Save to local cache
-              final clientHiveService = Get.find<ClientHiveService>();
-              final clientModels = outlets
-                  .map((outlet) => ClientModel(
-                        id: outlet.id,
-                        name: outlet.name,
-                        address: outlet.address,
-                        phone: outlet.contact ?? '',
-                        email: outlet.email ?? '',
-                        latitude: outlet.latitude ?? 0.0,
-                        longitude: outlet.longitude ?? 0.0,
-                        status: 'active',
-                      ))
-                  .toList();
-
-              await clientHiveService.saveClients(clientModels);
-              print('?? Updated cache with ${clientModels.length} clients');
-
-              if (mounted) {
-                setState(() {
-                  _outlets = outlets;
-                  _isLoading = false;
-                  _hasMore = outlets.length >= _pageSize;
-                });
-                print('?? Total clients after refresh: ${_outlets.length}');
-              }
-            } catch (e) {
-              print('? Error refreshing after adding client: $e');
-              if (mounted) {
-                setState(() {
-                  _isLoading = false;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to refresh client list'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            }
+            _loadClients();
           }
         },
         backgroundColor: Theme.of(context).primaryColor,

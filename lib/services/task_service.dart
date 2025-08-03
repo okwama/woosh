@@ -6,7 +6,7 @@ import 'package:woosh/utils/config.dart';
 import 'package:woosh/services/token_service.dart';
 
 class TaskService {
-  static const String baseUrl = '${Config.baseUrl}/api/tasks';
+  static const String baseUrl = '${Config.baseUrl}/tasks';
 
   static Future<Map<String, String>> _getAuthHeaders() async {
     final token = TokenService.getAccessToken();
@@ -27,7 +27,7 @@ class TaskService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/salesrep/$salesRepId'),
+        Uri.parse('$baseUrl?userId=$salesRepId'),
         headers: await _getAuthHeaders(),
       );
 
@@ -53,7 +53,7 @@ class TaskService {
       }
 
       final response = await http.get(
-        Uri.parse('$baseUrl/salesrep/$salesRepId/history'),
+        Uri.parse('$baseUrl?userId=$salesRepId&status=completed'),
         headers: await _getAuthHeaders(),
       );
 
@@ -76,7 +76,7 @@ class TaskService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/tasks'),
+        Uri.parse(baseUrl),
         headers: await _getAuthHeaders(),
         body: json.encode({
           'title': title,
@@ -130,11 +130,11 @@ class TaskService {
   Future<void> deleteTask(int taskId) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/tasks/$taskId'),
+        Uri.parse('$baseUrl/$taskId'),
         headers: await _getAuthHeaders(),
       );
 
-      if (response.statusCode != 204) {
+      if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Failed to delete task: ${response.statusCode}');
       }
     } catch (e) {

@@ -93,7 +93,6 @@ Future<void> addFileToMultipartRequest(
           'Invalid file type: ${file.runtimeType}. Expected html.File or XFile.');
     }
   } catch (e) {
-    print('Web file upload error: $e');
     rethrow;
   }
 }

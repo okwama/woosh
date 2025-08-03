@@ -6,7 +6,7 @@ import 'package:woosh/utils/config.dart';
 import 'package:woosh/services/token_service.dart';
 
 class CheckInService {
-  static const String _baseUrl = '${Config.baseUrl}/api';
+  static const String _baseUrl = Config.baseUrl;
   static final _storage = GetStorage();
   static const _defaultTimeout = Duration(seconds: 15);
 
@@ -24,7 +24,7 @@ class CheckInService {
     try {
       final response = await http
           .get(
-            Uri.parse('$_baseUrl/outlets/$outletId/location'),
+            Uri.parse('$_baseUrl/api/outlets/$outletId/location'),
             headers: await _getAuthHeaders(),
           )
           .timeout(_defaultTimeout);
@@ -62,7 +62,7 @@ class CheckInService {
 
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/manager/check-in'),
+            Uri.parse('$_baseUrl/api/manager/check-in'),
             headers: await _getAuthHeaders(),
             body: jsonEncode(request),
           )
@@ -90,7 +90,7 @@ class CheckInService {
 
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/manager/check-out'),
+            Uri.parse('$_baseUrl/api/manager/check-out'),
             headers: await _getAuthHeaders(),
             body: jsonEncode(request),
           )
@@ -108,7 +108,7 @@ class CheckInService {
   static Future<CheckInStatus> getTodayStatus() async {
     int retries = 3;
     final urls = [
-      '$_baseUrl/manager/today-status',
+      '$_baseUrl/api/manager/today-status',
       '${Config.baseUrl}/api/manager/today-status',
     ];
 
@@ -155,7 +155,7 @@ class CheckInService {
 
       final response = await http
           .get(
-            Uri.parse('$_baseUrl/manager/history')
+            Uri.parse('$_baseUrl/api/manager/history')
                 .replace(queryParameters: params),
             headers: await _getAuthHeaders(),
           )

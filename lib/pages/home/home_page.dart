@@ -1,28 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/pages/Leave/leaveapplication_page.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/pages/journeyplan/reports/pages/product_return_page.dart';
 import 'package:woosh/pages/login/login_page.dart';
 import 'package:woosh/pages/order/viewOrder/vieworder_page.dart';
-import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
+import 'package:woosh/pages/pos/uplift_sale_cart_page.dart';
 import 'package:woosh/pages/task/task.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:woosh/services/hive/order_hive_service.dart';
 import 'package:woosh/services/hive/product_hive_service.dart';
 import 'package:woosh/services/hive/route_hive_service.dart';
-import 'package:woosh/services/jouneyplan_service.dart';
+import 'package:woosh/services/journeyplan/jouneyplan_service.dart';
 import 'package:woosh/services/task_service.dart';
 import 'package:woosh/pages/profile/profile.dart';
+import 'package:woosh/pages/asset/asset_requests_page.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/offline_sync_indicator.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
-import 'package:woosh/models/outlet_model.dart';
-import 'package:woosh/controllers/cart_controller.dart';
+import 'package:woosh/models/hive/client_model.dart';
 import 'package:woosh/services/hive/pending_session_hive_service.dart';
 
 import '../../components/menu_tile.dart';
@@ -30,12 +31,14 @@ import '../order/addorder_page.dart';
 import '../journeyplan/journeyplans_page.dart';
 import '../notice/noticeboard_page.dart';
 import '../profile/targets/targets_page.dart';
-import 'package:woosh/services/session_service.dart';
-import 'package:woosh/services/session_state.dart';
 import 'package:woosh/services/hive/session_hive_service.dart';
 import 'package:woosh/models/session_model.dart';
 import 'package:woosh/controllers/auth_controller.dart';
 import 'package:woosh/services/version_check_service.dart';
+import 'package:woosh/services/progressive_login_service.dart';
+import 'package:woosh/widgets/progressive_login_status.dart';
+import 'package:woosh/services/token_service.dart';
+import 'package:woosh/controllers/clock_in_out_state.dart';
 import 'dart:async';
 
 class HomePage extends StatefulWidget {
@@ -53,8 +56,7 @@ class _HomePageState extends State<HomePage> {
   int _unreadNotices = 0;
   bool _isLoading = true;
   final TaskService _taskService = TaskService();
-  final CartController _cartController = Get.put(CartController());
-  final SessionState _sessionState = Get.put(SessionState());
+  final ClockInOutState _clockState = Get.put(ClockInOutState());
 
   @override
   void initState() {
@@ -230,9 +232,8 @@ class _HomePageState extends State<HomePage> {
         _loadPendingJourneyPlans(),
         _loadPendingTasks(),
         _loadUnreadNotices(),
-        _sessionState.checkSessionStatus(),
+        _clockState.refreshStatus(), // Use new method that doesn't clear cache
       ]);
-      _loadUserData();
 
       // Show success message
       if (mounted) {
@@ -304,13 +305,10 @@ class _HomePageState extends State<HomePage> {
         ),
       );
 
-      // Clear user data immediately for fast logout
-      final box = GetStorage();
-      await box.remove('salesRep');
-      await box.remove('token');
-      await box.remove('userId');
+      // Use proper logout method that calls server
+      await ApiService.logout();
 
-      // Navigate immediately
+      // Navigate to login
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/login',
@@ -320,10 +318,12 @@ class _HomePageState extends State<HomePage> {
       // Clear caches in background (non-blocking)
       _clearCachesInBackground();
     } catch (e) {
-      // Even if there's an error, still logout
+      print('Logout error: $e');
+
+      // Even if there's an error, ensure local logout
+      await TokenService.clearTokens();
       final box = GetStorage();
       await box.remove('salesRep');
-      await box.remove('token');
       await box.remove('userId');
 
       Navigator.pushNamedAndRemoveUntil(
@@ -346,12 +346,35 @@ class _HomePageState extends State<HomePage> {
       await box.remove('cached_routes');
       await box.remove('cached_outlets');
 
-      // Clear Hive caches
+      // Clear specific Hive caches (but NOT session cache)
       try {
-        final hiveService = Get.find<dynamic>();
-        if (hiveService != null) {
-          await hiveService.clearAll();
-        }
+        // Clear client cache
+        final clientHiveService = Get.find<ClientHiveService>();
+        await clientHiveService.clearAllClients();
+      } catch (e) {
+        // Ignore Hive errors
+      }
+
+      try {
+        // Clear product cache
+        final productHiveService = Get.find<ProductHiveService>();
+        await productHiveService.clearAllProducts();
+      } catch (e) {
+        // Ignore Hive errors
+      }
+
+      try {
+        // Clear order cache
+        final orderHiveService = Get.find<OrderHiveService>();
+        await orderHiveService.clearAllOrders();
+      } catch (e) {
+        // Ignore Hive errors
+      }
+
+      try {
+        // Clear route cache
+        final routeHiveService = Get.find<RouteHiveService>();
+        await routeHiveService.clearAllRoutes();
       } catch (e) {
         // Ignore Hive errors
       }
@@ -373,8 +396,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleJourneyPlansNavigation() {
-    // Use centralized SessionState for session status
-    if (_sessionState.isCheckingSession.value) {
+    // Use centralized ClockInOutState for session status
+    if (_clockState.isLoading.value) {
       // Show loading dialog while checking session status
       showDialog(
         context: context,
@@ -392,7 +415,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    if (!_sessionState.isSessionActive.value) {
+    if (!_clockState.isClockedIn.value) {
       // Show dialog to start session
       showDialog(
         context: context,
@@ -422,9 +445,9 @@ class _HomePageState extends State<HomePage> {
                   transition: Transition.rightToLeft,
                 )?.then((_) {
                   // Check session status when returning from profile page
-                  _sessionState.checkSessionStatus().then((isActive) {
+                  _clockState.refreshStatus().then((_) {
                     // If session is now active, automatically navigate to journey plans
-                    if (isActive) {
+                    if (_clockState.isClockedIn.value) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -465,47 +488,46 @@ class _HomePageState extends State<HomePage> {
       appBar: GradientAppBar(
         title: 'WOOSH',
         actions: [
-          Obx(() {
-            final cartItems = _cartController.totalItems;
-            return Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.shopping_cart),
-                  tooltip: 'Cart',
-                  onPressed: () {
-                    Get.to(
-                      () => const ViewOrdersPage(),
-                      preventDuplicates: true,
-                      transition: Transition.rightToLeft,
-                    );
-                  },
-                ),
-                if (cartItems > 0)
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        '$cartItems',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
+          // Progressive Login Sync Indicator - Green Wifi Icon Only
+          Builder(builder: (context) {
+            try {
+              final progressiveService = Get.find<ProgressiveLoginService>();
+              return Obx(() {
+                final syncStatus = progressiveService.getSyncStatus();
+                final isSyncing = progressiveService.isSyncing;
+                final hasPendingLogins =
+                    progressiveService.pendingLogins.isNotEmpty;
+
+                if (hasPendingLogins || isSyncing) {
+                  return IconButton(
+                    icon: isSyncing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.green),
+                            ),
+                          )
+                        : const Icon(Icons.wifi, color: Colors.green),
+                    tooltip: syncStatus,
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(syncStatus),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 2),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            );
+                      );
+                    },
+                  );
+                }
+                return const SizedBox.shrink();
+              });
+            } catch (e) {
+              return const SizedBox.shrink();
+            }
           }),
           IconButton(
             icon: _isLoading
@@ -563,6 +585,8 @@ class _HomePageState extends State<HomePage> {
           children: [
             // Offline sync indicator
             const OfflineSyncIndicator(),
+            // Progressive Login Status (hidden - only shown in app bar)
+            // const ProgressiveLoginStatus(),
             // Menu section title
             // Padding(
             //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -596,35 +620,67 @@ class _HomePageState extends State<HomePage> {
                   mainAxisSpacing: 1.0,
                   children: [
                     // User Profile Tile (always active)
-                    Obx(() => MenuTile(
+                    Builder(builder: (context) {
+                      try {
+                        return Obx(() => MenuTile(
+                              title: 'Merchandiser',
+                              subtitle: _clockState.isLoading.value
+                                  ? '$salesRepName\n$salesRepPhone\nChecking session...'
+                                  : _clockState.isClockedIn.value
+                                      ? '$salesRepName\n$salesRepPhone\n🟢 Session Active'
+                                      : '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
+                              icon: Icons.person,
+                              onTap: () {
+                                Get.to(
+                                  () => ProfilePage(),
+                                  preventDuplicates: true,
+                                  transition: Transition.rightToLeft,
+                                )?.then((_) => _clockState
+                                    .refreshStatus()); // Refresh session status when returning
+                              },
+                            ));
+                      } catch (e) {
+                        return MenuTile(
                           title: 'Merchandiser',
-                          subtitle: _sessionState.isCheckingSession.value
-                              ? '$salesRepName\n$salesRepPhone\nChecking session...'
-                              : _sessionState.isSessionActive.value
-                                  ? '$salesRepName\n$salesRepPhone\n🟢 Session Active'
-                                  : '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
+                          subtitle:
+                              '$salesRepName\n$salesRepPhone\n🔴 Session Inactive',
                           icon: Icons.person,
                           onTap: () {
                             Get.to(
                               () => ProfilePage(),
                               preventDuplicates: true,
                               transition: Transition.rightToLeft,
-                            )?.then((_) => _sessionState
-                                .checkSessionStatus()); // Refresh session status when returning
+                            );
                           },
-                        )),
+                        );
+                      }
+                    }),
                     // Restricted tiles with opacity
-                    Obx(() => MenuTile(
+                    Builder(builder: (context) {
+                      try {
+                        return Obx(() => MenuTile(
+                              title: 'Journey Plans',
+                              icon: Icons.map,
+                              badgeCount:
+                                  _isLoading ? null : _pendingJourneyPlans,
+                              onTap: () => _handleJourneyPlansNavigation(),
+                              subtitle: !_clockState.isClockedIn.value
+                                  ? '🔒 Session Required'
+                                  : null,
+                              opacity:
+                                  _clockState.isClockedIn.value ? 1.0 : 0.6,
+                            ));
+                      } catch (e) {
+                        return MenuTile(
                           title: 'Journey Plans',
                           icon: Icons.map,
                           badgeCount: _isLoading ? null : _pendingJourneyPlans,
                           onTap: () => _handleJourneyPlansNavigation(),
-                          subtitle: !_sessionState.isSessionActive.value
-                              ? '🔒 Session Required'
-                              : null,
-                          opacity:
-                              _sessionState.isSessionActive.value ? 1.0 : 0.6,
-                        )),
+                          subtitle: '🔒 Session Required',
+                          opacity: 0.6,
+                        );
+                      }
+                    }),
                     MenuTile(
                       title: 'View Client',
                       icon: Icons.storefront_outlined,
@@ -710,6 +766,7 @@ class _HomePageState extends State<HomePage> {
                             Get.off(
                               () => UpliftSaleCartPage(
                                 outlet: selectedOutlet,
+                                client: selectedOutlet,
                               ),
                               transition: Transition.rightToLeft,
                             );
@@ -730,6 +787,18 @@ class _HomePageState extends State<HomePage> {
                       onTap: () {
                         Get.to(
                           () => const ViewClientPage(forProductReturn: true),
+                          preventDuplicates: true,
+                          transition: Transition.rightToLeft,
+                        );
+                      },
+                    ),
+                    MenuTile(
+                      title: 'Asset Requests',
+                      subtitle: 'Request display items\n& product samples',
+                      icon: Icons.request_page,
+                      onTap: () {
+                        Get.to(
+                          () => const AssetRequestsPage(),
                           preventDuplicates: true,
                           transition: Transition.rightToLeft,
                         );

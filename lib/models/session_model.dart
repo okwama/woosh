@@ -3,49 +3,37 @@ class Session {
   final int userId;
   final String? sessionStart;
   final String? sessionEnd;
-  final DateTime loginAt;
-  final DateTime? logoutAt;
-  final String timezone;
-  final DateTime shiftStart;
-  final DateTime shiftEnd;
-  final bool isLate;
-  final bool? isEarly;
   final String? duration;
   final String status;
+  final String? timezone;
+  final String? displayStatus;
+  final String? statusLabel;
 
   Session({
     required this.id,
     required this.userId,
     required this.sessionStart,
     required this.sessionEnd,
-    required this.loginAt,
-    this.logoutAt,
-    required this.timezone,
-    required this.shiftStart,
-    required this.shiftEnd,
-    required this.isLate,
-    this.isEarly,
     this.duration,
     required this.status,
+    this.timezone,
+    this.displayStatus,
+    this.statusLabel,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
     return Session(
-      id: json['id'] as int,
-      userId: json['userId'] as int,
-      sessionStart: json['sessionStart'] as String?,
-      sessionEnd: json['sessionEnd'] as String?,
-      loginAt: DateTime.parse(json['loginAt'] as String),
-      logoutAt: json['logoutAt'] != null
-          ? DateTime.parse(json['logoutAt'] as String)
-          : null,
-      timezone: json['timezone'] as String,
-      shiftStart: DateTime.parse(json['shiftStart'] as String),
-      shiftEnd: DateTime.parse(json['shiftEnd'] as String),
-      isLate: json['isLate'] as bool,
-      isEarly: json['isEarly'] as bool?,
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
+      userId: json['userId'] != null
+          ? int.tryParse(json['userId'].toString()) ?? 0
+          : 0,
+      sessionStart: json['sessionStart']?.toString(),
+      sessionEnd: json['sessionEnd']?.toString(),
       duration: json['duration']?.toString(),
-      status: json['status'] as String,
+      status: json['status']?.toString() ?? '0',
+      timezone: json['timezone']?.toString(),
+      displayStatus: json['displayStatus']?.toString(),
+      statusLabel: json['statusLabel']?.toString(),
     );
   }
 
@@ -55,15 +43,11 @@ class Session {
       'userId': userId,
       'sessionStart': sessionStart,
       'sessionEnd': sessionEnd,
-      'loginAt': loginAt.toIso8601String(),
-      'logoutAt': logoutAt?.toIso8601String(),
-      'timezone': timezone,
-      'shiftStart': shiftStart.toIso8601String(),
-      'shiftEnd': shiftEnd.toIso8601String(),
-      'isLate': isLate,
-      'isEarly': isEarly,
       'duration': duration,
       'status': status,
+      'timezone': timezone,
+      'displayStatus': displayStatus,
+      'statusLabel': statusLabel,
     };
   }
 
@@ -102,37 +86,21 @@ class Session {
   String get formattedStatus {
     switch (status) {
       case '1':
-        return 'Early';
+        return 'Active';
       case '2':
-        return 'Overtime';
-      case 'LATE':
-        return 'Late';
-      case 'EARLY':
-        return 'Early';
-      case 'ON_TIME':
-        return 'On Time';
+        return 'Ended';
       default:
-        return isLate
-            ? 'Late'
-            : (isEarly ?? false)
-                ? 'Early'
-                : 'On Time';
+        return displayStatus ?? 'Unknown';
     }
   }
 
-  // Helper to get local login time (prefer sessionStart if available)
+  // Helper to get local login time
   String get displayLoginTime {
-    return sessionStart ??
-        loginAt.toLocal().toString().substring(0, 19).replaceFirst('T', ' ');
+    return sessionStart ?? 'N/A';
   }
 
-  // Helper to get local logout time (prefer sessionEnd if available)
+  // Helper to get local logout time
   String? get displayLogoutTime {
-    if (sessionEnd != null) return sessionEnd;
-    return logoutAt
-        ?.toLocal()
-        .toString()
-        .substring(0, 19)
-        .replaceFirst('T', ' ');
+    return sessionEnd;
   }
 }

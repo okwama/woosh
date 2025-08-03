@@ -90,20 +90,20 @@ class OrderItemModel extends HiveObject {
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     return OrderItemModel(
       id: json['id'],
-      productId: json['productId'],
-      productName: json['productName'],
+      productId: json['product_id'],
+      productName: json['product_name'] ?? 'Unknown Product',
       quantity: json['quantity'],
-      unitPrice: json['unitPrice'].toDouble(),
+      unitPrice: json['unit_price']?.toDouble() ?? 0.0,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'productId': productId,
-      'productName': productName,
+      'product_id': productId,
+      'product_name': productName,
       'quantity': quantity,
-      'unitPrice': unitPrice,
+      'unit_price': unitPrice,
     };
   }
 }

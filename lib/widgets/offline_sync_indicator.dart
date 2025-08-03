@@ -34,7 +34,6 @@ class _OfflineSyncIndicatorState extends State<OfflineSyncIndicator> {
       _syncService = OfflineSyncService.instance;
       _updateStatus();
     } catch (e) {
-      print('OfflineSyncIndicator: Sync service not available');
     }
   }
 

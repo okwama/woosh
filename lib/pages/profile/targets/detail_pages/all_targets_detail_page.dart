@@ -240,10 +240,10 @@ class _AllTargetsDetailPageState extends State<AllTargetsDetailPage> {
   Widget _buildOverallSummaryCard() {
     // Calculate overall progress from all targets
     final visitProgress = _dailyVisitTargets['progress'] ?? 0;
-    final newClientsProgress = _newClientsProgress.progress ?? 0;
-    final productSalesSummary = _productSalesProgress.summary ?? {};
-    final vapesProgress = productSalesSummary.vapes?.progress ?? 0;
-    final pouchesProgress = productSalesSummary.pouches?.progress ?? 0;
+    final newClientsProgress = _newClientsProgress['progress'] ?? 0;
+    final productSalesSummary = _productSalesProgress['summary'] ?? {};
+    final vapesProgress = productSalesSummary['vapes']?['progress'] ?? 0;
+    final pouchesProgress = productSalesSummary['pouches']?['progress'] ?? 0;
 
     final overallProgress = ((visitProgress +
                 newClientsProgress +
@@ -525,22 +525,24 @@ class _AllTargetsDetailPageState extends State<AllTargetsDetailPage> {
                 ),
                 _buildTargetCategoryCard(
                   'New Clients',
-                  _newClientsProgress.progress ?? 0,
-                  _newClientsProgress.status ?? 'In Progress',
+                  _newClientsProgress['progress'] ?? 0,
+                  _newClientsProgress['status'] ?? 'In Progress',
                   Colors.green,
                   Icons.person_add,
                 ),
                 _buildTargetCategoryCard(
                   'Vapes Sales',
-                  _productSalesProgress.summary?.vapes?.progress ?? 0,
-                  _productSalesProgress.summary?.vapes?.status ?? 'In Progress',
+                  _productSalesProgress['summary']?['vapes']?['progress'] ?? 0,
+                  _productSalesProgress['summary']?['vapes']?['status'] ??
+                      'In Progress',
                   Colors.purple,
                   Icons.cloud,
                 ),
                 _buildTargetCategoryCard(
                   'Pouches Sales',
-                  _productSalesProgress.summary?.pouches?.progress ?? 0,
-                  _productSalesProgress.summary?.pouches?.status ??
+                  _productSalesProgress['summary']?['pouches']?['progress'] ??
+                      0,
+                  _productSalesProgress['summary']?['pouches']?['status'] ??
                       'In Progress',
                   Colors.orange,
                   Icons.inventory_2,

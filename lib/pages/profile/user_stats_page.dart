@@ -24,580 +24,187 @@ class UserStatsPage extends StatefulWidget {
 
 class _UserStatsPageState extends State<UserStatsPage> {
   final ProfileController _profileController = Get.find<ProfileController>();
-  String _selectedPeriod = 'week';
   bool _isLoading = false;
   String? _error;
-  List<Map<String, dynamic>>? _loginData;
-  List<Map<String, dynamic>>? _journeyData;
   String? _userId;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  bool _isCustomDate = false;
-  final _scrollController = ScrollController();
-  bool _isLoadingMore = false;
-  bool _hasMoreData = true;
-  final _cache = <String, Map<String, dynamic>>{};
+
+  // Calendar related variables
+  DateTime _focusedDay = DateTime.now();
+  final DateTime _firstDay = DateTime.now().subtract(const Duration(days: 365));
+  final DateTime _lastDay = DateTime.now().add(const Duration(days: 365));
+
+  // Data storage
+  final Map<DateTime, Map<String, dynamic>> _dailyStats = {};
+
+  // Cache for API responses
+  final Map<String, Map<String, dynamic>> _cache = {};
+
+  // Loading states
+  final Set<DateTime> _activeDays = {};
 
   @override
   void initState() {
     super.initState();
     _loadUserId();
-    _scrollController.addListener(_onScroll);
-    _precacheData();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent * 0.8 &&
-        !_isLoadingMore &&
-        _hasMoreData) {
-      _loadMoreData();
-    }
-  }
-
-  Future<void> _precacheData() async {
-    if (_userId == null) return;
-
-    // Precache next period's data
-    final periods = ['today', 'week', 'month'];
-    for (final period in periods) {
-      if (period != _selectedPeriod) {
-        final dateRange = _getDateRangeForPeriod(period);
-        final cacheKey = '${_userId}_${dateRange['start']}_${dateRange['end']}';
-        if (!_cache.containsKey(cacheKey)) {
-          await _fetchAndCacheData(dateRange['start'] as String,
-              dateRange['end'] as String, cacheKey);
-        }
-      }
-    }
-  }
-
-  Future<void> _fetchAndCacheData(
-      String startDate, String endDate, String cacheKey) async {
-    try {
-      final urlParams = '?startDate=$startDate&endDate=$endDate';
-      final loginResponse = await http.get(
-        Uri.parse(
-            '${ApiService.baseUrl}/analytics/login-hours/$_userId$urlParams'),
-        headers: await _getAuthHeaders(),
-      );
-      final journeyResponse = await http.get(
-        Uri.parse(
-            '${ApiService.baseUrl}/analytics/journey-visits/$_userId$urlParams'),
-        headers: await _getAuthHeaders(),
-      );
-
-      if (loginResponse.statusCode == 200 &&
-          journeyResponse.statusCode == 200) {
-        _cache[cacheKey] = {
-          'loginData': json.decode(loginResponse.body),
-          'journeyData': json.decode(journeyResponse.body),
-        };
-      }
-    } catch (e) {
-      print('Error precaching data: $e');
-    }
-  }
-
-  Future<void> _loadMoreData() async {
-    if (_isLoadingMore || !_hasMoreData) return;
-
-    setState(() => _isLoadingMore = true);
-
-    try {
-      // Simulate loading more data (replace with actual implementation)
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() {
-        _hasMoreData = false; // Set to false if no more data
-        _isLoadingMore = false;
-      });
-    } catch (e) {
-      setState(() => _isLoadingMore = false);
-    }
-  }
-
-  Map<String, String> _getDateRangeForPeriod(String period) {
-    final now = DateTime.now();
-    switch (period) {
-      case 'today':
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(now),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      case 'week':
-        final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(startOfWeek),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      case 'month':
-        final startOfMonth = DateTime(now.year, now.month, 1);
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(startOfMonth),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      default:
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(now),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-    }
-  }
-
-  Widget _buildSkeletonCard() {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          children: [
-            Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Shimmer.fromColors(
-                    baseColor: Colors.grey[300]!,
-                    highlightColor: Colors.grey[100]!,
-                    child: Container(
-                      width: 100,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Shimmer.fromColors(
-                    baseColor: Colors.grey[300]!,
-                    highlightColor: Colors.grey[100]!,
-                    child: Container(
-                      width: 60,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonUI() {
-    return Column(
-      children: [
-        _buildSkeletonCard(),
-        const SizedBox(height: 6),
-        _buildSkeletonCard(),
-        const SizedBox(height: 6),
-        _buildSkeletonCard(),
-        const SizedBox(height: 6),
-        _buildSkeletonCard(),
-      ],
-    );
-  }
-
-  Widget _buildLoadingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: CircularProgressIndicator(
-          valueColor:
-              AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading) {
-      return _buildSkeletonUI();
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 11),
-            GoldGradientButton(
-              onPressed: _loadStats,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadStats,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(6.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPeriodSelector(),
-            const SizedBox(height: 8),
-            _buildStatsCards(),
-            if (_isLoadingMore) _buildLoadingIndicator(),
-          ],
-        ),
-      ),
-    );
   }
 
   void _loadUserId() {
     final userData = GetStorage().read('salesRep');
     if (userData != null && userData['id'] != null) {
       setState(() => _userId = userData['id'].toString());
-      _loadStats();
+      _loadMonthData(_focusedDay);
     } else {
       setState(() => _error = 'User ID not found');
     }
   }
 
-  Future<void> _loadStats() async {
+  // Load data for the entire month
+  Future<void> _loadMonthData(DateTime month) async {
     if (_userId == null) return;
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      String urlParams = '';
-      if (_isCustomDate && _startDate != null && _endDate != null) {
-        final format = DateFormat('yyyy-MM-dd');
-        urlParams =
-            '?startDate=${format.format(_startDate!)}&endDate=${format.format(_endDate!)}';
-      } else {
-        final dateRange = _getDateRange();
-        urlParams =
-            '?startDate=${dateRange['start']}&endDate=${dateRange['end']}';
+      final startOfMonth = DateTime(month.year, month.month, 1);
+      final endOfMonth = DateTime(month.year, month.month + 1, 0);
+
+      final cacheKey = '${_userId}_${DateFormat('yyyy-MM').format(month)}';
+
+      if (_cache.containsKey(cacheKey)) {
+        _processCachedMonthData(_cache[cacheKey]!);
+        setState(() => _isLoading = false);
+        return;
       }
 
-      print('Fetching stats for user $_userId with params: $urlParams');
+      final urlParams =
+          '?startDate=${DateFormat('yyyy-MM-dd').format(startOfMonth)}&endDate=${DateFormat('yyyy-MM-dd').format(endOfMonth)}';
 
-      // Clear cache for this specific key
-      final cacheKey = '${_userId}_$urlParams';
-      _cache.remove(cacheKey);
-
-      // Load data in parallel
       final responses = await Future.wait([
-        _retryOperation(
-          () async => http.get(
-            Uri.parse('${ApiService.baseUrl}/analytics/login-hours/$_userId'),
-            headers: await _getAuthHeaders(),
-          ),
-          maxRetries: 3,
+        http.get(
+          Uri.parse(
+              '${ApiService.baseUrl}/analytics/daily-login-hours/$_userId$urlParams'),
+          headers: await _getAuthHeaders(),
         ),
-        _retryOperation(
-          () async => http.get(
-            Uri.parse(
-                '${ApiService.baseUrl}/analytics/journey-visits/$_userId'),
-            headers: await _getAuthHeaders(),
-          ),
-          maxRetries: 3,
+        http.get(
+          Uri.parse(
+              '${ApiService.baseUrl}/targets/monthly-visits/$_userId$urlParams'),
+          headers: await _getAuthHeaders(),
         ),
       ]);
 
-      final loginResponse = responses[0];
-      final journeyResponse = responses[1];
+      if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
+        final loginData = json.decode(responses[0].body);
+        final journeyData = json.decode(responses[1].body);
 
-      print('Login Hours Response Status: ${loginResponse.statusCode}');
-      print('Journey Visits Response Status: ${journeyResponse.statusCode}');
+        final monthData = {
+          'loginData': loginData,
+          'journeyData': journeyData,
+        };
 
-      if (loginResponse.statusCode == 200 &&
-          journeyResponse.statusCode == 200) {
-        final loginData = json.decode(loginResponse.body);
-        final journeyData = json.decode(journeyResponse.body);
-
-        print('Raw Login Hours Data: ${json.encode(loginData)}');
-        print('Raw Journey Visits Data: ${json.encode(journeyData)}');
-
-        // Validate and process the data
-        if (_isValidData(loginData) && _isValidJourneyData(journeyData)) {
-          print('Data validation passed');
-
-          // Cache the data
-          _cache[cacheKey] = {
-            'loginData': loginData,
-            'journeyData': journeyData,
-          };
-
-          // Update UI in a single setState call
-          setState(() {
-            _loginData = [loginData];
-            _journeyData = [journeyData];
-            _isLoading = false;
-          });
-
-          // Print processed data
-          final stats = _getFilteredStats();
-          print('Processed Stats:');
-          print('Formatted Duration: ${stats['formattedDuration']}');
-          print('Total Hours: ${stats['totalHours']}');
-          print('Total Minutes: ${stats['totalMinutes']}');
-          print('Session Count: ${stats['sessionCount']}');
-          print('Average Session Duration: ${stats['averageSessionDuration']}');
-          print('Total Plans: ${stats['totalPlans']}');
-          print('Completed Visits: ${stats['completedVisits']}');
-          print('Pending Visits: ${stats['pendingVisits']}');
-          print('Missed Visits: ${stats['missedVisits']}');
-          print('Completion Rate: ${stats['completionRate']}');
-          print('Client Visits: ${json.encode(stats['clientVisits'])}');
-        } else {
-          print('Data validation failed');
-          print('Login Data Valid: ${_isValidData(loginData)}');
-          print('Journey Data Valid: ${_isValidJourneyData(journeyData)}');
-          throw Exception('Invalid data format received from server');
-        }
+        _cache[cacheKey] = monthData;
+        _processCachedMonthData(monthData);
       } else {
-        final errorMessage = loginResponse.statusCode != 200
-            ? 'Failed to load login hours: ${loginResponse.statusCode}'
-            : 'Failed to load journey visits: ${journeyResponse.statusCode}';
-        print('Error: $errorMessage');
-        throw Exception(errorMessage);
+        throw Exception('Failed to load month data');
       }
     } catch (e) {
-      print('Exception caught: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<http.Response> _retryOperation(
-    Future<http.Response> Function() operation, {
-    int maxRetries = 3,
-    Duration delay = const Duration(seconds: 1),
-  }) async {
-    for (var i = 0; i < maxRetries; i++) {
+  void _processCachedMonthData(Map<String, dynamic> monthData) {
+    // Handle different possible response structures
+    dynamic loginDataRaw = monthData['loginData'];
+    dynamic journeyDataRaw = monthData['journeyData'];
+
+    // Convert to List<dynamic> safely
+    List<dynamic> loginData = [];
+    List<dynamic> journeyData = [];
+
+    if (loginDataRaw is List) {
+      loginData = loginDataRaw;
+    } else if (loginDataRaw is Map) {
+      // If it's a map, try to extract data from it
+      if (loginDataRaw.containsKey('data') && loginDataRaw['data'] is List) {
+        loginData = loginDataRaw['data'];
+      }
+    }
+
+    if (journeyDataRaw is List) {
+      journeyData = journeyDataRaw;
+    } else if (journeyDataRaw is Map) {
+      // If it's a map, try to extract data from it
+      if (journeyDataRaw.containsKey('data') &&
+          journeyDataRaw['data'] is List) {
+        journeyData = journeyDataRaw['data'];
+      }
+    }
+
+    Map<DateTime, Map<String, dynamic>> newDailyStats = {};
+    Set<DateTime> newActiveDays = {};
+
+    // Process login data
+    for (final dayData in loginData) {
+      if (dayData is! Map<String, dynamic>) continue;
+
+      final dateStr = dayData['date'] as String?;
+      if (dateStr == null) continue;
+
       try {
-        final response = await operation();
-        if (response.statusCode == 200) {
-          return response;
-        }
-        if (i < maxRetries - 1) {
-          await Future.delayed(delay);
+        final date = DateTime.parse(dateStr);
+        final normalizedDate = DateTime(date.year, date.month, date.day);
+
+        final totalMinutes = dayData['totalMinutes'] as int? ?? 0;
+        final sessionCount = dayData['sessionCount'] as int? ?? 0;
+
+        if (totalMinutes > 0 || sessionCount > 0) {
+          newActiveDays.add(normalizedDate);
+          newDailyStats[normalizedDate] = {
+            'login': dayData,
+            'journey': <String, dynamic>{},
+          };
         }
       } catch (e) {
-        if (i == maxRetries - 1) rethrow;
-        await Future.delayed(delay);
-      }
-    }
-    throw Exception('Failed after $maxRetries retries');
-  }
-
-  bool _isValidData(Map<String, dynamic> data) {
-    final requiredFields = [
-      'userId',
-      'totalHours',
-      'totalMinutes',
-      'sessionCount',
-      'formattedDuration',
-      'averageSessionDuration'
-    ];
-
-    for (final field in requiredFields) {
-      if (data[field] == null) {
-        print('Missing required field: $field');
-        return false;
+        print('Error parsing login data for date $dateStr: $e');
+        continue;
       }
     }
 
-    // Validate numeric fields
-    if (data['totalHours'] is! int) {
-      print('Invalid totalHours type: ${data['totalHours'].runtimeType}');
-      return false;
-    }
-    if (data['totalMinutes'] is! int) {
-      print('Invalid totalMinutes type: ${data['totalMinutes'].runtimeType}');
-      return false;
-    }
-    if (data['sessionCount'] is! int) {
-      print('Invalid sessionCount type: ${data['sessionCount'].runtimeType}');
-      return false;
-    }
+    // Process journey data
+    for (final dayData in journeyData) {
+      if (dayData is! Map<String, dynamic>) continue;
 
-    // Validate duration format
-    if (data['formattedDuration'] is! String ||
-        !RegExp(r'^\d+h \d+m$').hasMatch(data['formattedDuration'])) {
-      print('Invalid formattedDuration: ${data['formattedDuration']}');
-      return false;
-    }
+      final dateStr = dayData['date'] as String?;
+      if (dateStr == null) continue;
 
-    // Validate average session duration format
-    if (data['averageSessionDuration'] is! String ||
-        !RegExp(r'^\d+m$').hasMatch(data['averageSessionDuration'])) {
-      print(
-          'Invalid averageSessionDuration: ${data['averageSessionDuration']}');
-      return false;
-    }
+      try {
+        final date = DateTime.parse(dateStr);
+        final normalizedDate = DateTime(date.year, date.month, date.day);
 
-    return true;
-  }
+        final totalPlans = dayData['totalPlans'] as int? ?? 0;
 
-  bool _isValidJourneyData(Map<String, dynamic> data) {
-    final requiredFields = [
-      'userId',
-      'totalPlans',
-      'completedVisits',
-      'pendingVisits',
-      'missedVisits',
-      'clientVisits',
-      'completionRate'
-    ];
-
-    for (final field in requiredFields) {
-      if (data[field] == null) {
-        print('Missing required journey field: $field');
-        return false;
+        if (totalPlans > 0) {
+          newActiveDays.add(normalizedDate);
+          if (newDailyStats.containsKey(normalizedDate)) {
+            newDailyStats[normalizedDate]!['journey'] = dayData;
+          } else {
+            newDailyStats[normalizedDate] = {
+              'login': <String, dynamic>{},
+              'journey': dayData,
+            };
+          }
+        }
+      } catch (e) {
+        print('Error parsing journey data for date $dateStr: $e');
+        continue;
       }
     }
 
-    return true;
-  }
-
-  Map<String, String> _getDateRange() {
-    final now = DateTime.now();
-    switch (_selectedPeriod) {
-      case 'today':
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(now),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      case 'week':
-        final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(startOfWeek),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      case 'month':
-        final startOfMonth = DateTime(now.year, now.month, 1);
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(startOfMonth),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-      default:
-        return {
-          'start': DateFormat('yyyy-MM-dd').format(now),
-          'end': DateFormat('yyyy-MM-dd').format(now),
-        };
-    }
-  }
-
-  Future<void> _selectDateRange(BuildContext context) async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
-    );
-
-    if (picked != null) {
-      setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
-        _isCustomDate = true;
-      });
-      _loadStats();
-    }
-  }
-
-  Map<String, dynamic> _getFilteredStats() {
-    if (_loginData == null || _journeyData == null) {
-      return {
-        'formattedDuration': '0h 0m',
-        'completedVisits': 0,
-        'completionRate': '0%',
-        'averageSessionDuration': '0m',
-        'totalHours': 0,
-        'totalMinutes': 0,
-        'sessionCount': 0,
-        'totalPlans': 0,
-        'pendingVisits': 0,
-        'missedVisits': 0,
-        'clientVisits': [],
-      };
-    }
-
-    final loginStats = _loginData![0];
-    final journeyStats = _journeyData![0];
-
-    // Convert and validate numeric values
-    final totalHours =
-        loginStats['totalHours'] is int ? loginStats['totalHours'] : 0;
-    final totalMinutes =
-        loginStats['totalMinutes'] is int ? loginStats['totalMinutes'] : 0;
-    final sessionCount =
-        loginStats['sessionCount'] is int ? loginStats['sessionCount'] : 0;
-
-    // Calculate correct total hours and minutes
-    final totalMinutesFromHours = totalHours * 60;
-    final totalMinutesCombined = totalMinutesFromHours + totalMinutes;
-    final correctedHours = (totalMinutesCombined / 60).floor();
-    final correctedMinutes = totalMinutesCombined % 60;
-
-    // Format duration string correctly
-    final formattedDuration = '$correctedHours ${correctedMinutes}m';
-
-    // Calculate average session duration correctly
-    final avgMinutes =
-        sessionCount > 0 ? (totalMinutesCombined / sessionCount).round() : 0;
-    final avgHours = (avgMinutes / 60).floor();
-    final avgRemainingMinutes = avgMinutes % 60;
-    final averageSessionDuration = avgHours > 0
-        ? '${avgHours}h ${avgRemainingMinutes}m'
-        : '${avgMinutes}m';
-
-    return {
-      'formattedDuration': formattedDuration,
-      'completedVisits': journeyStats['completedVisits'],
-      'completionRate': journeyStats['completionRate'],
-      'averageSessionDuration': averageSessionDuration,
-      'totalHours': correctedHours,
-      'totalMinutes': correctedMinutes,
-      'sessionCount': sessionCount,
-      'totalPlans': journeyStats['totalPlans'],
-      'pendingVisits': journeyStats['pendingVisits'],
-      'missedVisits': journeyStats['missedVisits'],
-      'clientVisits': journeyStats['clientVisits'],
-      'totalMinutesCombined': totalMinutesCombined,
-      'avgMinutes': avgMinutes,
-    };
+    setState(() {
+      _dailyStats.addAll(newDailyStats);
+      _activeDays.addAll(newActiveDays);
+    });
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
@@ -608,7 +215,315 @@ class _UserStatsPageState extends State<UserStatsPage> {
     };
   }
 
-  Widget _buildPeriodSelector() {
+  Color _getEventColor(DateTime day) {
+    final normalizedDay = DateTime(day.year, day.month, day.day);
+    final dayStats = _dailyStats[normalizedDay];
+
+    if (dayStats == null) return Colors.transparent;
+
+    final loginStats = dayStats['login'] as Map<String, dynamic>? ?? {};
+    final journeyStats = dayStats['journey'] as Map<String, dynamic>? ?? {};
+
+    final totalMinutes = loginStats['totalMinutes'] as int? ?? 0;
+    final totalPlans = journeyStats['totalPlans'] as int? ?? 0;
+
+    final hasLogin = totalMinutes > 0;
+    final hasJourney = totalPlans > 0;
+
+    if (hasLogin && hasJourney) return Colors.green;
+    if (hasLogin) return Colors.blue;
+    if (hasJourney) return Colors.orange;
+
+    return Colors.transparent;
+  }
+
+  Widget _buildMonthGrid() {
+    final daysInMonth =
+        DateTime(_focusedDay.year, _focusedDay.month + 1, 0).day;
+    final firstDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    final firstWeekday = firstDayOfMonth.weekday; // 1 = Monday, 7 = Sunday
+
+    return CreamGradientCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.all(4.0),
+      child: Column(
+        children: [
+          // Month header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                  setState(() {
+                    _focusedDay =
+                        DateTime(_focusedDay.year, _focusedDay.month - 1);
+                  });
+                  _loadMonthData(_focusedDay);
+                },
+              ),
+              Text(
+                DateFormat('MMMM yyyy').format(_focusedDay),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () {
+                  setState(() {
+                    _focusedDay =
+                        DateTime(_focusedDay.year, _focusedDay.month + 1);
+                  });
+                  _loadMonthData(_focusedDay);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Weekday headers
+          Row(
+            children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                .map((day) => Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          day,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+
+          // Calendar grid
+          ...List.generate((daysInMonth + firstWeekday - 2) ~/ 7 + 1,
+              (weekIndex) {
+            return Row(
+              children: List.generate(7, (dayIndex) {
+                final dayNumber = weekIndex * 7 + dayIndex - firstWeekday + 2;
+
+                if (dayNumber < 1 || dayNumber > daysInMonth) {
+                  return const Expanded(child: SizedBox());
+                }
+
+                final day =
+                    DateTime(_focusedDay.year, _focusedDay.month, dayNumber);
+                final color = _getEventColor(day);
+                final isToday = day.isAtSameMomentAs(DateTime.now());
+
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.all(2),
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color == Colors.transparent
+                          ? Colors.grey.shade100
+                          : color.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                      border: isToday
+                          ? Border.all(color: goldMiddle2, width: 2)
+                          : null,
+                    ),
+                    child: Center(
+                      child: Text(
+                        dayNumber.toString(),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight:
+                              isToday ? FontWeight.bold : FontWeight.normal,
+                          color: color == Colors.transparent
+                              ? Colors.grey.shade600
+                              : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegend() {
+    return CreamGradientCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(12.0),
+      margin: const EdgeInsets.all(4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Legend',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildLegendItem(Colors.green, 'Login + Journey'),
+              const SizedBox(width: 16),
+              _buildLegendItem(Colors.blue, 'Login Only'),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _buildLegendItem(Colors.orange, 'Journey Only'),
+              const SizedBox(width: 16),
+              _buildLegendItem(Colors.grey.shade100, 'No Activity'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMonthSummary() {
+    final totalDays = _activeDays.length;
+    final totalLoginHours = _dailyStats.values.fold<int>(0, (sum, stats) {
+      final loginData = stats['login'] as Map<String, dynamic>? ?? {};
+      final minutes = loginData['totalMinutes'] as int? ?? 0;
+      return sum + minutes;
+    });
+    final totalJourneyPlans = _dailyStats.values.fold<int>(0, (sum, stats) {
+      final journeyData = stats['journey'] as Map<String, dynamic>? ?? {};
+      final plans = journeyData['totalPlans'] as int? ?? 0;
+      return sum + plans;
+    });
+
+    return CreamGradientCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.all(4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics,
+                  color: Theme.of(context).primaryColor, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                '${DateFormat('MMMM yyyy').format(_focusedDay)} Summary',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              GoldGradientButton(
+                onPressed: () => _navigateToMonthSummary(),
+                child: const Text('View Details'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Active Days',
+                  totalDays.toString(),
+                  Icons.calendar_today,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Hours',
+                  '${(totalLoginHours / 60).floor()}h ${totalLoginHours % 60}m',
+                  Icons.access_time,
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Journey Plans',
+                  totalJourneyPlans.toString(),
+                  Icons.map,
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+      String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              color: color.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateRangePicker() {
     return CreamGradientCard(
       borderWidth: 1.5,
       padding: const EdgeInsets.all(10.0),
@@ -618,11 +533,11 @@ class _UserStatsPageState extends State<UserStatsPage> {
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_today,
+              Icon(Icons.filter_alt,
                   color: Theme.of(context).primaryColor, size: 14),
               const SizedBox(width: 4),
               const Text(
-                'Select Period',
+                'Quick Navigation',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -635,41 +550,30 @@ class _UserStatsPageState extends State<UserStatsPage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildPeriodChip('Today', 'today'),
+                _buildQuickFilterChip('This Month', () {
+                  final now = DateTime.now();
+                  setState(() {
+                    _focusedDay = now;
+                  });
+                  _loadMonthData(now);
+                }),
                 const SizedBox(width: 6),
-                _buildPeriodChip('This Week', 'week'),
+                _buildQuickFilterChip('Last Month', () {
+                  final lastMonth =
+                      DateTime(_focusedDay.year, _focusedDay.month - 1);
+                  setState(() {
+                    _focusedDay = lastMonth;
+                  });
+                  _loadMonthData(lastMonth);
+                }),
                 const SizedBox(width: 6),
-                _buildPeriodChip('This Month', 'month'),
-                const SizedBox(width: 6),
-                FilterChip(
-                  selected: _isCustomDate,
-                  label: Text(
-                    _isCustomDate && _startDate != null && _endDate != null
-                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
-                        : 'Custom Range',
-                    style: TextStyle(
-                      color: _isCustomDate ? Colors.white : Colors.black87,
-                      fontSize: 11,
-                    ),
-                  ),
-                  selectedColor: goldMiddle2,
-                  backgroundColor: Colors.grey.shade200,
-                  onSelected: (bool selected) {
-                    if (selected) {
-                      _selectDateRange(context);
-                    } else {
-                      setState(() {
-                        _isCustomDate = false;
-                        _startDate = null;
-                        _endDate = null;
-                      });
-                      _loadStats();
-                    }
-                  },
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+                _buildQuickFilterChip('This Year', () {
+                  final now = DateTime.now();
+                  setState(() {
+                    _focusedDay = now;
+                  });
+                  _loadMonthData(now);
+                }),
               ],
             ),
           ),
@@ -678,246 +582,35 @@ class _UserStatsPageState extends State<UserStatsPage> {
     );
   }
 
-  Widget _buildPeriodChip(String label, String value) {
-    final isSelected = _selectedPeriod == value && !_isCustomDate;
-    return FilterChip(
-      selected: isSelected,
-      label: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : Colors.black87,
-          fontSize: 11,
+  Widget _buildQuickFilterChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: goldMiddle2.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: goldMiddle2.withOpacity(0.3)),
         ),
-      ),
-      selectedColor: goldMiddle2,
-      backgroundColor: Colors.grey.shade200,
-      onSelected: (bool selected) {
-        if (selected) {
-          setState(() {
-            _selectedPeriod = value;
-            _isCustomDate = false;
-            _startDate = null;
-            _endDate = null;
-          });
-          _loadStats();
-        }
-      },
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-
-  Widget _buildStatsCards() {
-    if (_isLoading) {
-      return _buildSkeletonUI();
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              _error!,
-              style: TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            GoldGradientButton(
-              onPressed: _loadStats,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_loginData == null || _journeyData == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, color: Colors.grey, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'No data available for the selected period',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    final stats = _getFilteredStats();
-
-    return Column(
-      children: [
-        _buildStatCard(
-          'Total Hours Worked',
-          stats['formattedDuration'] ?? '0h 0m',
-          Icons.access_time,
-          Colors.blue,
-          subtitle:
-              '${stats['totalHours']}h ${stats['totalMinutes']}m across ${stats['sessionCount']} sessions',
-        ),
-        const SizedBox(height: 6),
-        _buildStatCard(
-          'Journey Plans',
-          '${stats['totalPlans']}',
-          Icons.map,
-          Colors.green,
-          subtitle:
-              '${stats['completedVisits']} completed, ${stats['pendingVisits']} pending, ${stats['missedVisits']} missed',
-        ),
-        const SizedBox(height: 6),
-        _buildStatCard(
-          'Visit Completion Rate',
-          stats['completionRate'] ?? '0%',
-          Icons.analytics,
-          Colors.orange,
-          subtitle:
-              '${stats['completedVisits']} of ${stats['totalPlans']} plans completed',
-        ),
-        const SizedBox(height: 6),
-        _buildStatCard(
-          'Average Session Duration',
-          stats['averageSessionDuration'] ?? '0m',
-          Icons.timer,
-          Colors.purple,
-          subtitle: 'Based on ${stats['sessionCount']} sessions',
-        ),
-        if (stats['clientVisits'] != null &&
-            stats['clientVisits'].isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _buildClientVisitsCard(stats['clientVisits']),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, Color color,
-      {String? subtitle}) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            CircularPercentIndicator(
-              radius: 20.0,
-              lineWidth: 3.0,
-              percent: 1.0,
-              center: Icon(icon, color: color, size: 14),
-              backgroundColor: color.withOpacity(0.2),
-              progressColor: color,
-              circularStrokeCap: CircularStrokeCap.round,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: goldMiddle2,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildClientVisitsCard(List<dynamic> clientVisits) {
-    // Sort client visits by visit count in descending order
-    final sortedVisits = List.from(clientVisits)
-      ..sort((a, b) => (b['visitCount'] ?? 0).compareTo(a['visitCount'] ?? 0));
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people, color: Colors.blue, size: 14),
-                const SizedBox(width: 8),
-                Text(
-                  'Client Visits',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...sortedVisits.map((client) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          client['clientName'] ?? 'Unknown Client',
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        '${client['visitCount']} visits',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _clearCache() async {
-    print('Clearing all cached data');
-    _cache.clear();
-    setState(() {
-      _loginData = null;
-      _journeyData = null;
-    });
+  void _navigateToMonthSummary() {
+    // Navigate to month summary page
+    Get.to(() => MonthSummaryPage(
+          month: _focusedDay,
+          userId: _userId!,
+          dailyStats: _dailyStats,
+        ));
   }
 
   @override
@@ -928,15 +621,352 @@ class _UserStatsPageState extends State<UserStatsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              await _clearCache();
-              await _loadStats();
+            onPressed: () {
+              _cache.clear();
+              _dailyStats.clear();
+              _activeDays.clear();
+              _loadMonthData(_focusedDay);
             },
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      GoldGradientButton(
+                        onPressed: () {
+                          setState(() => _error = null);
+                          _loadMonthData(_focusedDay);
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Column(
+                    children: [
+                      _buildDateRangePicker(),
+                      const SizedBox(height: 8),
+                      _buildMonthSummary(),
+                      const SizedBox(height: 8),
+                      _buildMonthGrid(),
+                      const SizedBox(height: 8),
+                      _buildLegend(),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+// Month Summary Page
+class MonthSummaryPage extends StatefulWidget {
+  final DateTime month;
+  final String userId;
+  final Map<DateTime, Map<String, dynamic>> dailyStats;
+
+  const MonthSummaryPage({
+    super.key,
+    required this.month,
+    required this.userId,
+    required this.dailyStats,
+  });
+
+  @override
+  State<MonthSummaryPage> createState() => _MonthSummaryPageState();
+}
+
+class _MonthSummaryPageState extends State<MonthSummaryPage> {
+  bool _isLoading = false;
+  Map<String, dynamic>? _detailedStats;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetailedStats();
+  }
+
+  Future<void> _loadDetailedStats() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final startOfMonth = DateTime(widget.month.year, widget.month.month, 1);
+      final endOfMonth = DateTime(widget.month.year, widget.month.month + 1, 0);
+      final urlParams =
+          '?startDate=${DateFormat('yyyy-MM-dd').format(startOfMonth)}&endDate=${DateFormat('yyyy-MM-dd').format(endOfMonth)}';
+
+      final responses = await Future.wait([
+        http.get(
+          Uri.parse(
+              '${ApiService.baseUrl}/analytics/daily-login-hours/${widget.userId}$urlParams'),
+          headers: await _getAuthHeaders(),
+        ),
+        http.get(
+          Uri.parse(
+              '${ApiService.baseUrl}/targets/monthly-visits/${widget.userId}$urlParams'),
+          headers: await _getAuthHeaders(),
+        ),
+      ]);
+
+      if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
+        final loginDataRaw = json.decode(responses[0].body);
+        final journeyDataRaw = json.decode(responses[1].body);
+
+        // Handle different response structures
+        Map<String, dynamic> loginData = {};
+        Map<String, dynamic> journeyData = {};
+
+        if (loginDataRaw is Map) {
+          loginData = Map<String, dynamic>.from(loginDataRaw);
+        } else if (loginDataRaw is List) {
+          // If it's a list, create a summary map
+          loginData = {
+            'data': loginDataRaw,
+            'totalMinutes': loginDataRaw.fold<int>(
+                0,
+                (sum, item) =>
+                    sum +
+                    (item is Map ? (item['totalMinutes'] as int? ?? 0) : 0)),
+            'sessionCount': loginDataRaw.fold<int>(
+                0,
+                (sum, item) =>
+                    sum +
+                    (item is Map ? (item['sessionCount'] as int? ?? 0) : 0)),
+          };
+        }
+
+        if (journeyDataRaw is Map) {
+          journeyData = Map<String, dynamic>.from(journeyDataRaw);
+        } else if (journeyDataRaw is List) {
+          // If it's a list, create a summary map
+          journeyData = {
+            'data': journeyDataRaw,
+            'totalPlans': journeyDataRaw.fold<int>(
+                0,
+                (sum, item) =>
+                    sum +
+                    (item is Map ? (item['totalPlans'] as int? ?? 0) : 0)),
+          };
+        }
+
+        setState(() {
+          _detailedStats = {
+            'login': loginData,
+            'journey': journeyData,
+          };
+        });
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<Map<String, String>> _getAuthHeaders() async {
+    final token = TokenService.getAccessToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: GradientAppBar(
+        title: '${DateFormat('MMMM yyyy').format(widget.month)} Summary',
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_detailedStats != null) ...[
+                    _buildDetailedSummary(),
+                    const SizedBox(height: 16),
+                    _buildDailyBreakdown(),
+                  ] else
+                    const Center(
+                      child: Text('No detailed data available'),
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildDetailedSummary() {
+    final loginStats = _detailedStats!['login'] as Map<String, dynamic>? ?? {};
+    final journeyStats =
+        _detailedStats!['journey'] as Map<String, dynamic>? ?? {};
+
+    return CreamGradientCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Monthly Overview',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Hours',
+                  loginStats['formattedDuration'] ?? '0h 0m',
+                  Icons.access_time,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Sessions',
+                  '${loginStats['sessionCount'] ?? 0}',
+                  Icons.login,
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Journey Plans',
+                  '${journeyStats['totalPlans'] ?? 0}',
+                  Icons.map,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Completed',
+                  '${journeyStats['completedVisits'] ?? 0}',
+                  Icons.check_circle,
+                  Colors.purple,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+      String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: color.withOpacity(0.8),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDailyBreakdown() {
+    final activeDays = widget.dailyStats.keys.toList()..sort();
+
+    return CreamGradientCard(
+      borderWidth: 1.5,
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Daily Breakdown',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...activeDays.map((day) {
+            final stats = widget.dailyStats[day]!;
+            final loginStats = stats['login'] as Map<String, dynamic>? ?? {};
+            final journeyStats =
+                stats['journey'] as Map<String, dynamic>? ?? {};
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      DateFormat('MMM dd').format(day),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${loginStats['totalHours'] ?? 0}h ${loginStats['totalMinutes'] ?? 0}m',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '${journeyStats['totalPlans'] ?? 0} plans',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

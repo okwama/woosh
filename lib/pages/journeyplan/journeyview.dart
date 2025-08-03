@@ -6,7 +6,8 @@ import 'package:geocoding/geocoding.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/pages/journeyplan/reports/reportMain_page.dart';
+import 'package:woosh/pages/journeyplan/reports/report_main_page.dart';
+import 'package:woosh/pages/journeyplan/journeyplans_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 // ignore: unnecessary_import
@@ -19,7 +20,7 @@ import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:get/get.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:woosh/services/jouneyplan_service.dart';
+import 'package:woosh/services/journeyplan/jouneyplan_service.dart';
 import 'package:woosh/utils/safe_error_handler.dart';
 
 class JourneyView extends StatefulWidget {
@@ -188,26 +189,22 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     }
 
     try {
-      print('?? Starting optimistic check-in process...');
       setState(() {
         _isCheckingIn = true;
       });
 
       // Validation checks
       if (widget.journeyPlan.status == JourneyPlan.statusInProgress) {
-        print('?? Already checked in to this visit');
         return;
       }
 
       // Get location with fallback
       if (_currentPosition == null) {
-        print('?? Getting current position...');
         await _getCurrentPosition();
         // _getCurrentPosition now handles all fallbacks silently
       }
 
       // Take photo
-      print('?? Opening camera...');
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.camera,
@@ -217,13 +214,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       );
 
       if (image == null) {
-        print('? No image captured');
         return;
       }
-      print('?? Image captured: ${image.path}');
 
       // Show brief loading indicator for photo processing
-      print('? Showing brief loading indicator...');
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -286,12 +280,10 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       // Update parent immediately with optimistic data
       if (widget.onCheckInSuccess != null) {
-        print('?? Optimistic UI update - notifying parent immediately');
         widget.onCheckInSuccess!(optimisticPlan);
       }
 
       // Navigate immediately to reports page
-      print('?? Navigating to reports page immediately (optimistic)');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -303,10 +295,8 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       );
 
       // Process background sync
-      print('?? Starting background sync...');
       _processCheckInInBackground(File(image.path), optimisticPlan);
     } catch (e) {
-      print('? Check-in error: $e');
       // Silent error handling - continue with optimistic data
     } finally {
       if (mounted) {
@@ -321,8 +311,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
   Future<void> _processCheckInInBackground(
       File imageFile, JourneyPlan optimisticPlan) async {
     try {
-      print('?? Background: Starting API sync...');
-
       // Check network and session
       if (!_isNetworkAvailable) {
         print('Background: Network unavailable - scheduling retry');
@@ -351,9 +339,7 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           maxWidth: 800,
           quality: 60,
         );
-        print('Background: ? Image uploaded successfully');
       } catch (e) {
-        print('Background: ? Image upload failed: $e');
         imageUrl = null;
       }
 
@@ -369,7 +355,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           longitude: _currentPosition?.longitude,
           checkInTime: optimisticPlan.checkInTime,
         );
-        print('Background: ? Journey plan updated successfully');
         _resetRetry();
 
         // Update parent with real data (silently)
@@ -377,7 +362,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           widget.onCheckInSuccess!(updatedPlan);
         }
       } catch (e) {
-        print('Background: ? Journey plan update failed: $e');
         // Only schedule retry for non-server errors (server errors are handled by the service)
         if (!(e.toString().contains('500') ||
             e.toString().contains('501') ||
@@ -392,7 +376,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      print('Background: ? Error in background sync: $e');
       // Schedule retry
       _scheduleRetry(
           () => _processCheckInInBackground(imageFile, optimisticPlan),
@@ -419,7 +402,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     // Calculate distance in meters
     double distance = earthRadius * c;
 
-    print('\nDebug - Distance calculation:');
     print('From: ($lat1, $lon1)');
     print('To: ($lat2, $lon2)');
     print('Distance: ${distance.toStringAsFixed(2)} meters');
@@ -435,13 +417,11 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       if (widget.journeyPlan.isCheckedIn ||
           widget.journeyPlan.isInTransit ||
           widget.journeyPlan.isCompleted) {
-        print('Debug - Journey is already checked in or in progress');
         _isWithinGeofence = true;
         return true;
       }
 
       if (_currentPosition == null) {
-        print('Debug - Current position is null');
         return false;
       }
 
@@ -450,15 +430,12 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       final clientLon = widget.journeyPlan.client.longitude;
 
       // Add debug logging
-      print('\nDebug - Current Position:');
       print('Latitude: ${_currentPosition!.latitude}');
       print('Longitude: ${_currentPosition!.longitude}');
-      print('Debug - Client Position:');
       print('Latitude: $clientLat');
       print('Longitude: $clientLon');
 
       if (clientLat == null || clientLon == null) {
-        print('Debug - Client coordinates not available');
         return false;
       }
 
@@ -487,7 +464,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
       return isWithinRange;
     } catch (e) {
-      print('Debug - Error checking geofence: $e');
       return false;
     }
   }
@@ -541,8 +517,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         return;
       }
 
-      print('Debug - Got position with accuracy: ${position.accuracy} meters');
-
       setState(() {
         _currentPosition = position;
       });
@@ -551,7 +525,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
       await _getAddressFromLatLng(position.latitude, position.longitude);
       await _checkGeofence();
     } catch (e) {
-      print('Debug - Error getting position: $e');
       // Silent fallback - use client coordinates or defaults
       _useLocationFallback();
     } finally {
@@ -626,7 +599,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
         (Position position) {
           // Only update position if widget is still mounted and journey is still pending
           if (mounted && widget.journeyPlan.isPending) {
-            print('\nDebug - New position received:');
             print('Latitude: ${position.latitude}');
             print('Longitude: ${position.longitude}');
             print('Accuracy: ${position.accuracy} meters');
@@ -638,7 +610,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
 
             // Check geofence and log the result
             _checkGeofence().then((isWithinRange) {
-              print('Debug - Geofence check completed:');
               print('Is within range: $isWithinRange');
               print('New geofence status: $_isWithinGeofence');
               print(
@@ -709,8 +680,13 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
           widget.onCheckInSuccess!(completedPlan);
         }
 
-        // Navigate back or to next screen
-        Navigator.of(context).pop();
+        // Navigate to journey plans page instead of just popping back
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const JourneyPlansPage(),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -885,7 +861,6 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
     if (widget.journeyPlan.latitude != null &&
         widget.journeyPlan.longitude != null) {
       // Add debug logging
-      print('Debug - Using Check-in Location:');
       print('Journey Plan Latitude: ${widget.journeyPlan.latitude}');
       print('Journey Plan Longitude: ${widget.journeyPlan.longitude}');
       print('Client Latitude: ${widget.journeyPlan.client.latitude}');
@@ -1130,14 +1105,14 @@ class _JourneyViewState extends State<JourneyView> with WidgetsBindingObserver {
                                   const SizedBox(height: 6),
                                   _buildInfoItem(
                                     'Location',
-                                    widget.journeyPlan.client.address,
+                                      widget.journeyPlan.client.address ?? '',
                                     Icons.location_on,
                                   ),
                                   const SizedBox(height: 6),
                                   if (widget
                                       .journeyPlan.showUpdateLocation) ...[
                                     Row(
-                                      children: [
+                                      children: [   
                                         Expanded(
                                           child: ElevatedButton.icon(
                                             onPressed: _isFetchingLocation

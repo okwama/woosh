@@ -19,8 +19,11 @@ class SalesRepDashboard {
   });
 
   factory SalesRepDashboard.fromJson(Map<String, dynamic> json) {
+    print('🔍 Parsing SalesRepDashboard from JSON: $json');
     return SalesRepDashboard(
-      userId: json['userId'] as int,
+      userId: json['userId'] != null
+          ? int.tryParse(json['userId'].toString()) ?? 0
+          : 0,
       period: json['period'] as String,
       visitTargets:
           VisitTargets.fromJson(json['visitTargets'] as Map<String, dynamic>),
@@ -111,14 +114,23 @@ class VisitTargets {
   });
 
   factory VisitTargets.fromJson(Map<String, dynamic> json) {
+    print('🔍 Parsing VisitTargets from JSON: $json');
     return VisitTargets(
       userId: json['userId'].toString(),
-      date: json['date'] as String,
-      visitTarget: json['visitTarget'] as int,
-      completedVisits: json['completedVisits'] as int,
-      remainingVisits: json['remainingVisits'] as int,
-      progress: json['progress'] as int,
-      status: json['status'] as String,
+      date: json['date']?.toString() ?? '',
+      visitTarget: json['visitTarget'] != null
+          ? int.tryParse(json['visitTarget'].toString()) ?? 0
+          : 0,
+      completedVisits: json['completedVisits'] != null
+          ? int.tryParse(json['completedVisits'].toString()) ?? 0
+          : 0,
+      remainingVisits: json['remainingVisits'] != null
+          ? int.tryParse(json['remainingVisits'].toString()) ?? 0
+          : 0,
+      progress: json['progress'] != null
+          ? int.tryParse(json['progress'].toString()) ?? 0
+          : 0,
+      status: json['status']?.toString() ?? '',
     );
   }
 
@@ -201,14 +213,24 @@ class NewClientsProgress {
 
   factory NewClientsProgress.fromJson(Map<String, dynamic> json) {
     return NewClientsProgress(
-      userId: json['userId'] as int,
-      salesRepName: json['salesRepName'] as String,
-      period: json['period'] as String,
+      userId: json['userId'] != null
+          ? int.tryParse(json['userId'].toString()) ?? 0
+          : 0,
+      salesRepName: json['salesRepName']?.toString() ?? '',
+      period: json['period']?.toString() ?? '',
       dateRange: DateRange.fromJson(json['dateRange'] as Map<String, dynamic>),
-      newClientsTarget: json['newClientsTarget'] as int,
-      newClientsAdded: json['newClientsAdded'] as int,
-      remainingClients: json['remainingClients'] as int,
-      progress: json['progress'] as int,
+      newClientsTarget: json['newClientsTarget'] != null
+          ? int.tryParse(json['newClientsTarget'].toString()) ?? 0
+          : 0,
+      newClientsAdded: json['newClientsAdded'] != null
+          ? int.tryParse(json['newClientsAdded'].toString()) ?? 0
+          : 0,
+      remainingClients: json['remainingClients'] != null
+          ? int.tryParse(json['remainingClients'].toString()) ?? 0
+          : 0,
+      progress: json['progress'] != null
+          ? int.tryParse(json['progress'].toString()) ?? 0
+          : 0,
       status: json['status'] as String,
       generatedAt: DateTime.parse(json['generatedAt'] as String),
     );
@@ -307,9 +329,11 @@ class ProductSalesProgress {
 
   factory ProductSalesProgress.fromJson(Map<String, dynamic> json) {
     return ProductSalesProgress(
-      userId: json['userId'] as int,
-      salesRepName: json['salesRepName'] as String,
-      period: json['period'] as String,
+      userId: json['userId'] != null
+          ? int.tryParse(json['userId'].toString()) ?? 0
+          : 0,
+      salesRepName: json['salesRepName']?.toString() ?? '',
+      period: json['period']?.toString() ?? '',
       dateRange: DateRange.fromJson(json['dateRange'] as Map<String, dynamic>),
       summary: ProductSummary.fromJson(json['summary'] as Map<String, dynamic>),
       productBreakdown: (json['productBreakdown'] as List<dynamic>)
@@ -384,8 +408,12 @@ class ProductSummary {
 
   factory ProductSummary.fromJson(Map<String, dynamic> json) {
     return ProductSummary(
-      totalOrders: json['totalOrders'] as int,
-      totalQuantitySold: json['totalQuantitySold'] as int,
+      totalOrders: json['totalOrders'] != null
+          ? int.tryParse(json['totalOrders'].toString()) ?? 0
+          : 0,
+      totalQuantitySold: json['totalQuantitySold'] != null
+          ? int.tryParse(json['totalQuantitySold'].toString()) ?? 0
+          : 0,
       vapes: ProductMetric.fromJson(json['vapes'] as Map<String, dynamic>),
       pouches: ProductMetric.fromJson(json['pouches'] as Map<String, dynamic>),
     );
@@ -433,11 +461,18 @@ class ProductMetric {
 
   factory ProductMetric.fromJson(Map<String, dynamic> json) {
     return ProductMetric(
-      target: json['target'] as int,
-      sold: json['sold'] as int,
-      remaining: json['remaining'] as int,
-      progress: json['progress'] as int,
-      status: json['status'] as String,
+      target: json['target'] != null
+          ? int.tryParse(json['target'].toString()) ?? 0
+          : 0,
+      sold:
+          json['sold'] != null ? int.tryParse(json['sold'].toString()) ?? 0 : 0,
+      remaining: json['remaining'] != null
+          ? int.tryParse(json['remaining'].toString()) ?? 0
+          : 0,
+      progress: json['progress'] != null
+          ? int.tryParse(json['progress'].toString()) ?? 0
+          : 0,
+      status: json['status']?.toString() ?? '',
     );
   }
 
@@ -505,13 +540,19 @@ class ProductBreakdown {
 
   factory ProductBreakdown.fromJson(Map<String, dynamic> json) {
     return ProductBreakdown(
-      productId: json['productId'] as int,
-      productName: json['productName'] as String,
-      category: json['category'] as String,
-      categoryId: json['categoryId'] as int?,
-      quantity: json['quantity'] as int,
-      isVape: json['isVape'] as bool,
-      isPouch: json['isPouch'] as bool,
+      productId: json['productId'] != null
+          ? int.tryParse(json['productId'].toString()) ?? 0
+          : 0,
+      productName: json['productName']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      categoryId: json['categoryId'] != null
+          ? int.tryParse(json['categoryId'].toString())
+          : null,
+      quantity: json['quantity'] != null
+          ? int.tryParse(json['quantity'].toString()) ?? 0
+          : 0,
+      isVape: json['isVape'] == true || json['isVape'] == 'true',
+      isPouch: json['isPouch'] == true || json['isPouch'] == 'true',
     );
   }
 

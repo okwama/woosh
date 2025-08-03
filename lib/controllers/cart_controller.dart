@@ -1,21 +1,19 @@
 import 'package:get/get.dart';
 import 'package:woosh/models/orderitem_model.dart';
-import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/price_option_model.dart';
 import 'package:woosh/services/hive/cart_hive_service.dart';
 
 class CartController extends GetxController {
-  final RxList<OrderItem> items = <OrderItem>[].obs;
   final CartHiveService _cartHiveService = CartHiveService();
+  final RxList<OrderItem> items = <OrderItem>[].obs;
   final RxBool isLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    _loadCartItems();
+    loadCartItems();
   }
 
-  Future<void> _loadCartItems() async {
+  Future<void> loadCartItems() async {
     try {
       isLoading.value = true;
       await _cartHiveService.init();
@@ -29,10 +27,9 @@ class CartController extends GetxController {
 
   Future<void> addItem(OrderItem item) async {
     try {
-      // Check if item with same product and price option exists
+      // Check if item with same product and unit price exists
       final existingItemIndex = items.indexWhere((i) =>
-          i.productId == item.productId &&
-          i.priceOptionId == item.priceOptionId);
+          i.productId == item.productId && i.unitPrice == item.unitPrice);
 
       if (existingItemIndex != -1) {
         // Update quantity if item exists
@@ -55,8 +52,7 @@ class CartController extends GetxController {
   Future<void> removeItem(OrderItem item) async {
     try {
       final index = items.indexWhere((i) =>
-          i.productId == item.productId &&
-          i.priceOptionId == item.priceOptionId);
+          i.productId == item.productId && i.unitPrice == item.unitPrice);
       if (index != -1) {
         items.removeAt(index);
         await _cartHiveService.removeItem(index);
@@ -70,8 +66,7 @@ class CartController extends GetxController {
   Future<void> updateItemQuantity(OrderItem item, int quantity) async {
     try {
       final index = items.indexWhere((i) =>
-          i.productId == item.productId &&
-          i.priceOptionId == item.priceOptionId);
+          i.productId == item.productId && i.unitPrice == item.unitPrice);
       if (index != -1) {
         final updatedItem = item.copyWith(quantity: quantity);
         items[index] = updatedItem;
@@ -96,23 +91,10 @@ class CartController extends GetxController {
   int get totalItems => items.length;
 
   double get totalAmount {
-    return items.fold(0, (sum, item) {
-      // Use selected price option or first available option as fallback
-      double price = 0.0;
-
-      if (item.priceOptionId != null) {
-        // Use selected price option
-        final priceOption = item.product?.priceOptions
-            .firstWhereOrNull((po) => po.id == item.priceOptionId);
-        price = (priceOption?.value ?? 0).toDouble();
-      } else if (item.product?.priceOptions.isNotEmpty == true) {
-        // Use first available price option as fallback
-        price = (item.product!.priceOptions.first.value ?? 0).toDouble();
-      }
-
-      // Convert num to double for proper type assignment
-      double totalAmount = (sum + (price * item.quantity)).toDouble();
-      return totalAmount;
+    return items.fold(0.0, (sum, item) {
+      // Use the unit price directly from the order item
+      double price = item.unitPrice;
+      return sum + (price * item.quantity);
     });
   }
 }

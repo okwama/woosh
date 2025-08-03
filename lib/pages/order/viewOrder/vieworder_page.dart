@@ -3,9 +3,9 @@ import 'package:woosh/models/order_model.dart';
 import 'package:woosh/models/hive/order_model.dart' as hive;
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/models/user_model.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:woosh/models/price_option_model.dart';
-import 'package:woosh/pages/order/viewOrder/orderDetail.dart';
+import 'package:woosh/pages/order/viewOrder/order_detail.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
@@ -17,6 +17,7 @@ import 'package:woosh/services/hive/order_hive_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
+import 'package:woosh/utils/country_currency_labels.dart';
 
 class ViewOrdersPage extends StatefulWidget {
   const ViewOrdersPage({super.key});
@@ -76,12 +77,30 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
     });
 
     try {
+      print('[ViewOrders Debug] Loading orders...');
+
       // Load initial page
       final response = await _retryApiCall(
         () => ApiService.getOrders(page: 1, limit: _limit),
         maxRetries: 3,
         timeout: const Duration(seconds: 15),
       );
+
+      print(
+          '[ViewOrders Debug] Response received: ${response.data.isNotEmpty}');
+      print('[ViewOrders Debug] Total orders: ${response.total}');
+      print('[ViewOrders Debug] Page: ${response.page}');
+      print('[ViewOrders Debug] Total pages: ${response.totalPages}');
+      print('[ViewOrders Debug] Orders count: ${response.data.length}');
+
+      // Debug client data for first few orders
+      for (int i = 0; i < response.data.length && i < 3; i++) {
+        final order = response.data[i];
+        print(
+            '[ViewOrders Debug] Order ${order.id} - Client: ${order.client.name} (ID: ${order.client.id})');
+        print(
+            '[ViewOrders Debug] Order ${order.id} - Client address: ${order.client.address}');
+      }
 
       if (mounted) {
         setState(() {
@@ -96,6 +115,7 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
         }
       }
     } catch (e) {
+      print('[ViewOrders Debug] Error loading orders: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -315,13 +335,57 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
     }
   }
 
+  // Helper method to check if order can be deleted
+  bool _canDeleteOrder(Order order) {
+    final canDelete = order.status == OrderStatus.DRAFT;
+    print(
+        '[Delete Debug] Order ${order.id} - Status: ${order.status} - Can delete: $canDelete');
+    return canDelete;
+  }
+
   Future<void> _deleteOrder(Order order) async {
     try {
+      // Check if order can be deleted
+      if (!_canDeleteOrder(order)) {
+        Get.snackbar(
+          'Cannot Delete Order',
+          'Only draft orders can be deleted. Current status: ${order.status}',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.orange,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Delete Order'),
-          content: const Text('Are you sure you want to delete this order?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Are you sure you want to delete this order?'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Order #${order.id}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Status: ${order.status}'),
+                    Text('Client: ${order.client.name}'),
+                  ],
+                ),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -351,14 +415,44 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
         }
       }
     } catch (e) {
+      String errorMessage = 'Failed to delete order';
+
+      // Handle specific API error messages
+      if (e.toString().contains('Cannot delete order with status')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      } else if (e.toString().contains('Order not found')) {
+        errorMessage =
+            'Order not found or you do not have permission to delete it';
+      }
+
       Get.snackbar(
         'Error',
-        'Failed to delete order',
+        errorMessage,
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.red,
         colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       );
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+      case 'draft':
+        return Colors.orange;
+      case 'confirmed':
+      case 'completed':
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+      case 'voided':
+        return Colors.red;
+      case 'shipped':
+      case 'processing':
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -454,7 +548,8 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                               clientId: order.client.id,
                                               orderNumber: order.id.toString(),
                                               orderDate: order.createdAt,
-                                              totalAmount: order.totalAmount,
+                                              totalAmount:
+                                                  order.totalAmount ?? 0.0,
                                               status: order.status
                                                   .toString()
                                                   .split('.')
@@ -468,17 +563,13 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                                 0,
                                                         productName: item
                                                                 .product
-                                                                ?.name ??
+                                                                ?.productName ??
                                                             'Unknown Product',
                                                         quantity: item.quantity,
-                                                        unitPrice: (item.product
-                                                                    ?.priceOptions
-                                                                    .firstWhereOrNull((po) =>
-                                                                        po.id ==
-                                                                        item.priceOptionId)
-                                                                    ?.value ??
-                                                                0)
-                                                            .toDouble(),
+                                                        unitPrice:
+                                                            (item.unitPrice ??
+                                                                    0.0)
+                                                                .toDouble(),
                                                       ))
                                                   .toList(),
                                             ),
@@ -530,27 +621,167 @@ class _ViewOrdersPageState extends State<ViewOrdersPage> {
                                                     ),
                                                   ),
                                                 ),
-                                                Text(
-                                                  custom_date.DateUtils
-                                                      .formatDateTime(
-                                                          order.createdAt),
-                                                  style: const TextStyle(
-                                                    color: Colors.grey,
-                                                    fontSize: 11,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      custom_date.DateUtils
+                                                          .formatDateTime(
+                                                              order.createdAt),
+                                                      style: const TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                    // Delete button for draft orders
+                                                    if (_canDeleteOrder(
+                                                        order)) ...[
+                                                      const SizedBox(width: 8),
+                                                      Tooltip(
+                                                        message:
+                                                            'Delete draft order',
+                                                        child: GestureDetector(
+                                                          onTap: () =>
+                                                              _deleteOrder(
+                                                                  order),
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .all(4),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: Colors.red
+                                                                  .withOpacity(
+                                                                      0.1),
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          4),
+                                                            ),
+                                                            child: Icon(
+                                                              Icons
+                                                                  .delete_outline,
+                                                              size: 16,
+                                                              color: Colors
+                                                                  .red.shade600,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ],
                                             ),
                                             const SizedBox(height: 8),
                                             Row(
                                               children: [
-                                                Text(
-                                                  order.client.name,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Color.fromARGB(
-                                                        255, 4, 4, 4),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        'Client: ${order.client.name.isNotEmpty ? order.client.name : 'Unknown Client'}',
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                          color: Color.fromARGB(
+                                                              255, 4, 4, 4),
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        maxLines: 1,
+                                                      ),
+                                                      if (order.client.address
+                                                              ?.isNotEmpty ??
+                                                          false)
+                                                        Text(
+                                                          order.client
+                                                                  .address ??
+                                                              '',
+                                                          style:
+                                                              const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.grey,
+                                                          ),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          maxLines: 1,
+                                                        ),
+                                                    ],
                                                   ),
+                                                ),
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    Text(
+                                                      'Amount: ${CountryCurrencyLabels.formatCurrency(order.totalAmount ?? 0.0, null)}',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.green,
+                                                      ),
+                                                    ),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: _getStatusColor(
+                                                                order.status
+                                                                    .toString()
+                                                                    .split('.')
+                                                                    .last)
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(4),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text(
+                                                            order.status
+                                                                .toString()
+                                                                .split('.')
+                                                                .last
+                                                                .toUpperCase(),
+                                                            style: TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                              color: _getStatusColor(
+                                                                  order.status
+                                                                      .toString()
+                                                                      .split(
+                                                                          '.')
+                                                                      .last),
+                                                            ),
+                                                          ),
+                                                          // Show delete indicator for draft orders
+                                                          if (_canDeleteOrder(
+                                                              order)) ...[
+                                                            const SizedBox(
+                                                                width: 4),
+                                                            Icon(
+                                                              Icons
+                                                                  .delete_outline,
+                                                              size: 10,
+                                                              color: Colors
+                                                                  .red.shade600,
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                             ),

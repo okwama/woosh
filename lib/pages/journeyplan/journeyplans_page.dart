@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
-import 'package:woosh/pages/journeyplan/createJourneyplan.dart';
+import 'package:woosh/pages/journeyplan/create_journey_plan.dart';
 import 'package:woosh/pages/journeyplan/journeyview.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/jouneyplan_service.dart';
+import 'package:woosh/services/journeyplan/jouneyplan_service.dart';
+import 'package:woosh/services/journeyplan/journey_plan_state_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
+import 'package:woosh/services/client/client_service.dart';
 
 class JourneyPlansLoadingScreen extends StatefulWidget {
   const JourneyPlansLoadingScreen({super.key});
@@ -34,14 +36,22 @@ class _JourneyPlansLoadingScreenState extends State<JourneyPlansLoadingScreen> {
       final journeyPlansResponse =
           await JourneyPlanService.fetchJourneyPlans(page: 1);
       final routeId = ApiService.getCurrentUserRouteId();
-      final clientsResponse = await ApiService.fetchClients(routeId: routeId);
+      final clientsResponse =
+          await ClientService.fetchClients(routeId: routeId);
+
+      // Convert the response to the expected format
+      final List<dynamic> clientData = clientsResponse['data'] ?? [];
+      final List<Client> clients = clientData
+          .map((json) => Client.fromJson(json as Map<String, dynamic>))
+          .toList();
+
       // Navigate to main page with preloaded data
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => JourneyPlansPage(
-              preloadedClients: clientsResponse.data,
+              preloadedClients: clients,
               preloadedPlans: journeyPlansResponse.data,
             ),
           ),
@@ -101,18 +111,12 @@ class JourneyPlansPage extends StatefulWidget {
 
 class _JourneyPlansPageState extends State<JourneyPlansPage>
     with WidgetsBindingObserver {
-  bool _isLoading = false;
-  bool _isLoadingMore = false;
-  List<Client> _clients = [];
-  List<JourneyPlan> _journeyPlans = [];
+  late final JourneyPlanStateService _journeyPlanStateService;
   final Set<int> _hiddenJourneyPlans = {};
   String? _errorMessage;
-  int _currentPage = 1;
-  bool _hasMoreData = true;
   final ScrollController _scrollController = ScrollController();
   JourneyPlan? _activeVisit;
   bool _isShowingNotification = false;
-  Timer? _refreshTimer;
   bool _sortAscending = true;
 
   @override
@@ -120,229 +124,76 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // Get the journey plan state service
+    _journeyPlanStateService = Get.find<JourneyPlanStateService>();
+
     // Use preloaded data if available
     if (widget.preloadedClients != null) {
-      _clients = widget.preloadedClients!;
+      _journeyPlanStateService.clients.assignAll(widget.preloadedClients!);
     }
     if (widget.preloadedPlans != null) {
-      _journeyPlans = widget.preloadedPlans!;
-      _isLoading = false;
+      _journeyPlanStateService.journeyPlans.assignAll(widget.preloadedPlans!);
     } else {
       _loadData();
     }
 
     _scrollController.addListener(_onScroll);
     _checkActiveVisit();
-
-    // Start periodic refresh every 60 seconds
-    _startPeriodicRefresh();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh when page becomes visible (e.g., returning from other screens)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _refreshData();
-      }
-    });
+    // No longer need to refresh on every dependency change
+    // The state service handles this automatically
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
-    _refreshTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Refresh data when app comes back to foreground
-      _refreshData();
-    }
-  }
-
-  void _startPeriodicRefresh() {
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (timer) {
-      if (mounted) {
-        _refreshData();
-      }
-    });
-  }
-
-  Future<void> _refreshData() async {
-    try {
-      // Quick refresh without showing loading state
-      final routeId = ApiService.getCurrentUserRouteId();
-      final journeyPlansFuture = JourneyPlanService.fetchJourneyPlans(page: 1);
-      final clientsFuture = ApiService.fetchClients(routeId: routeId);
-
-      final journeyPlansResult = await journeyPlansFuture;
-      final clientsResult = await clientsFuture;
-
-      final List<JourneyPlan> fetchedPlans = journeyPlansResult.data;
-      final List<Client> clients = clientsResult.data;
-
-      // Build a map for efficient client lookup
-      final Map<int, Client> clientMap = {for (var c in clients) c.id: c};
-
-      // Create new JourneyPlan objects with full client data
-      final List<JourneyPlan> updatedJourneyPlans = fetchedPlans.map((plan) {
-        final Client client = clientMap[plan.client.id] ?? plan.client;
-        return JourneyPlan(
-          id: plan.id,
-          date: plan.date,
-          time: plan.time,
-          salesRepId: plan.salesRepId,
-          status: plan.status,
-          routeId: plan.routeId,
-          client: client,
-          showUpdateLocation: plan.showUpdateLocation,
-        );
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _journeyPlans = updatedJourneyPlans;
-          _clients = clients;
-        });
-      }
-    } catch (e) {
-      // Silent fail for background refresh
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during refresh - handled silently: $e');
-      } else {
-        print('Failed to refresh journey plans: $e');
-      }
+      // Use the state service's debounced refresh
+      _journeyPlanStateService.forceRefresh();
     }
   }
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      if (!_isLoadingMore && _hasMoreData) {
-        _loadMoreData();
+      if (!_journeyPlanStateService.isLoading.value &&
+          _journeyPlanStateService.hasMoreData.value) {
+        _journeyPlanStateService.loadMoreData();
       }
-    }
-  }
-
-  Future<void> _loadMoreData() async {
-    if (_isLoadingMore || !_hasMoreData) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final newPlans = await JourneyPlanService.fetchJourneyPlans(
-        page: _currentPage + 1,
-      );
-
-      if (newPlans.data.isEmpty) {
-        setState(() {
-          _hasMoreData = false;
-        });
-      } else {
-        setState(() {
-          _journeyPlans.addAll(newPlans.data);
-          _currentPage++;
-        });
-      }
-    } catch (e) {
-      // Silent fail for server errors
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during load more - handled silently: $e');
-      } else {
-        print('Failed to load more journey plans: $e');
-      }
-    } finally {
-      setState(() {
-        _isLoadingMore = false;
-      });
     }
   }
 
   Future<void> _loadData() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    }
-
     try {
-      // 1. Fetch journey plans and clients in parallel
-      final routeId = ApiService.getCurrentUserRouteId();
-      final journeyPlansFuture = JourneyPlanService.fetchJourneyPlans(page: 1);
-      final clientsFuture = ApiService.fetchClients(routeId: routeId);
-
-      // Await both futures
-      final journeyPlansResult = await journeyPlansFuture;
-      final clientsResult = await clientsFuture;
-
-      final List<JourneyPlan> fetchedPlans = journeyPlansResult.data;
-      final List<Client> clients = clientsResult.data;
-
-      // Build a map for efficient client lookup
-      final Map<int, Client> clientMap = {for (var c in clients) c.id: c};
-
-      // Create new JourneyPlan objects with full client data
-      final List<JourneyPlan> updatedJourneyPlans = fetchedPlans.map((plan) {
-        final Client client = clientMap[plan.client.id] ?? plan.client;
-        return JourneyPlan(
-          id: plan.id,
-          date: plan.date,
-          time: plan.time,
-          salesRepId: plan.salesRepId,
-          status: plan.status,
-          routeId: plan.routeId,
-          client: client,
-          showUpdateLocation: plan.showUpdateLocation,
-        );
-      }).toList();
-
-      if (mounted) {
-        setState(() {
-          _journeyPlans = updatedJourneyPlans;
-          _clients = clients;
-          _currentPage = 1;
-          _hasMoreData = true;
-        });
-      }
+      await _journeyPlanStateService.loadJourneyPlans();
     } catch (e) {
-      // Silent fail for server errors
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during load - handled silently: $e');
-      } else {
-        print('Failed to load journey plans: $e');
-      }
       if (mounted) {
         _showGenericErrorDialog();
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    }
+  }
+
+  Future<void> _refreshData() async {
+    try {
+      await _journeyPlanStateService.forceRefresh();
+    } catch (e) {
+      print('Failed to refresh journey plans: $e');
     }
   }
 
   List<JourneyPlan> _getFilteredPlans() {
     // Remove date filtering - show all plans
-    var filteredPlans = _journeyPlans.where((plan) {
+    var filteredPlans = _journeyPlanStateService.journeyPlans.where((plan) {
       return !_hiddenJourneyPlans.contains(plan.id);
     }).toList();
 
@@ -405,11 +256,15 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     );
 
     try {
-      if (_clients.isEmpty) {
-        final clientsResponse = await ApiService.fetchClients(
+      if (_journeyPlanStateService.clients.isEmpty) {
+        final clientsResponse = await ClientService.fetchClients(
             routeId: null); // Don't filter by route
+        final List<dynamic> clientData = clientsResponse['data'] ?? [];
+        final List<Client> clients = clientData
+            .map((json) => Client.fromJson(json as Map<String, dynamic>))
+            .toList();
         setState(() {
-          _clients = clientsResponse.data;
+          _journeyPlanStateService.clients.assignAll(clients);
         });
       }
 
@@ -420,11 +275,12 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
           context,
           MaterialPageRoute(
             builder: (context) => CreateJourneyPlanPage(
-              clients: _clients,
+              clients: _journeyPlanStateService.clients,
               onSuccess: (newJourneyPlans) {
                 if (newJourneyPlans.isNotEmpty) {
                   setState(() {
-                    _journeyPlans.insert(0, newJourneyPlans[0]);
+                    _journeyPlanStateService.journeyPlans
+                        .insert(0, newJourneyPlans[0]);
                   });
                 }
               },
@@ -452,7 +308,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
     final isPending = journeyPlan.statusText == 'Pending';
 
     // Check if there are any in-progress journey plans for today
-    final hasInProgressToday = _journeyPlans.any((plan) {
+    final hasInProgressToday =
+        _journeyPlanStateService.journeyPlans.any((plan) {
       final planDate = plan.date.toLocal();
       final planDateOnly =
           DateTime(planDate.year, planDate.month, planDate.day);
@@ -489,10 +346,13 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
                                 journeyPlan: _activeVisit!,
                                 onCheckInSuccess: (updatedPlan) {
                                   setState(() {
-                                    final index = _journeyPlans.indexWhere(
-                                        (p) => p.id == updatedPlan.id);
+                                    final index = _journeyPlanStateService
+                                        .journeyPlans
+                                        .indexWhere(
+                                            (p) => p.id == updatedPlan.id);
                                     if (index != -1) {
-                                      _journeyPlans[index] = updatedPlan;
+                                      _journeyPlanStateService
+                                          .journeyPlans[index] = updatedPlan;
                                     }
                                     _activeVisit = updatedPlan;
                                   });
@@ -523,9 +383,11 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
           journeyPlan: journeyPlan,
           onCheckInSuccess: (updatedPlan) {
             setState(() {
-              final index =
-                  _journeyPlans.indexWhere((p) => p.id == updatedPlan.id);
-              if (index != -1) _journeyPlans[index] = updatedPlan;
+              final index = _journeyPlanStateService.journeyPlans
+                  .indexWhere((p) => p.id == updatedPlan.id);
+              if (index != -1) {
+                _journeyPlanStateService.journeyPlans[index] = updatedPlan;
+              }
               _activeVisit = updatedPlan;
             });
             // Immediate UI update
@@ -550,40 +412,22 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
   // Add method to refresh specific journey plan status
   Future<void> _refreshJourneyPlanStatus(int journeyPlanId) async {
     try {
-      // Fetch the updated journey plan from the server
-      final updatedPlan =
-          await JourneyPlanService.getJourneyPlanById(journeyPlanId);
+      // Use the centralized state service instead of direct API calls
+      await _journeyPlanStateService.refreshJourneyPlanStatus(journeyPlanId);
 
-      if (updatedPlan != null && mounted) {
+      // Update active visit if this was the active one
+      final updatedPlan = _journeyPlanStateService.journeyPlans.firstWhere(
+          (p) => p.id == journeyPlanId,
+          orElse: () => _activeVisit!);
+
+      if (mounted && _activeVisit?.id == journeyPlanId) {
         setState(() {
-          final index = _journeyPlans.indexWhere((p) => p.id == journeyPlanId);
-          if (index != -1) {
-            _journeyPlans[index] = updatedPlan;
-          }
-
-          // Update active visit if this was the active one
-          if (_activeVisit?.id == journeyPlanId) {
-            _activeVisit = updatedPlan;
-          }
+          _activeVisit = updatedPlan;
         });
-
-        // If still not completed, try one more time after a short delay
-        if (updatedPlan.statusText != 'Completed') {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              _refreshJourneyPlanStatus(journeyPlanId);
-            }
-          });
-        }
       }
     } catch (e) {
-      print('Failed to refresh journey plan status');
-      // Try again after a short delay
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          _refreshJourneyPlanStatus(journeyPlanId);
-        }
-      });
+      print('Failed to refresh journey plan status: $e');
+      // Don't retry automatically - let the state service handle retries
     }
   }
 
@@ -640,7 +484,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
 
       // Remove from local list
       setState(() {
-        _journeyPlans.removeWhere((plan) => plan.id == journeyPlan.id);
+        _journeyPlanStateService.journeyPlans
+            .removeWhere((plan) => plan.id == journeyPlan.id);
       });
 
       // Show success message
@@ -675,9 +520,12 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
   // Immediate UI update method for instant feedback
   void _updateJourneyPlanStatus(int journeyId, int newStatus) {
     setState(() {
-      final index = _journeyPlans.indexWhere((plan) => plan.id == journeyId);
+      final index = _journeyPlanStateService.journeyPlans
+          .indexWhere((plan) => plan.id == journeyId);
       if (index != -1) {
-        _journeyPlans[index] = _journeyPlans[index].copyWith(status: newStatus);
+        _journeyPlanStateService.journeyPlans[index] = _journeyPlanStateService
+            .journeyPlans[index]
+            .copyWith(status: newStatus);
       }
     });
   }
@@ -704,7 +552,8 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
           ),
         ],
       ),
-      body: _isLoading && _journeyPlans.isEmpty
+      body: _journeyPlanStateService.isLoading.value &&
+              _journeyPlanStateService.journeyPlans.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
@@ -728,10 +577,13 @@ class _JourneyPlansPageState extends State<JourneyPlansPage>
                         : ListView.builder(
                             controller: _scrollController,
                             itemCount: _getFilteredPlans().length +
-                                (_hasMoreData ? 1 : 0),
+                                (_journeyPlanStateService.hasMoreData.value
+                                    ? 1
+                                    : 0),
                             itemBuilder: (context, index) {
                               if (index == _getFilteredPlans().length) {
-                                return _isLoadingMore
+                                return _journeyPlanStateService
+                                        .isLoadingMore.value
                                     ? const Center(
                                         child: Padding(
                                           padding: EdgeInsets.all(16.0),

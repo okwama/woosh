@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/models/session_model.dart';
-import 'package:woosh/services/session_service.dart';
+import 'package:woosh/services/clockInOut/clock_in_out_service.dart';
 import 'package:woosh/utils/app_theme.dart' hide CreamGradientCard;
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
@@ -16,7 +16,8 @@ class SessionHistoryPage extends StatefulWidget {
   State<SessionHistoryPage> createState() => _SessionHistoryPageState();
 }
 
-class _SessionHistoryPageState extends State<SessionHistoryPage> {
+class _SessionHistoryPageState extends State<SessionHistoryPage>
+    with TickerProviderStateMixin {
   List<Session> _sessions = [];
   bool _isLoading = false;
   String? _error;
@@ -30,9 +31,20 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   bool _hasMoreData = true;
   final _cache = <String, List<Session>>{};
 
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
     _loadUserId();
     _scrollController.addListener(_onScroll);
     _precacheData();
@@ -40,6 +52,8 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _animationController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -47,10 +61,14 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   void _loadUserId() {
     final userData = GetStorage().read('salesRep');
     if (userData != null && userData['id'] != null) {
-      setState(() => _userId = userData['id'].toString());
-      _loadSessions();
+      if (mounted) {
+        setState(() => _userId = userData['id'].toString());
+        _loadSessions();
+      }
     } else {
-      setState(() => _error = 'User ID not found');
+      if (mounted) {
+        setState(() => _error = 'User ID not found');
+      }
     }
   }
 
@@ -82,7 +100,7 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   Future<void> _fetchAndCacheData(
       String startDate, String endDate, String cacheKey) async {
     try {
-      final response = await SessionService.getSessionHistory(
+      final response = await ClockInOutService.getClockHistory(
         _userId!,
         startDate: startDate,
         endDate: endDate,
@@ -103,14 +121,20 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
     if (startDate == null || endDate == null) return sessions;
 
     return sessions.where((session) {
-      final sessionDate = session.loginAt;
-      return sessionDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
-          sessionDate.isBefore(endDate.add(const Duration(days: 1)));
+      if (session.sessionStart == null) return false;
+      try {
+        final sessionDate = DateTime.parse(session.sessionStart!);
+        return sessionDate
+                .isAfter(startDate.subtract(const Duration(days: 1))) &&
+            sessionDate.isBefore(endDate.add(const Duration(days: 1)));
+      } catch (e) {
+        return false;
+      }
     }).toList();
   }
 
   Future<void> _loadSessions() async {
-    if (_userId == null) return;
+    if (_userId == null || !mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -118,14 +142,14 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
     });
 
     try {
-      print('Fetching sessions for user ID: $_userId');
-      final response = await SessionService.getSessionHistory(_userId!);
+      print('Fetching clock history for user ID: $_userId');
+      final response = await ClockInOutService.getClockHistory(_userId!);
 
-      // Print the raw response
+      if (!mounted) return;
+
       print('Raw API Response:');
       print(response);
-      print('Total sessions in response: ${response['totalSessions']}');
-      print('Sessions array length: ${response['sessions']?.length ?? 0}');
+      print('Total sessions in response: ${response['sessions']?.length ?? 0}');
 
       if (response['sessions'] != null) {
         final allSessions = (response['sessions'] as List)
@@ -134,7 +158,6 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
 
         print('Parsed sessions: ${allSessions.length}');
 
-        // Filter sessions based on selected date range
         final filteredSessions = _filterSessionsByDate(
           allSessions,
           _isCustomDate ? _startDate : _getStartDateForPeriod(_selectedPeriod),
@@ -143,39 +166,52 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
 
         print('Filtered sessions: ${filteredSessions.length}');
 
-        setState(() {
-          _sessions = filteredSessions;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _sessions = filteredSessions;
+            _isLoading = false;
+          });
+
+          if (_animationController.status != AnimationStatus.completed) {
+            _animationController.forward();
+          }
+        }
       } else {
         print('No sessions data in response');
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       print('Error loading sessions: $e');
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadMoreSessions() async {
-    if (_isLoadingMore || !_hasMoreData) return;
+    if (_isLoadingMore || !_hasMoreData || !mounted) return;
 
     setState(() => _isLoadingMore = true);
 
     try {
-      // Simulate loading more data (replace with actual implementation)
       await Future.delayed(const Duration(seconds: 1));
-      setState(() {
-        _hasMoreData = false; // Set to false if no more data
-        _isLoadingMore = false;
-      });
+      if (mounted) {
+        setState(() {
+          _hasMoreData = false;
+          _isLoadingMore = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoadingMore = false);
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
     }
   }
 
@@ -187,9 +223,19 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
       initialDateRange: _startDate != null && _endDate != null
           ? DateTimeRange(start: _startDate!, end: _endDate!)
           : null,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: Theme.of(context).primaryColor,
+                ),
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         _startDate = picked.start;
         _endDate = picked.end;
@@ -200,7 +246,8 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   }
 
   Map<String, String> _getDateRangeForPeriod(String period) {
-    final now = DateTime.now();
+    // Use Africa/Nairobi (EAT) timezone for 'today' calculations
+    final now = DateTime.now().toUtc().add(const Duration(hours: 3));
     switch (period) {
       case 'today':
         return {
@@ -228,7 +275,8 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   }
 
   DateTime? _getStartDateForPeriod(String period) {
-    final now = DateTime.now();
+    // Use Africa/Nairobi (EAT) timezone for 'today' calculations
+    final now = DateTime.now().toUtc().add(const Duration(hours: 3));
     switch (period) {
       case 'today':
         return now;
@@ -241,173 +289,251 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
     }
   }
 
-  Widget _buildPeriodChip(String label, String value) {
+  Widget _buildPeriodChip(String label, String value, IconData icon) {
     final isSelected = _selectedPeriod == value && !_isCustomDate;
-    return FilterChip(
-      selected: isSelected,
-      label: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : Colors.black87,
-          fontSize: 11,
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        selected: isSelected,
+        avatar: Icon(
+          icon,
+          size: 14,
+          color: isSelected ? Colors.white : Colors.grey[600],
         ),
+        label: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.grey[700],
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+        selectedColor: Theme.of(context).primaryColor,
+        backgroundColor: Colors.grey[100],
+        checkmarkColor: Colors.white,
+        elevation: isSelected ? 2 : 0,
+        pressElevation: 4,
+        onSelected: (bool selected) {
+          if (selected && mounted) {
+            setState(() {
+              _selectedPeriod = value;
+              _isCustomDate = false;
+              _startDate = null;
+              _endDate = null;
+            });
+            _loadSessions();
+          }
+        },
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      selectedColor: Theme.of(context).primaryColor,
-      backgroundColor: Colors.grey.shade200,
-      onSelected: (bool selected) {
-        if (selected) {
-          setState(() {
-            _selectedPeriod = value;
-            _isCustomDate = false;
-            _startDate = null;
-            _endDate = null;
-          });
-          _loadSessions();
-        }
-      },
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 
-  Widget _buildSessionCard(Session session) {
-    // Format the session start time
-    final startTime = session.sessionStart ?? session.loginAt.toIso8601String();
-    final startDateTime = DateTime.parse(startTime);
-    final formattedStartTime =
-        '${DateFormat('yyyy/MM/dd').format(startDateTime)} ${DateFormat('hh:mm a').format(startDateTime)}';
+  Widget _buildCompactSessionCard(Session session, int index) {
+    final startTime = session.sessionStart ?? 'N/A';
+    DateTime? startDateTime;
+    String date = 'N/A';
+    String timeStart = 'N/A';
 
-    // Format the session end time and calculate duration
-    String? formattedEndTime;
-    String formattedDuration = 'N/A';
-
-    if (session.sessionEnd != null) {
-      final endDateTime = DateTime.parse(session.sessionEnd!);
-      formattedEndTime = DateFormat('hh:mm a').format(endDateTime);
-
-      // Calculate duration from start and end times
-      final duration = endDateTime.difference(startDateTime);
-      final hours = duration.inHours;
-      final minutes = duration.inMinutes.remainder(60);
-      formattedDuration = '${hours}h ${minutes}m';
+    if (startTime != 'N/A') {
+      try {
+        startDateTime = DateTime.parse(startTime);
+        date = DateFormat('MMM dd').format(startDateTime);
+        timeStart = DateFormat('h:mm').format(startDateTime);
+      } catch (e) {
+        print('Error parsing start time: $e');
+      }
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+    String? timeEnd;
+    String duration = _formatDuration(session.duration);
+    Color durationColor = Colors.green;
+
+    if (session.sessionEnd != null) {
+      try {
+        final endDateTime = DateTime.parse(session.sessionEnd!);
+        timeEnd = DateFormat('h:mm').format(endDateTime);
+      } catch (e) {
+        print('Error parsing end time: $e');
+      }
+    }
+
+    final isActive = session.status == '1';
+    final statusColor = _getStatusColor(session);
+
+    // Set duration color based on status
+    if (session.status == '2') {
+      durationColor = Colors.grey[600]!;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: session.isLate
-                    ? Colors.orange.withOpacity(0.1)
-                    : Colors.green.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                session.isLate ? Icons.warning : Icons.check_circle,
-                color: session.isLate ? Colors.orange : Colors.green,
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            // Add tap functionality if needed
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Status indicator
+                Container(
+                  width: 4,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Date section
+                SizedBox(
+                  width: 60,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        formattedStartTime,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                        date,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
                         ),
                       ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(session).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          session.formattedStatus,
-                          style: TextStyle(
-                            color: _getStatusColor(session),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Text(
+                        startDateTime != null
+                            ? DateFormat('EEE').format(startDateTime)
+                            : 'N/A',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Row(
+                ),
+
+                const SizedBox(width: 12),
+
+                // Time section
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.login_rounded,
+                            size: 14,
+                            color: Colors.green[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            timeStart,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      if (timeEnd != null)
+                        Row(
                           children: [
-                            const Icon(Icons.timer,
-                                size: 12, color: Colors.grey),
+                            Icon(
+                              Icons.logout_rounded,
+                              size: 14,
+                              color: Colors.red[600],
+                            ),
                             const SizedBox(width: 4),
                             Text(
-                              formattedDuration,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
+                              timeEnd,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const Spacer(),
-                      if (formattedEndTime != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.schedule,
-                                  size: 12, color: Colors.blue),
-                              const SizedBox(width: 4),
-                              Text(
-                                formattedEndTime,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
-                ],
-              ),
+                ),
+
+                // Duration and status
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: durationColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        duration,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: durationColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: statusColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isActive ? 'Active' : 'Ended',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -416,75 +542,146 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   Color _getStatusColor(Session session) {
     switch (session.status) {
       case '1':
-        return Colors.orange; // Early
+        return Colors.green;
       case '2':
-        return Colors.purple; // Overtime
+        return Colors.grey[600]!;
       default:
-        return session.isLate ? Colors.red : Colors.green; // Late or On Time
+        return Colors.blue;
     }
   }
 
-  Widget _buildDateFilter() {
-    return CreamGradientCard(
-      borderWidth: 1.5,
-      padding: const EdgeInsets.all(8.0),
-      margin: const EdgeInsets.all(4.0),
+  String _formatDuration(String? duration) {
+    if (duration == null || duration == 'Active') return 'Active';
+    
+    // Handle negative durations
+    if (duration.startsWith('-')) {
+      return duration;
+    }
+    
+    // Parse the duration string (e.g., "0h 0.16666666666666666m")
+    try {
+      final parts = duration.split(' ');
+      if (parts.length >= 2) {
+        final hours = parts[0].replaceAll('h', '');
+        final minutes = parts[1].replaceAll('m', '');
+        
+        final hoursInt = int.tryParse(hours) ?? 0;
+        final minutesDouble = double.tryParse(minutes) ?? 0.0;
+        
+        // Round minutes to 2 decimal places
+        final roundedMinutes = (minutesDouble * 100).round() / 100;
+        
+        return '${hoursInt}h ${roundedMinutes.toStringAsFixed(2)}m';
+      }
+    } catch (e) {
+      print('Error formatting duration: $e');
+    }
+    
+    return duration;
+  }
+
+  Widget _buildCompactDateFilter() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_today,
-                  color: Theme.of(context).primaryColor, size: 14),
-              const SizedBox(width: 4),
-              const Text(
-                'Select Period',
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.filter_list_rounded,
+                  color: Theme.of(context).primaryColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Filter Sessions',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${_sessions.length} sessions',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildPeriodChip('Today', 'today'),
-                const SizedBox(width: 6),
-                _buildPeriodChip('This Week', 'week'),
-                const SizedBox(width: 6),
-                _buildPeriodChip('This Month', 'month'),
-                const SizedBox(width: 6),
-                FilterChip(
-                  selected: _isCustomDate,
-                  label: Text(
-                    _isCustomDate && _startDate != null && _endDate != null
-                        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
-                        : 'Custom Range',
-                    style: TextStyle(
-                      color: _isCustomDate ? Colors.white : Colors.black87,
-                      fontSize: 11,
+                _buildPeriodChip('Today', 'today', Icons.today_rounded),
+                _buildPeriodChip('Week', 'week', Icons.date_range_rounded),
+                _buildPeriodChip(
+                    'Month', 'month', Icons.calendar_month_rounded),
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    selected: _isCustomDate,
+                    avatar: Icon(
+                      Icons.edit_calendar_rounded,
+                      size: 14,
+                      color: _isCustomDate ? Colors.white : Colors.grey[600],
                     ),
+                    label: Text(
+                      _isCustomDate && _startDate != null && _endDate != null
+                          ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d').format(_endDate!)}'
+                          : 'Custom',
+                      style: TextStyle(
+                        color: _isCustomDate ? Colors.white : Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight:
+                            _isCustomDate ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                    selectedColor: Theme.of(context).primaryColor,
+                    backgroundColor: Colors.grey[100],
+                    checkmarkColor: Colors.white,
+                    elevation: _isCustomDate ? 2 : 0,
+                    pressElevation: 4,
+                    onSelected: (bool selected) {
+                      if (selected) {
+                        _selectDateRange(context);
+                      } else if (mounted) {
+                        setState(() {
+                          _isCustomDate = false;
+                          _startDate = null;
+                          _endDate = null;
+                        });
+                        _loadSessions();
+                      }
+                    },
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  selectedColor: Theme.of(context).primaryColor,
-                  backgroundColor: Colors.grey.shade200,
-                  onSelected: (bool selected) {
-                    if (selected) {
-                      _selectDateRange(context);
-                    } else {
-                      setState(() {
-                        _isCustomDate = false;
-                        _startDate = null;
-                        _endDate = null;
-                      });
-                      _loadSessions();
-                    }
-                  },
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ],
             ),
@@ -496,80 +693,151 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history,
-            size: 48,
-            color: Colors.grey.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No sessions found for the selected period',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.history_rounded,
+                size: 48,
+                color: Colors.grey[400],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              'No Sessions Found',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No sessions found for the selected period.\nTry selecting a different time range.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildLoadingState() {
+  Widget _buildShimmerLoading() {
     return ListView.builder(
-      itemCount: 5,
-      padding: const EdgeInsets.all(6.0),
+      itemCount: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          child: Container(
-            height: 70,
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 60,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 100,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 30,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 70,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    width: 50,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 40,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -579,60 +847,111 @@ class _SessionHistoryPageState extends State<SessionHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: GradientAppBar(
         title: 'Session History',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadSessions,
             tooltip: 'Refresh',
           ),
         ],
       ),
       body: _isLoading
-          ? _buildLoadingState()
+          ? _buildShimmerLoading()
           : _error != null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Colors.red.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 16),
-                      GoldGradientButton(
-                        onPressed: _loadSessions,
-                        child: const Text('Retry'),
-                      ),
-                    ],
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.error_outline_rounded,
+                            size: 48,
+                            color: Colors.red[400],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Something went wrong',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.red[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        GoldGradientButton(
+                          onPressed: _loadSessions,
+                          child: const Text(
+                            'Try Again',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadSessions,
-                  child: SingleChildScrollView(
+                  color: Theme.of(context).primaryColor,
+                  child: CustomScrollView(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(6.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildDateFilter(),
-                        const SizedBox(height: 12),
-                        if (_sessions.isEmpty)
-                          _buildEmptyState()
-                        else
-                          ..._sessions.map(_buildSessionCard),
-                        if (_isLoadingMore)
-                          const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Center(child: CircularProgressIndicator()),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _buildCompactDateFilter(),
+                      ),
+                      if (_sessions.isEmpty)
+                        SliverFillRemaining(
+                          child: _buildEmptyState(),
+                        )
+                      else
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              return FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: _buildCompactSessionCard(
+                                    _sessions[index], index),
+                              );
+                            },
+                            childCount: _sessions.length,
                           ),
-                      ],
-                    ),
+                        ),
+                      if (_isLoadingMore)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                        ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 20),
+                      ),
+                    ],
                   ),
                 ),
     );

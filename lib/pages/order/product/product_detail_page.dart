@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/price_option_model.dart';
@@ -12,19 +12,21 @@ import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/utils/image_utils.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/utils/country_currency_labels.dart';
+import 'package:woosh/utils/currency_utils.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Outlet outlet;
   final Product product;
   final OrderModel? order;
+  final PriceOption? selectedPriceOption;
 
   const ProductDetailPage({
     super.key,
     required this.outlet,
     required this.product,
     this.order,
+    this.selectedPriceOption,
   });
 
   @override
@@ -59,12 +61,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   void _initializeData() async {
     // Pre-calculate static values once
-    _cachedProductName = widget.product.name +
-        (widget.product.packSize != null
-            ? ' (Sold in packs of ${widget.product.packSize})'
+    _cachedProductName = widget.product.productName +
+        (widget.product.unitOfMeasure != null
+            ? ' (Sold in packs of ${widget.product.unitOfMeasure})'
             : '');
-    _cachedPackSizeText = widget.product.packSize != null
-        ? 'You are ordering in packs. 1 pack = ${widget.product.packSize} pieces.'
+    _cachedPackSizeText = widget.product.unitOfMeasure != null
+        ? 'You are ordering in packs. 1 pack = ${widget.product.unitOfMeasure} pieces.'
         : null;
     _hasDescription = widget.product.description?.isNotEmpty ?? false;
 
@@ -73,7 +75,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     _cachedUserCountryId = userData?['countryId'];
 
     if (userData != null) {
-      _regionId = userData['region_id'];
+      // Try to get regionId first, fallback to countryId
+      _regionId = userData['regionId'] ??
+          userData['region_id'] ??
+          userData['countryId'];
       if (_regionId != null) {
         _calculateStockAvailability();
       } else {
@@ -87,8 +92,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       });
     }
 
-    // Set default price option
-    if (widget.product.priceOptions.isNotEmpty) {
+    // Set price option (use provided one or default to first)
+    if (widget.selectedPriceOption != null) {
+      _selectedPriceOption = widget.selectedPriceOption;
+    } else if (widget.product.priceOptions.isNotEmpty) {
       _selectedPriceOption = widget.product.priceOptions.first;
     }
 
@@ -128,7 +135,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     if (_regionId == null) {
       Get.snackbar(
         'Error',
-        'Cannot adjust quantity: No region assigned to your account',
+        'Cannot adjust quantity: No region or country assigned to your account',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -149,7 +156,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     if (_regionId == null) {
       Get.snackbar(
         'Error',
-        'Cannot add to cart: No region assigned to your account',
+        'Cannot add to cart: No region or country assigned to your account',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -170,10 +177,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
     final quantityText = _quantityController.text;
     final quantity = int.tryParse(quantityText) ?? 0;
-    final packSize = widget.product.packSize;
+    final unitOfMeasure = widget.product.unitOfMeasure;
 
     // Prevent partial packs
-    if (packSize != null) {
+    if (unitOfMeasure != null) {
       if (quantity <= 0 ||
           quantityText.contains('.') ||
           int.tryParse(quantityText) == null) {
@@ -217,14 +224,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         productId: widget.product.id,
         quantity: quantity,
         product: widget.product,
-        priceOptionId: _selectedPriceOption?.id,
+        unitPrice: _selectedPriceOption?.value?.toDouble() ?? 0,
+        taxAmount: 0.0,
+        totalPrice: 0.0,
+        netPrice: 0.0,
+        salesOrderId: widget.order?.id ?? 0,
       ),
     );
 
     // Show success message
     String successMsg = 'Item added to cart';
-    if (widget.product.packSize != null) {
-      final totalPieces = quantity * (widget.product.packSize ?? 1);
+    if (widget.product.unitOfMeasure != null) {
+      final unitMeasure = double.tryParse(widget.product.unitOfMeasure!) ?? 1.0;
+      final totalPieces = quantity * unitMeasure;
       successMsg = 'Added $quantity pack(s) ($totalPieces pieces) to cart';
     }
     Get.snackbar(
@@ -290,7 +302,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       ),
       child: Text(
         _regionId == null
-            ? 'No region assigned to your account'
+            ? 'No region or country assigned to your account'
             : isOutOfStock
                 ? 'Out of stock'
                 : 'In stock',
@@ -320,7 +332,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             onPressed: () => Get.back(),
           ),
           title: Text(
-            widget.product.name,
+            widget.product.productName,
             style: const TextStyle(
               color: Colors.black87,
               fontSize: 18,
@@ -347,7 +359,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
           onPressed: () => Get.back(),
         ),
         title: Text(
-          widget.product.name,
+          widget.product.productName,
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 18,
@@ -532,7 +544,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: [
               if (_selectedPriceOption != null)
                 Text(
-                  'Selected Price: ${CountryCurrencyLabels.formatCurrency(_selectedPriceOption!.value?.toDouble(), _cachedUserCountryId)}',
+                  'Selected Price: ${CurrencyUtils.format(CurrencyUtils.getPriceForCountry(_selectedPriceOption!, _cachedUserCountryId ?? 1), countryId: _cachedUserCountryId)}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -575,7 +587,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       return DropdownMenuItem<PriceOption>(
         value: option,
         child: Text(
-          '${option.option} - ${CountryCurrencyLabels.formatCurrency(option.value?.toDouble(), _cachedUserCountryId)}',
+          '${option.label} - ${CurrencyUtils.format(CurrencyUtils.getPriceForCountry(option, _cachedUserCountryId ?? 1), countryId: _cachedUserCountryId)}',
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,

@@ -123,11 +123,11 @@ void main() {
       final priceOption = PriceOption.fromJson(json);
 
       expect(priceOption.id, equals(5));
-      expect(priceOption.option, equals('option 1'));
+      expect(priceOption.label, equals('option 1'));
       expect(priceOption.value, equals(22000)); // Should be parsed as int
       expect(
-          priceOption.value_tzs, equals(22000.0)); // Should be parsed as double
-      expect(priceOption.value_ngn, isNull);
+          priceOption.valueTzs, equals(22000.0)); // Should be parsed as double
+      expect(priceOption.valueNgn, isNull);
       expect(priceOption.categoryId, equals(3));
     });
 
@@ -145,10 +145,10 @@ void main() {
       final priceOption = PriceOption.fromJson(json);
 
       expect(priceOption.id, equals(6));
-      expect(priceOption.option, equals('option 2'));
+      expect(priceOption.label, equals('option 2'));
       expect(priceOption.value, equals(24000));
-      expect(priceOption.value_tzs, equals(24000.0));
-      expect(priceOption.value_ngn, equals(500.0));
+      expect(priceOption.valueTzs, equals(24000.0));
+      expect(priceOption.valueNgn, equals(500.0));
       expect(priceOption.categoryId, equals(3));
     });
 
@@ -165,10 +165,10 @@ void main() {
       final priceOption = PriceOption.fromJson(json);
 
       expect(priceOption.id, equals(7));
-      expect(priceOption.option, equals('option 3'));
+      expect(priceOption.label, equals('option 3'));
       expect(priceOption.value, isNull);
-      expect(priceOption.value_tzs, isNull);
-      expect(priceOption.value_ngn, isNull);
+        expect(priceOption.valueTzs, isNull);
+      expect(priceOption.valueNgn, isNull);
       expect(priceOption.categoryId, equals(3));
     });
   });

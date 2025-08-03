@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/models/hive/order_model.dart';
 import 'package:woosh/models/orderitem_model.dart';
 import 'package:woosh/controllers/cart_controller.dart';
@@ -14,7 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
-import 'package:woosh/utils/country_currency_labels.dart';
+import 'package:woosh/utils/currency_utils.dart';
 
 class CartPage extends StatefulWidget {
   final Outlet outlet;
@@ -35,8 +35,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   final AuthController authController = Get.find<AuthController>();
   final RxBool isLoading = false.obs;
   final RxString errorMessage = ''.obs;
-  final Rx<Store?> selectedStore = Rx<Store?>(null);
-  final RxList<Store> availableStores = <Store>[].obs;
   final Rx<dynamic> selectedImage =
       Rx<dynamic>(null); // For storing selected image
   final RxString comment = ''.obs; // Add comment field
@@ -48,7 +46,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadStores();
   }
 
   @override
@@ -65,77 +62,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     ImageCache().clearLiveImages();
   }
 
-  Future<void> _loadStores() async {
-    try {
-      final stores = await ApiService.getStores();
-      print('Total stores received: ${stores.length}');
-
-      // Get user's region and country from GetStorage
-      final box = GetStorage();
-      final salesRep = box.read('salesRep');
-      final userRegionId = salesRep?['region_id'];
-      final userCountryId = salesRep?['countryId'];
-
-      print(
-          'User context - Region ID: $userRegionId, Country ID: $userCountryId');
-      print('Outlet country ID: ${widget.outlet.countryId}');
-
-      // Filter stores based on user's country first, then outlet's country
-      final filteredStores = stores.where((store) {
-        print('Checking store: ${store.name} (Country ID: ${store.countryId})');
-
-        // First priority: User's country
-        if (userCountryId != null) {
-          final matches = store.countryId == userCountryId;
-          print(
-              'Store ${store.name} ${matches ? 'matches' : 'does not match'} user country $userCountryId');
-          return matches;
-        }
-
-        // Second priority: Outlet's country
-        if (widget.outlet.countryId != null) {
-          final matches = store.countryId == widget.outlet.countryId;
-          print(
-              'Store ${store.name} ${matches ? 'matches' : 'does not match'} outlet country ${widget.outlet.countryId}');
-          return matches;
-        }
-
-        // If no country filters available, show all active stores
-        final isActive = store.status == 0;
-        print(
-            'No country filter - Store ${store.name} is ${isActive ? 'active' : 'inactive'}');
-        return isActive;
-      }).toList();
-
-      print('Filtered stores: ${filteredStores.length}');
-      print(
-          'Available stores: ${filteredStores.map((s) => s.name).join(', ')}');
-
-      availableStores.value = filteredStores;
-
-      if (filteredStores.isNotEmpty) {
-        selectedStore.value = filteredStores.first;
-        print('Selected store: ${selectedStore.value?.name}');
-      } else {
-        // Show a message if no stores are available for the country
-        Get.snackbar(
-          'No Stores Available',
-          'There are no stores available in your country. Please contact support.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      print('Error loading stores: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to load stores. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
   void _showOrderSuccessDialog() {
     Get.dialog(
       AlertDialog(
@@ -148,6 +74,12 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         ),
         content: const Text('Your order has been placed successfully!'),
         actions: [
+          TextButton(
+            onPressed: () {
+              Get.back(); // Close dialog and stay on home page
+            },
+            child: const Text('Done'),
+          ),
           TextButton(
             onPressed: () {
               Get.back(); // Close dialog
@@ -197,15 +129,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
     try {
       isLoading.value = true;
 
-      if (selectedStore.value == null) {
-        Get.snackbar(
-          'Error',
-          'Please select a store',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        return;
-      }
-
       final outletId = widget.outlet.id;
 
       if (cartController.items.isEmpty) {
@@ -230,22 +153,13 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
           throw Exception('Invalid product in cart');
         }
         if (item.quantity <= 0) {
-          throw Exception('Invalid quantity for ${item.product!.name}');
-        }
-
-        // Check stock availability for the selected store
-        final storeQuantity =
-            item.product!.getQuantityForStore(selectedStore.value!.id);
-        if (storeQuantity < item.quantity) {
-          throw Exception(
-              'Insufficient stock for ${item.product!.name} in ${selectedStore.value!.name}');
+          throw Exception('Invalid quantity for ${item.product!.productName}');
         }
 
         return {
           'productId': item.product!.id,
           'quantity': item.quantity,
-          'priceOptionId': item.priceOptionId,
-          'storeId': selectedStore.value!.id,
+          'unitPrice': item.unitPrice,
         };
       }).toList();
 
@@ -501,8 +415,10 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
   }
 
   Widget _buildCartItem(int index, OrderItem item) {
-    final packSize = item.product?.packSize;
-    final totalPieces = (packSize != null) ? item.quantity * packSize : null;
+    final unitOfMeasure = item.product?.unitOfMeasure;
+    final totalPieces = (unitOfMeasure != null && unitOfMeasure.isNotEmpty)
+        ? item.quantity * (int.tryParse(unitOfMeasure) ?? 1)
+        : null;
 
     // Get user's country ID for currency formatting
     final box = GetStorage();
@@ -546,22 +462,21 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.product?.name ?? 'Unknown Product',
+                    item.product?.productName ?? 'Unknown Product',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (item.priceOptionId != null)
-                    Text(
-                      'Price Option: ${item.product?.priceOptions.firstWhereOrNull((po) => po.id == item.priceOptionId)?.option ?? 'Unknown'}',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
                   Text(
-                    'Quantity: ${item.quantity}${packSize != null ? ' pack(s) ($totalPieces pcs)' : ''}',
+                    'Unit Price: ${CurrencyUtils.format(item.unitPrice, countryId: userCountryId)}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    'Quantity: ${item.quantity}${totalPieces != null ? ' pack(s) ($totalPieces pcs)' : ''}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -603,19 +518,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: () {
                         final newQuantity = item.quantity + 1;
-                        if (item.product?.storeQuantities == null ||
-                            newQuantity <=
-                                item.product!.storeQuantities.first.quantity) {
-                          cartController.updateItemQuantity(item, newQuantity);
-                        } else {
-                          Get.snackbar(
-                            'Error',
-                            'Cannot exceed available stock',
-                            snackPosition: SnackPosition.TOP,
-                            backgroundColor: Colors.red[400],
-                            colorText: Colors.white,
-                          );
-                        }
+                        cartController.updateItemQuantity(item, newQuantity);
                       },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -623,22 +526,15 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                     ),
                   ],
                 ),
-                if (item.priceOptionId != null)
-                  Text(
-                    CountryCurrencyLabels.formatCurrency(
-                      ((item.product?.priceOptions
-                                      .firstWhereOrNull(
-                                          (po) => po.id == item.priceOptionId)
-                                      ?.value ??
-                                  0) *
-                              item.quantity)
-                          .toDouble(),
-                      userCountryId,
-                    ),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                Text(
+                  CurrencyUtils.format(
+                    (item.unitPrice * item.quantity),
+                    countryId: userCountryId,
                   ),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ],
@@ -663,13 +559,14 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
         final totalItems =
             cartController.items.fold(0, (sum, item) => sum + item.quantity);
         final totalAmount = cartController.totalAmount;
-        final totalPieces = cartController.items.fold(
-            0,
-            (sum, item) =>
-                sum +
-                ((item.product?.packSize != null)
-                    ? item.quantity * item.product!.packSize!
-                    : 0));
+        final totalPieces = cartController.items.fold(0, (sum, item) {
+          final unitOfMeasure = item.product?.unitOfMeasure;
+          if (unitOfMeasure != null) {
+            final unitMeasure = int.tryParse(unitOfMeasure) ?? 1;
+            return sum + (item.quantity * unitMeasure);
+          }
+          return sum;
+        });
 
         // Get user's country ID for currency formatting
         final box = GetStorage();
@@ -734,8 +631,7 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
                   ),
                 ),
                 Text(
-                  CountryCurrencyLabels.formatCurrency(
-                      totalAmount, userCountryId),
+                  CurrencyUtils.format(totalAmount, countryId: userCountryId),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -883,84 +779,6 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
 
         return Column(
           children: [
-            // Store Selection Dropdown
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Select Store',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<Store>(
-                    value: selectedStore.value,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                    ),
-                    items: availableStores.map((store) {
-                      return DropdownMenuItem(
-                        value: store,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              store.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (store.region != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                '${store.region!.name}${store.region!.country != null ? ', ${store.region!.country!.name}' : ''}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (Store? newValue) {
-                      if (newValue != null) {
-                        selectedStore.value = newValue;
-                      }
-                    },
-                    validator: (value) {
-                      if (value == null) {
-                        return 'Please select a store';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
             if (errorMessage.value.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(16),

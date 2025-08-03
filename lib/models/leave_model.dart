@@ -32,15 +32,19 @@ class Leave {
   factory Leave.fromJson(Map<String, dynamic> json) {
     return Leave(
       id: json['id'],
-      userId: json['userId'],
-      leaveType: json['leaveType'],
-      startDate: DateTime.parse(json['startDate']),
-      endDate: DateTime.parse(json['endDate']),
-      reason: json['reason'],
+      userId: json['userId'] ?? 0,
+      leaveType: json['leaveType'] ?? 'Unknown',
+      startDate:
+          DateTime.parse(json['startDate'] ?? DateTime.now().toIso8601String()),
+      endDate:
+          DateTime.parse(json['endDate'] ?? DateTime.now().toIso8601String()),
+      reason: json['reason'] ?? '',
       attachment: json['attachment'],
-      status: _parseStatus(json['status']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      status: _parseStatus(json['status'] ?? 'PENDING'),
+      createdAt:
+          DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt:
+          DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
       user: json['user'] != null ? SalesRep.fromJson(json['user']) : null,
     );
   }
@@ -60,7 +64,9 @@ class Leave {
     };
   }
 
-  static LeaveStatus _parseStatus(String status) {
+  static LeaveStatus _parseStatus(String? status) {
+    if (status == null) return LeaveStatus.PENDING;
+    
     switch (status.toUpperCase()) {
       case 'PENDING':
         return LeaveStatus.PENDING;

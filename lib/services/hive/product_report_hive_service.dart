@@ -1,15 +1,34 @@
 import 'package:hive/hive.dart';
 import 'package:woosh/models/hive/product_report_hive_model.dart';
 import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/product_report_model.dart';
 import 'package:woosh/models/report/report_model.dart';
 
 class ProductReportHiveService {
   static const String _boxName = 'productReports';
   late Box<ProductReportHiveModel> _productReportBox;
+  bool _isInitialized = false;
 
   Future<void> init() async {
-    _productReportBox = await Hive.openBox<ProductReportHiveModel>(_boxName);
+    try {
+      _productReportBox = await Hive.openBox<ProductReportHiveModel>(_boxName);
+      _isInitialized = true;
+    } catch (e) {
+      print('⚠️ Error initializing ProductReportHiveService: $e');
+      _isInitialized = false;
+      rethrow;
+    }
+  }
+
+  // Helper method to check if the service is ready
+  bool get isReady => _isInitialized && _productReportBox.isOpen;
+
+  // Helper method to ensure the service is initialized
+  void _ensureInitialized() {
+    if (!isReady) {
+      throw StateError(
+          'ProductReportHiveService is not initialized. Call init() first.');
+    }
   }
 
   // Save a product report to Hive
@@ -22,12 +41,14 @@ class ProductReportHiveService {
     required Map<int, int> quantities,
     String comment = '',
   }) async {
+    _ensureInitialized();
+
     final productQuantities = products
         .where((product) =>
             quantities[product.id] != null && quantities[product.id]! > 0)
         .map((product) => ProductQuantityHiveModel(
               productId: product.id,
-              productName: product.name,
+              productName: product.productName,
               quantity: quantities[product.id] ?? 0,
             ))
         .toList();
@@ -53,6 +74,7 @@ class ProductReportHiveService {
 
   // Get all unsynchronized product reports
   List<ProductReportHiveModel> getUnsyncedReports() {
+    _ensureInitialized();
     return _productReportBox.values
         .where((report) => !report.isSynced)
         .toList();
@@ -60,11 +82,27 @@ class ProductReportHiveService {
 
   // Get a product report by journey plan ID
   ProductReportHiveModel? getReportByJourneyPlanId(int journeyPlanId) {
+    _ensureInitialized();
     return _productReportBox.get(journeyPlanId);
+  }
+
+  // Get the most recent report for a specific client
+  ProductReportHiveModel? getRecentReportByClientId(int clientId) {
+    _ensureInitialized();
+    final reports = _productReportBox.values
+        .where((report) => report.clientId == clientId)
+        .toList();
+
+    if (reports.isEmpty) return null;
+
+    // Sort by creation date and return the most recent
+    reports.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return reports.first;
   }
 
   // Mark a report as synchronized with the server
   Future<void> markAsSynced(int journeyPlanId) async {
+    _ensureInitialized();
     final report = _productReportBox.get(journeyPlanId);
     if (report != null) {
       final updatedReport = ProductReportHiveModel(
@@ -83,6 +121,7 @@ class ProductReportHiveService {
 
   // Delete a report
   Future<void> deleteReport(int journeyPlanId) async {
+    _ensureInitialized();
     await _productReportBox.delete(journeyPlanId);
   }
 
@@ -110,6 +149,7 @@ class ProductReportHiveService {
 
   // Clear all reports
   Future<void> clearAllReports() async {
+    _ensureInitialized();
     await _productReportBox.clear();
   }
 }

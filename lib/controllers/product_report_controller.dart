@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/product_report_model.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/productTransaction_service.dart';
+import 'package:woosh/services/product_transaction_service.dart';
 
 enum ProductType {
   RETURN,

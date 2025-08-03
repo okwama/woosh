@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart' as ptr;
-import 'package:woosh/models/client_payment_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/client_payment_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
+import 'package:woosh/pages/client/viewclient_page.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -15,9 +17,9 @@ import 'package:woosh/pages/client/client_stock_page.dart';
 import 'package:woosh/services/client_stock_service.dart';
 
 class ClientDetailsPage extends StatefulWidget {
-  final Outlet outlet;
+  final Client client;
 
-  const ClientDetailsPage({super.key, required this.outlet});
+  const ClientDetailsPage({super.key, required this.client, required Outlet outlet});
 
   @override
   State<ClientDetailsPage> createState() => _ClientDetailsPageState();
@@ -40,11 +42,11 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
   }
 
   Future<void> _decodeLocation() async {
-    if (widget.outlet.latitude != null && widget.outlet.longitude != null) {
+    if (widget.client.latitude != null && widget.client.longitude != null) {
       try {
         List<Placemark> placemarks = await placemarkFromCoordinates(
-          widget.outlet.latitude!,
-          widget.outlet.longitude!,
+          widget.client.latitude!,
+          widget.client.longitude!,
         );
         final placemark = placemarks.first;
         setState(() {
@@ -68,7 +70,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
     });
 
     try {
-      final paymentsData = await ApiService.getClientPayments(widget.outlet.id);
+      final paymentsData = await ApiService.getClientPayments(widget.client.id);
       setState(() {
         _payments = paymentsData.map((e) => ClientPayment.fromJson(e)).toList();
       });
@@ -293,7 +295,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                             }
 
                             await ApiService.uploadClientPayment(
-                              clientId: widget.outlet.id,
+                              clientId: widget.client.id,
                               amount: amount,
                               imageFile: imageFile ?? File(pickedFile!.path),
                               imageBytes: kIsWeb
@@ -351,12 +353,12 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final outlet = widget.outlet;
+    final client = widget.client;
 
     return Scaffold(
       backgroundColor: appBackground,
       appBar: GradientAppBar(
-        title: outlet.name,
+        title: client.name,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -392,14 +394,14 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        outlet.name,
+                                        client.name,
                                         style: const TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Balance: Ksh ${outlet.balance != null && outlet.balance!.isNotEmpty ? outlet.balance! : '0'}',
+                                        'Balance: Ksh ${client.balance != null ? client.balance! : '0'}',
                                         style: const TextStyle(
                                             fontSize: 13,
                                             color: Colors.green,
@@ -417,7 +419,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                   child: _detailSection(
                                     icon: Icons.home,
                                     label: 'Address',
-                                    value: outlet.address,
+                                    value: client.address ?? '-',
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -425,7 +427,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                   child: _detailSection(
                                     icon: Icons.email,
                                     label: 'Email',
-                                    value: outlet.email ?? '-',
+                                    value: client.email ?? '-',
                                   ),
                                 ),
                               ],
@@ -437,7 +439,7 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                   child: _detailSection(
                                     icon: Icons.phone,
                                     label: 'Phone',
-                                    value: outlet.contact ?? '-',
+                                    value: client.contact ?? '-',
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -445,8 +447,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                   child: _detailSection(
                                     icon: Icons.badge,
                                     label: CountryTaxLabels.getTaxPinLabel(
-                                        widget.outlet.countryId),
-                                    value: outlet.taxPin ?? '-',
+                                        client.countryId),
+                                    value: client.taxPin ?? '-',
                                   ),
                                 ),
                               ],
@@ -499,8 +501,8 @@ class _ClientDetailsPageState extends State<ClientDetailsPage> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => ClientStockPage(
-                                          clientId: widget.outlet.id,
-                                          clientName: widget.outlet.name,
+                                          clientId: client.id,
+                                          clientName: client.name,
                                         ),
                                       ),
                                     );

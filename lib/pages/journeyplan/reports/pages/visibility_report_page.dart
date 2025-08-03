@@ -5,8 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/visibilityReport_model.dart';
+import 'package:woosh/models/report/visibility_report_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/report/report_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:image/image.dart' as img;
@@ -129,7 +130,6 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
       final compressionRatio =
           (compressedSize / originalSize * 100).toStringAsFixed(1);
 
-      print('?? Image compression results:');
       print('Original size: ${(originalSize / 1024).toStringAsFixed(2)} KB');
       print(
           'Compressed size: ${(compressedSize / 1024).toStringAsFixed(2)} KB');
@@ -139,7 +139,6 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
 
       return tempFile;
     } catch (e) {
-      print('? Image compression failed: $e');
       return null;
     }
   }
@@ -174,9 +173,6 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
       final imageUrl = await ApiService.uploadImage(compressedFile);
       stopwatch.stop();
 
-      print('? Image upload completed in ${stopwatch.elapsedMilliseconds}ms');
-      print('?? Image URL: $imageUrl');
-
       // Clean up temporary file
       await compressedFile.delete();
 
@@ -188,7 +184,6 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
       return imageUrl;
     } catch (e) {
       stopwatch.stop();
-      print('? Image upload failed after ${stopwatch.elapsedMilliseconds}ms');
       print('Error details: $e');
 
       setState(() {
@@ -211,7 +206,6 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
     if (_isSubmitting) return;
 
     final stopwatch = Stopwatch()..start();
-    print('?? Starting report submission process');
 
     if (_imageFile == null &&
         _imageUrl == null &&
@@ -243,13 +237,11 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
 
       // Upload image if present
       if (_imageFile != null) {
-        print('??? Starting image upload');
         try {
           imageUrl = await _uploadImage();
           print(
               '??? Image upload completed: ${imageUrl != null ? 'Success' : 'Failed'}');
         } catch (error) {
-          print('? Image upload error: $error');
           if (error.toString().contains('SocketException') ||
               error.toString().contains('XMLHttpRequest error')) {
             imageError =
@@ -287,11 +279,8 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
       );
 
       try {
-        print('?? Submitting report to API');
-        await _apiService.submitReport(report);
-        print('? Report submitted successfully');
+        await ReportsService.submitReport(report);
       } catch (e) {
-        print('? Report submission error: $e');
         if (e.toString().toLowerCase().contains('socket') ||
             e.toString().toLowerCase().contains('network') ||
             e.toString().toLowerCase().contains('connection')) {
@@ -386,7 +375,7 @@ class _VisibilityReportPageState extends State<VisibilityReportPage>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.journeyPlan.client.address,
+                        widget.journeyPlan.client.address ?? '',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                         ),

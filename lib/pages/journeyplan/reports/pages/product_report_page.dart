@@ -6,12 +6,15 @@ import 'package:woosh/models/hive/product_report_hive_model.dart';
 import 'package:woosh/models/journeyplan_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/models/report/report_model.dart';
-import 'package:woosh/models/report/productReport_model.dart';
+import 'package:woosh/models/report/product_report_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/report/report_service.dart';
 import 'package:woosh/services/hive/product_report_hive_service.dart';
+import 'package:woosh/services/shared_data_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:intl/intl.dart';
 
 class ProductReportPage extends StatefulWidget {
   final JourneyPlan journeyPlan;
@@ -27,10 +30,10 @@ class ProductReportPage extends StatefulWidget {
 
   static Future<List<Product>> preloadProducts() async {
     try {
-      final products = await ApiService.getProducts(page: 1, limit: 20);
-      return products;
+      final sharedDataService = Get.find<SharedDataService>();
+      await sharedDataService.loadProducts();
+      return sharedDataService.getProducts();
     } catch (e) {
-      print('Error preloading products: $e');
       return [];
     }
   }
@@ -43,6 +46,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
   final _commentController = TextEditingController();
   final _apiService = ApiService();
   late final ProductReportHiveService _productReportHiveService;
+  late final SharedDataService _sharedDataService;
   bool _isSubmitting = false;
   bool _isLoading = true;
   bool _isLoadingMore = false;
@@ -54,14 +58,19 @@ class _ProductReportPageState extends State<ProductReportPage> {
   static const int _pageSize = 20;
   bool _hasMoreProducts = true;
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
   bool _isOnline = true;
   bool _hasUnsyncedData = false;
   bool _isUsingCachedData = false;
   DateTime? _lastProductUpdate;
+  List<Product> _allProducts = []; // Store all products for search
+  List<Product> _filteredProducts = []; // Display filtered products
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
+    _sharedDataService = Get.find<SharedDataService>();
     _initHiveService();
     _checkConnectivity();
     _loadProductsWithCache();
@@ -95,7 +104,15 @@ class _ProductReportPageState extends State<ProductReportPage> {
       // Try to get the already registered service
       try {
         _productReportHiveService = Get.find<ProductReportHiveService>();
+
+        // Check if the service is properly initialized
+        if (!_productReportHiveService.isReady) {
+          print(
+              '⚠️ ProductReportHiveService found but not ready, reinitializing...');
+          await _productReportHiveService.init();
+        }
       } catch (e) {
+        print('⚠️ ProductReportHiveService not found, initializing...');
         // If not found, initialize it
         _productReportHiveService = ProductReportHiveService();
         await _productReportHiveService.init();
@@ -108,7 +125,8 @@ class _ProductReportPageState extends State<ProductReportPage> {
         _loadExistingReport();
       }
     } catch (e) {
-      print('Error initializing Hive service: $e');
+      print('⚠️ Error initializing ProductReportHiveService: $e');
+      // Continue without the service - the app should still work
     }
   }
 
@@ -125,19 +143,30 @@ class _ProductReportPageState extends State<ProductReportPage> {
     final journeyPlanId = widget.journeyPlan.id;
     if (journeyPlanId == null) return;
 
-    final savedReport =
-        _productReportHiveService.getReportByJourneyPlanId(journeyPlanId);
-    if (savedReport != null && !savedReport.isSynced) {
-      setState(() {
-        _hasUnsyncedData = true;
-        _commentController.text = savedReport.comment;
-      });
+    try {
+      // Check if the service is ready before accessing it
+      if (_productReportHiveService.isReady) {
+        final savedReport =
+            _productReportHiveService.getReportByJourneyPlanId(journeyPlanId);
+        if (savedReport != null && !savedReport.isSynced) {
+          setState(() {
+            _hasUnsyncedData = true;
+            _commentController.text = savedReport.comment;
+          });
+        }
+      } else {
+        print(
+            '⚠️ ProductReportHiveService not ready, skipping existing report load');
+      }
+    } catch (e) {
+      print('⚠️ Error loading existing report: $e');
     }
   }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _searchController.dispose();
     _scrollController.dispose();
     // Dispose all quantity controllers
     for (var controller in _quantityControllers.values) {
@@ -166,49 +195,32 @@ class _ProductReportPageState extends State<ProductReportPage> {
         return;
       }
 
-      // Check if we have cached products and if they're fresh (less than 24 hours old)
-      final cachedProducts = await _getCachedProducts();
-      final shouldUseCache = _shouldUseCachedProducts();
+      // Use shared data service instead of individual API calls
+      final products = _sharedDataService.getProducts();
 
-      if (cachedProducts.isNotEmpty && shouldUseCache) {
-        // Use cached data
+      if (products.isNotEmpty) {
+        // Use shared products
         setState(() {
           _isUsingCachedData = true;
           _isLoading = false;
         });
-        _setupProductsState(cachedProducts);
-
-        // Load fresh data in background if online
-        if (_isOnline) {
-          _loadFreshProductsInBackground();
-        }
-      } else if (_isOnline) {
-        // Load fresh data from API
-        final products =
-            await ApiService.getProducts(page: 1, limit: _pageSize);
-        await _cacheProducts(products);
         _setupProductsState(products);
       } else {
-        // Offline mode - use cached data even if stale
-        if (cachedProducts.isNotEmpty) {
+        // If shared service doesn't have products, load them
+        await _sharedDataService.loadProducts();
+        final freshProducts = _sharedDataService.getProducts();
+
+        if (freshProducts.isNotEmpty) {
           setState(() {
-            _isUsingCachedData = true;
+            _isUsingCachedData = false;
             _isLoading = false;
           });
-          _setupProductsState(cachedProducts);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Using cached products. Refresh when online for latest data.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          _setupProductsState(freshProducts);
         } else {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                  'No cached products available. Please connect to internet.'),
+              content: Text('No products available. Please try again.'),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -223,79 +235,18 @@ class _ProductReportPageState extends State<ProductReportPage> {
           SnackBar(
             content: const Text('Unable to load products. Please try again.'),
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Retry',
-              onPressed: _loadProductsWithCache,
-            ),
-          ),
-        );
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<List<Product>> _getCachedProducts() async {
-    try {
-      final box = GetStorage();
-      final cachedData = box.read('cached_products');
-      final lastUpdate = box.read('products_last_update');
-
-      if (cachedData != null && lastUpdate != null) {
-        _lastProductUpdate = DateTime.parse(lastUpdate);
-        return List<Product>.from(cachedData.map((x) => Product.fromJson(x)));
-      }
-    } catch (e) {
-      print('Error reading cached products: $e');
-    }
-    return [];
-  }
-
-  Future<void> _cacheProducts(List<Product> products) async {
-    try {
-      final box = GetStorage();
-      final productsJson = products.map((p) => p.toJson()).toList();
-      await box.write('cached_products', productsJson);
-      await box.write('products_last_update', DateTime.now().toIso8601String());
-      _lastProductUpdate = DateTime.now();
-    } catch (e) {
-      print('Error caching products: $e');
-    }
-  }
-
-  bool _shouldUseCachedProducts() {
-    if (_lastProductUpdate == null) return false;
-
-    // Use cache if data is less than 24 hours old
-    final cacheAge = DateTime.now().difference(_lastProductUpdate!);
-    return cacheAge.inHours < 24;
-  }
-
-  Future<void> _loadFreshProductsInBackground() async {
-    try {
-      final products = await ApiService.getProducts(page: 1, limit: _pageSize);
-      await _cacheProducts(products);
-
-      if (mounted && _isUsingCachedData) {
-        setState(() {
-          _isUsingCachedData = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Products updated in background'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
           ),
         );
       }
-    } catch (e) {
-      print('Background product update failed: $e');
     }
   }
 
   void _setupProductsState(List<Product> products) {
     if (mounted) {
       setState(() {
-        _products = products;
+        _allProducts = products;
+        _filteredProducts = products;
+        _products = products; // Keep for backward compatibility
         _productQuantities = {for (var product in products) product.id: 0};
         _quantityControllers = {
           for (var product in products)
@@ -307,25 +258,164 @@ class _ProductReportPageState extends State<ProductReportPage> {
     }
   }
 
+  void _onSearchChanged(String query) {
+    if (!mounted) return;
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    if (query.isEmpty) {
+      if (mounted) {
+      setState(() {
+        _filteredProducts = _allProducts;
+        _isSearching = false;
+      });
+      }
+      return;
+    }
+
+    final searchTerms = query.toLowerCase().split(' ');
+    final filtered = _allProducts.where((product) {
+      final name = product.productName.toLowerCase();
+      final description = (product.description ?? '').toLowerCase();
+
+      return searchTerms
+          .every((term) => name.contains(term) || description.contains(term));
+    }).toList();
+
+    if (mounted) {
+    setState(() {
+      _filteredProducts = filtered;
+      _isSearching = false;
+    });
+    }
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    if (mounted) {
+    setState(() {
+      _filteredProducts = _allProducts;
+      _isSearching = false;
+    });
+    }
+  }
+
+  void _clearAllQuantities() {
+    if (mounted) {
+    setState(() {
+      for (var product in _allProducts) {
+        _productQuantities[product.id] = 0;
+        _quantityControllers[product.id]?.text = '0';
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All quantities cleared'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+    }
+  }
+
+  void _copyFromPreviousReport() async {
+    try {
+      // Check if the service is ready before accessing it
+      if (!_productReportHiveService.isReady) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Service not ready, please try again'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Get the most recent report for this client
+      final recentReport = _productReportHiveService.getRecentReportByClientId(
+        widget.journeyPlan.client.id,
+      );
+
+      if (recentReport != null) {
+        if (mounted) {
+        setState(() {
+          for (var product in recentReport.products) {
+            if (_productQuantities.containsKey(product.productId)) {
+                _productQuantities[product.productId] = product.quantity;
+              _quantityControllers[product.productId]?.text =
+                    product.quantity.toString();
+            }
+          }
+        });
+        }
+
+        if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Copied quantities from ${DateFormat('MMM dd, yyyy').format(recentReport.createdAt)}'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        }
+      } else {
+        if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No previous report found for this client'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error copying from previous report: $e');
+      if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error copying from previous report'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      }
+    }
+  }
+
   void _loadSavedQuantities() {
     // Add null check for journeyPlan.id before using it
     if (widget.journeyPlan.id == null) return;
 
-    final savedReport = _productReportHiveService
-        .getReportByJourneyPlanId(widget.journeyPlan.id!);
-    if (savedReport != null) {
-      // Update quantities from saved report
-      for (var product in savedReport.products) {
-        // Check if productId is not null before using it
-        if (_productQuantities.containsKey(product.productId)) {
-          setState(() {
-            // Use null-aware operators to safely handle nullable values
-            _productQuantities[product.productId] = product.quantity ?? 0;
-            _quantityControllers[product.productId]?.text =
-                (product.quantity ?? 0).toString();
-          });
+    try {
+      // Check if the service is ready before accessing it
+      if (!_productReportHiveService.isReady) {
+        print(
+            '⚠️ ProductReportHiveService not ready, skipping saved quantities load');
+        return;
+      }
+
+      final savedReport = _productReportHiveService
+          .getReportByJourneyPlanId(widget.journeyPlan.id!);
+      if (savedReport != null) {
+        // Update quantities from saved report
+        for (var product in savedReport.products) {
+          // Check if productId is not null before using it
+          if (_productQuantities.containsKey(product.productId)) {
+            if (mounted) {
+            setState(() {
+              // Use null-aware operators to safely handle nullable values
+                _productQuantities[product.productId] = product.quantity;
+              _quantityControllers[product.productId]?.text =
+                    product.quantity.toString();
+            });
+            }
+          }
         }
       }
+    } catch (e) {
+      print('⚠️ Error loading saved quantities: $e');
     }
   }
 
@@ -335,23 +425,11 @@ class _ProductReportPageState extends State<ProductReportPage> {
     setState(() => _isLoadingMore = true);
 
     try {
-      final nextPage = _currentPage + 1;
-      final moreProducts =
-          await ApiService.getProducts(page: nextPage, limit: _pageSize);
-
-      if (!mounted) return;
-
+      // Since we're using shared data service, we don't need pagination
+      // All products are loaded at once
       setState(() {
-        _products.addAll(moreProducts);
-        _productQuantities
-            .addAll({for (var product in moreProducts) product.id: 0});
-        _quantityControllers.addAll({
-          for (var product in moreProducts)
-            product.id: TextEditingController(text: '0')
-        });
-        _currentPage = nextPage;
-        _hasMoreProducts = moreProducts.length == _pageSize;
         _isLoadingMore = false;
+        _hasMoreProducts = false; // No more products to load
       });
     } catch (e) {
       if (!mounted) return;
@@ -381,8 +459,9 @@ class _ProductReportPageState extends State<ProductReportPage> {
     });
 
     try {
-      final products = await ApiService.getProducts(page: 1, limit: _pageSize);
-      await _cacheProducts(products);
+      // Use shared data service to refresh products
+      await _sharedDataService.loadProducts(forceRefresh: true);
+      final products = _sharedDataService.getProducts();
       _setupProductsState(products);
 
       if (mounted) {
@@ -413,12 +492,18 @@ class _ProductReportPageState extends State<ProductReportPage> {
   Future<void> _submitReport() async {
     if (_isSubmitting) return;
 
-    // Check if at least one product has a quantity > 0
-    bool hasQuantities = _productQuantities.values.any((qty) => qty > 0);
-    if (!hasQuantities) {
+    // Check if all products have zero quantities
+    bool allZero = _productQuantities.values.every((qty) => qty == 0);
+    bool hasComment = _commentController.text.trim().isNotEmpty;
+
+    // If all products are zero, require a comment
+    if (allZero && !hasComment) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please enter quantities for at least one product')),
+          content: Text(
+              'Please add a comment when reporting zero quantities for all products'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -426,17 +511,19 @@ class _ProductReportPageState extends State<ProductReportPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Optimistically show success and navigate back
+      // Save to Hive first (works offline)
+      await _saveReportToHive();
+
+      // Show success message and navigate back
+      if (mounted) {
       widget.onReportSubmitted?.call();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Report submitted successfully')),
       );
+      }
 
-      // Save to Hive first (works offline)
-      await _saveReportToHive();
-
-      // If online, try to submit to API
+      // If online, try to submit to API in background
       if (_isOnline) {
         await _submitReportToApi();
       } else {
@@ -482,22 +569,26 @@ class _ProductReportPageState extends State<ProductReportPage> {
     final journeyPlanId = widget.journeyPlan.id;
     if (journeyPlanId == null) {
       // Handle the null case - perhaps log an error or show a message
-      print('Cannot save report: Journey Plan ID is null');
       return;
     }
 
     try {
+      // Check if the service is ready before accessing it
+      if (!_productReportHiveService.isReady) {
+        throw StateError('ProductReportHiveService is not ready');
+      }
+
       await _productReportHiveService.saveProductReport(
         journeyPlanId: journeyPlanId,
         clientId: widget.journeyPlan.client.id,
         clientName: widget.journeyPlan.client.name,
-        clientAddress: widget.journeyPlan.client.address,
+        clientAddress: widget.journeyPlan.client.address ?? '',
         products: _products,
         quantities: _productQuantities,
         comment: _commentController.text,
       );
     } catch (e) {
-      print('Error saving report to Hive: $e');
+      print('⚠️ Error saving report to Hive: $e');
       // Re-throw to allow the calling method to handle it
       rethrow;
     }
@@ -516,12 +607,12 @@ class _ProductReportPageState extends State<ProductReportPage> {
 
     // Create a list of product reports for products with quantities > 0
     final productReports = _products
-        .where((product) => _productQuantities[product.id]! > 0)
+        .where((product) => (_productQuantities[product.id] ?? 0) > 0)
         .map((product) => ProductReport(
               reportId: 0,
-              productName: product.name,
+              productName: product.productName,
               productId: product.id,
-              quantity: _productQuantities[product.id]!,
+              quantity: _productQuantities[product.id] ?? 0,
               comment: _commentController.text,
             ))
         .toList();
@@ -535,48 +626,64 @@ class _ProductReportPageState extends State<ProductReportPage> {
       productReports: productReports,
     );
 
-    await _apiService.submitReport(report);
+    await ReportsService.submitReport(report);
 
     // Mark as synced in Hive
     final journeyPlanId = widget.journeyPlan.id;
     if (journeyPlanId != null) {
-      await _productReportHiveService.markAsSynced(journeyPlanId);
-      setState(() => _hasUnsyncedData = false);
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report submitted successfully')),
-      );
-      widget.onReportSubmitted?.call();
-      Navigator.pop(context);
+      try {
+        // Check if the service is ready before accessing it
+        if (_productReportHiveService.isReady) {
+          await _productReportHiveService.markAsSynced(journeyPlanId);
+          if (mounted) {
+          setState(() => _hasUnsyncedData = false);
+          }
+        } else {
+          print('⚠️ ProductReportHiveService not ready, skipping sync mark');
+        }
+      } catch (e) {
+        print('⚠️ Error marking report as synced: $e');
+      }
     }
   }
 
   Future<void> _syncUnsyncedReports() async {
-    final unsyncedReports = _productReportHiveService.getUnsyncedReports();
-    if (unsyncedReports.isEmpty) return;
-
-    final box = GetStorage();
-    final salesRepData = box.read('salesRep');
-    final salesRepId =
-        salesRepData is Map<String, dynamic> ? salesRepData['id'] as int : 0;
-
-    if (salesRepId == 0) return;
-
-    for (var report in unsyncedReports) {
-      try {
-        final apiReport =
-            _productReportHiveService.convertToReportModel(report, salesRepId);
-        await _apiService.submitReport(apiReport);
-        await _productReportHiveService.markAsSynced(report.journeyPlanId);
-      } catch (e) {
-        print('Error syncing report: $e');
-        // Continue with next report even if this one fails
+    try {
+      // Check if the service is ready before accessing it
+      if (!_productReportHiveService.isReady) {
+        print(
+            '⚠️ ProductReportHiveService not ready, skipping unsynced reports sync');
+        return;
       }
-    }
 
-    setState(() => _hasUnsyncedData = false);
+      final unsyncedReports = _productReportHiveService.getUnsyncedReports();
+      if (unsyncedReports.isEmpty) return;
+
+      final box = GetStorage();
+      final salesRepData = box.read('salesRep');
+      final salesRepId =
+          salesRepData is Map<String, dynamic> ? salesRepData['id'] as int : 0;
+
+      if (salesRepId == 0) return;
+
+      for (var report in unsyncedReports) {
+        try {
+          final apiReport = _productReportHiveService.convertToReportModel(
+              report, salesRepId);
+          await ReportsService.submitReport(apiReport);
+          await _productReportHiveService.markAsSynced(report.journeyPlanId);
+        } catch (e) {
+          print('⚠️ Error syncing report ${report.journeyPlanId}: $e');
+          // Continue with next report even if this one fails
+        }
+      }
+
+      if (mounted) {
+      setState(() => _hasUnsyncedData = false);
+      }
+    } catch (e) {
+      print('⚠️ Error syncing unsynced reports: $e');
+    }
   }
 
   @override
@@ -646,7 +753,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      widget.journeyPlan.client.address,
+                      widget.journeyPlan.client.address ?? '',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                       ),
@@ -696,6 +803,112 @@ class _ProductReportPageState extends State<ProductReportPage> {
               ),
               const SizedBox(height: 16),
             ],
+
+            // Search Bar
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search products...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: _clearSearch,
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onChanged: _onSearchChanged,
+                      ),
+                    ),
+                    if (_isSearching) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            // Search Results Count
+            if (_searchController.text.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_filteredProducts.length} of ${_allProducts.length} products',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Quick Actions
+            if (!_isLoading && _allProducts.isNotEmpty) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _clearAllQuantities,
+                          icon: const Icon(Icons.clear_all, size: 16),
+                          label: const Text('Clear All'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red.shade600,
+                            side: BorderSide(color: Colors.red.shade300),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _copyFromPreviousReport,
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('Copy Previous'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade600,
+                            side: BorderSide(color: Colors.blue.shade300),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            const SizedBox(height: 16),
 
             // Product Report Form
             Card(
@@ -780,12 +993,12 @@ class _ProductReportPageState extends State<ProductReportPage> {
                             ListView.separated(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount:
-                                  _products.length + (_hasMoreProducts ? 1 : 0),
+                              itemCount: _filteredProducts.length +
+                                  (_hasMoreProducts ? 1 : 0),
                               separatorBuilder: (context, index) => Divider(
                                   height: 1, color: Colors.grey.shade200),
                               itemBuilder: (context, index) {
-                                if (index == _products.length) {
+                                if (index == _filteredProducts.length) {
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 16),
@@ -797,7 +1010,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                                   );
                                 }
 
-                                final product = _products[index];
+                                final product = _filteredProducts[index];
                                 return Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 8),
@@ -806,7 +1019,7 @@ class _ProductReportPageState extends State<ProductReportPage> {
                                       Expanded(
                                         flex: 2,
                                         child: Text(
-                                          product.name,
+                                          product.productName,
                                           style: const TextStyle(fontSize: 14),
                                         ),
                                       ),
@@ -849,12 +1062,53 @@ class _ProductReportPageState extends State<ProductReportPage> {
                       ),
 
                       const SizedBox(height: 16),
+
+                      // Warning when all quantities are zero
+                      if (_productQuantities.values
+                          .every((qty) => qty == 0)) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange.shade700,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'If all products have zero quantities. Please add a comment.',
+                                  style: TextStyle(
+                                    color: Colors.orange.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
                       TextField(
                         controller: _commentController,
                         maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Comment',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: _productQuantities.values
+                                  .every((qty) => qty == 0)
+                              ? 'Comment (Required when all quantities are zero)'
+                              : 'Comment (Optional)',
+                          hintText: _productQuantities.values
+                                  .every((qty) => qty == 0)
+                              ? 'Please explain why all products have zero quantities...'
+                              : 'Add notes about product availability or any issues...',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 16),

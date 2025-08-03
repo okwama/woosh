@@ -1,386 +1,261 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:woosh/config/version_config.dart';
-
-class VersionInfo {
-  final String currentVersion;
-  final String latestVersion;
-  final bool canUpdate;
-  final String? releaseNotes;
-
-  VersionInfo({
-    required this.currentVersion,
-    required this.latestVersion,
-    required this.canUpdate,
-    this.releaseNotes,
-  });
-}
+import 'package:woosh/utils/config.dart';
+import 'package:woosh/services/token_service.dart';
+import 'package:get/get.dart';
+import 'package:woosh/pages/update/update_page.dart';
 
 class VersionCheckService {
-  static final VersionCheckService _instance = VersionCheckService._internal();
-  factory VersionCheckService() => _instance;
-  VersionCheckService._internal();
+  static const String _lastCheckKey = 'last_version_check';
+  static const String _versionDataKey = 'version_data';
+  static const Duration _checkInterval =
+      Duration(hours: 12); // Check twice per day
 
-  Future<VersionInfo?> checkForUpdate(BuildContext context,
-      {bool showDialog = true}) async {
+  static final GetStorage _storage = GetStorage();
+
+  /// Check version during normal API calls (non-blocking)
+  static Future<void> checkVersionSilently() async {
     try {
+      print('🔍 Version check started...');
+
+      // Check if we should perform version check
+      if (!_shouldCheckVersion()) {
+        print('🔍 Version check skipped - too recent');
+        return;
+      }
+
+      // Get current app version
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
       final currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 0;
+      print(
+          '🔍 Current app version: $currentVersion (build $currentBuildNumber)');
 
-      // Get latest version from your backend API or app store
-      final latestVersionInfo = await _getLatestVersionInfo();
-
-      if (latestVersionInfo != null) {
-        final latestVersion = latestVersionInfo['version'] as String;
-        final latestBuildNumber =
-            int.tryParse(latestVersionInfo['buildNumber'] ?? '0') ?? 0;
-        final canUpdate = _compareVersions(currentVersion, latestVersion) < 0 ||
-            currentBuildNumber < latestBuildNumber;
-
-        final versionInfo = VersionInfo(
-          currentVersion: currentVersion,
-          latestVersion: latestVersion,
-          canUpdate: canUpdate,
-          releaseNotes: latestVersionInfo['releaseNotes'] as String?,
-        );
-
-        if (canUpdate && showDialog) {
-          _showUpdateDialog(context, versionInfo);
-        }
-
-        return versionInfo;
-      }
-    } catch (e) {
-      // Only log errors in debug mode to reduce console noise
-      if (kDebugMode) {
-        debugPrint('Error checking for updates: $e');
-      }
-    }
-    return null;
-  }
-
-  Future<Map<String, dynamic>?> _getLatestVersionInfo() async {
-    // Skip API check if disabled or no URL provided
-    if (VersionConfig.skipApiCheck || VersionConfig.versionApiUrl.isEmpty) {
-      // Option 2: Try app store scraping
-      if (VersionConfig.enableStoreFallback) {
-        final storeInfo = await _scrapeAppStoreInfo();
-        if (storeInfo != null) {
-          return storeInfo;
-        }
+      // Get server version
+      final versionData = await _getServerVersion();
+      if (versionData == null) {
+        print('🔍 No server version data received');
+        return;
       }
 
-      // Option 3: Return current version as latest (no update needed)
-      return await _getCurrentVersionAsLatest();
-    }
+      final serverVersion = versionData['version'] as String;
+      final serverBuildNumber =
+          int.tryParse(versionData['buildNumber']?.toString() ?? '0') ?? 0;
+      final forceUpdate = versionData['forceUpdate'] as bool? ?? false;
+      final minRequiredVersion =
+          versionData['minRequiredVersion'] as String? ?? '1.0.0';
 
-    try {
-      // Option 1: Check from your backend API (only if enabled)
-      final response = await http.get(
-        Uri.parse(VersionConfig.versionApiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      ).timeout(Duration(seconds: VersionConfig.apiTimeoutSeconds));
+      print('🔍 Server version: $serverVersion (build $serverBuildNumber)');
+      print('🔍 Force update: $forceUpdate');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'version': data['version'],
-          'buildNumber': data['buildNumber'],
-          'releaseNotes': data['releaseNotes'],
-        };
-      }
+      // Compare versions
+      if (_isUpdateRequired(currentVersion, currentBuildNumber, serverVersion,
+          serverBuildNumber, minRequiredVersion)) {
+        print('🔍 Update required! Triggering update page...');
+        // Store version data for update page
+        _storage.write(_versionDataKey, versionData);
 
-      // Option 2: Fallback to app store scraping
-      if (VersionConfig.enableStoreFallback) {
-        return await _scrapeAppStoreInfo();
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error fetching latest version info: $e');
-      }
-    }
-
-    // Option 3: Return current version as latest (no update needed)
-    return await _getCurrentVersionAsLatest();
-  }
-
-  Future<Map<String, dynamic>> _getCurrentVersionAsLatest() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      return {
-        'version': packageInfo.version,
-        'buildNumber': packageInfo.buildNumber,
-        'releaseNotes': 'No update information available',
-      };
-    } catch (e) {
-      debugPrint('Error getting current version info: $e');
-      return {
-        'version': '1.0.1',
-        'buildNumber': '12',
-        'releaseNotes': 'Version information unavailable',
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>?> _scrapeAppStoreInfo() async {
-    try {
-      String url;
-      if (Platform.isAndroid) {
-        url = VersionConfig.androidStoreUrl;
-      } else if (Platform.isIOS) {
-        url = VersionConfig.iosStoreUrl;
+        // Trigger update page navigation
+        _showUpdateDialog(versionData, forceUpdate);
       } else {
+        print('🔍 No update required');
+      }
+
+      // Update last check time
+      _storage.write(_lastCheckKey, DateTime.now().toIso8601String());
+    } catch (e) {
+      print('Version check error: $e');
+    }
+  }
+
+  /// Check if we should perform version check based on time interval
+  static bool _shouldCheckVersion() {
+    final lastCheckStr = _storage.read<String>(_lastCheckKey);
+    if (lastCheckStr == null) {
+      print('🔍 No previous check found - will check');
+      return true;
+    }
+
+    final lastCheck = DateTime.tryParse(lastCheckStr);
+    if (lastCheck == null) {
+      print('🔍 Invalid last check time - will check');
+      return true;
+    }
+
+    final now = DateTime.now();
+    final timeSinceLastCheck = now.difference(lastCheck);
+    print(
+        '🔍 Time since last check: $timeSinceLastCheck (interval: $_checkInterval)');
+
+    final shouldCheck = timeSinceLastCheck >= _checkInterval;
+    print('🔍 Should check version: $shouldCheck');
+    return shouldCheck;
+  }
+
+  /// Get server version information
+  static Future<Map<String, dynamic>?> _getServerVersion() async {
+    try {
+      final token = TokenService.getAccessToken();
+      if (token == null) {
+        print('🔍 No auth token for version check');
         return null;
       }
 
-      final response = await http.get(Uri.parse(url));
+      print('🔍 Fetching server version from ${Config.baseUrl}/version');
+      final response = await http.get(
+        Uri.parse('${Config.baseUrl}/version'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('🔍 Server version response: ${response.statusCode}');
       if (response.statusCode == 200) {
-        final body = response.body.toLowerCase();
-
-        // For Android Play Store
-        if (Platform.isAndroid) {
-          // Look for version information in the page
-          if (body.contains('current version') || body.contains('version')) {
-            // Extract version using regex patterns
-            final versionRegex = RegExp(
-                r'version["\s:]+([0-9]+\.[0-9]+(?:\.[0-9]+)?)',
-                caseSensitive: false);
-            final match = versionRegex.firstMatch(body);
-
-            if (match != null) {
-              return {
-                'version': match.group(1) ?? '1.0.1',
-                'buildNumber': '12', // Default build number
-                'releaseNotes': 'Latest version available on Google Play Store',
-              };
-            }
-          }
-        }
-        // For iOS App Store
-        else if (Platform.isIOS) {
-          // App Store typically shows version in meta tags
-          if (body.contains('version') || body.contains('current version')) {
-            final versionRegex = RegExp(
-                r'version["\s:]+([0-9]+\.[0-9]+(?:\.[0-9]+)?)',
-                caseSensitive: false);
-            final match = versionRegex.firstMatch(body);
-
-            if (match != null) {
-              return {
-                'version': match.group(1) ?? '1.0.1',
-                'buildNumber': '12', // Default build number
-                'releaseNotes': 'Latest version available on App Store',
-              };
-            }
-          }
-        }
-
-        // Fallback: return current version as latest (no update needed)
-        final currentVersion = await getCurrentVersion();
-        return {
-          'version': currentVersion,
-          'buildNumber': await getBuildNumber(),
-          'releaseNotes': 'No new version detected',
-        };
+        final data = jsonDecode(response.body);
+        print('🔍 Server version data: $data');
+        return data;
+      } else {
+        print('🔍 Server version error: ${response.body}');
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error scraping app store info: $e');
-      }
+      print('Error fetching server version: $e');
     }
     return null;
   }
 
-  int _compareVersions(String version1, String version2) {
-    final v1Parts = version1.split('.').map(int.parse).toList();
-    final v2Parts = version2.split('.').map(int.parse).toList();
+  /// Compare versions to determine if update is required
+  static bool _isUpdateRequired(
+    String currentVersion,
+    int currentBuildNumber,
+    String serverVersion,
+    int serverBuildNumber,
+    String minRequiredVersion,
+  ) {
+    // Parse version strings (e.g., "1.0.3" -> [1, 0, 3])
+    final current = _parseVersion(currentVersion);
+    final server = _parseVersion(serverVersion);
+    final minimum = _parseVersion(minRequiredVersion);
 
-    final maxLength =
-        v1Parts.length > v2Parts.length ? v1Parts.length : v2Parts.length;
+    print('🔍 Version comparison:');
+    print('🔍 Current: $currentVersion -> $current');
+    print('🔍 Server: $serverVersion -> $server');
+    print('🔍 Minimum: $minRequiredVersion -> $minimum');
+
+    // Check if server version is higher than current
+    final serverVsCurrent = _compareVersions(server, current);
+    print('🔍 Server vs Current: $serverVsCurrent');
+
+    if (serverVsCurrent > 0) {
+      print('🔍 Server version is higher - update required');
+      return true;
+    }
+
+    // Check if current version is below minimum required
+    final currentVsMinimum = _compareVersions(current, minimum);
+    print('🔍 Current vs Minimum: $currentVsMinimum');
+
+    if (currentVsMinimum < 0) {
+      print('🔍 Current version below minimum - update required');
+      return true;
+    }
+
+    print('🔍 No update required');
+    return false;
+  }
+
+  /// Parse version string to list of integers
+  static List<int> _parseVersion(String version) {
+    return version.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+  }
+
+  /// Compare two version lists
+  static int _compareVersions(List<int> v1, List<int> v2) {
+    final maxLength = v1.length > v2.length ? v1.length : v2.length;
 
     for (int i = 0; i < maxLength; i++) {
-      final v1 = i < v1Parts.length ? v1Parts[i] : 0;
-      final v2 = i < v2Parts.length ? v2Parts[i] : 0;
+      final num1 = i < v1.length ? v1[i] : 0;
+      final num2 = i < v2.length ? v2[i] : 0;
 
-      if (v1 < v2) return -1;
-      if (v1 > v2) return 1;
+      if (num1 > num2) return 1;
+      if (num1 < num2) return -1;
     }
+
     return 0;
   }
 
-  void _showUpdateDialog(BuildContext context, VersionInfo versionInfo) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.system_update,
-                color: Theme.of(context).primaryColor,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Update Available',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'A new version of Woosh is available!',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Current Version: ${versionInfo.currentVersion}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              Text(
-                'Latest Version: ${versionInfo.latestVersion}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-              ),
-              if (versionInfo.releaseNotes != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'What\'s New:',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  versionInfo.releaseNotes!,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Later',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                launchStore();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'Update Now',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+  /// Show update dialog
+  static void _showUpdateDialog(
+      Map<String, dynamic> versionData, bool forceUpdate) {
+    print('🔍 Showing update dialog...');
+    // Use GetX to show dialog
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showUpdatePage(versionData, forceUpdate);
+    });
+  }
+
+  /// Show update page
+  static void _showUpdatePage(
+      Map<String, dynamic> versionData, bool forceUpdate) {
+    print('🔍 Navigating to update page...');
+    // Navigate to update page using GetX
+    Get.to(
+      () => UpdatePage(
+        versionData: versionData,
+        forceUpdate: forceUpdate,
+      ),
+      preventDuplicates: true,
     );
   }
 
-  Future<void> launchStore() async {
+  /// Get stored version data
+  static Map<String, dynamic>? getStoredVersionData() {
+    return _storage.read<Map<String, dynamic>>(_versionDataKey);
+  }
+
+  /// Clear stored version data
+  static void clearStoredVersionData() {
+    _storage.remove(_versionDataKey);
+  }
+
+  /// Clear last check time to force version check
+  static void clearLastCheckTime() {
+    _storage.remove(_lastCheckKey);
+    print('🔍 Cleared last check time - next check will run');
+  }
+
+  /// Force version check (for testing)
+  static Future<void> forceVersionCheck() async {
+    print('🔍 Force version check triggered');
+    _storage.remove(_lastCheckKey);
+    await checkVersionSilently();
+  }
+
+  /// Open app store for update
+  static Future<void> openAppStore(Map<String, dynamic> versionData) async {
     try {
       String url;
       if (Platform.isAndroid) {
-        url = VersionConfig.androidStoreUrl;
+        url = versionData['androidUrl'] as String? ??
+            'https://play.google.com/store/apps/details?id=com.cit.wooshs';
       } else if (Platform.isIOS) {
-        url = VersionConfig.iosStoreUrl;
+        url = versionData['iosUrl'] as String? ??
+            'https://apps.apple.com/ke/app/woosh-moonsun/id6745750140';
       } else {
         return;
       }
 
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Error launching store: $e');
-      }
-    }
-  }
-
-  Future<String> getCurrentVersion() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      return packageInfo.version;
-    } catch (e) {
-      debugPrint('Error getting current version: $e');
-      return 'Unknown';
-    }
-  }
-
-  Future<String> getBuildNumber() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      return packageInfo.buildNumber;
-    } catch (e) {
-      debugPrint('Error getting build number: $e');
-      return 'Unknown';
-    }
-  }
-
-  Future<Map<String, String>> getAppInfo() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      return {
-        'appName': packageInfo.appName,
-        'packageName': packageInfo.packageName,
-        'version': packageInfo.version,
-        'buildNumber': packageInfo.buildNumber,
-      };
-    } catch (e) {
-      debugPrint('Error getting app info: $e');
-      return {
-        'appName': 'Unknown',
-        'packageName': 'Unknown',
-        'version': 'Unknown',
-        'buildNumber': 'Unknown',
-      };
+      print('Error opening app store: $e');
     }
   }
 }

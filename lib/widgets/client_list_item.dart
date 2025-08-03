@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 
 class ClientListItem extends StatelessWidget {
   final Client client;
@@ -13,7 +13,7 @@ class ClientListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balance = double.tryParse(client.balance ?? '0') ?? 0;
+    final balance = double.tryParse(client.balance?.toString() ?? '0') ?? 0;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -28,13 +28,13 @@ class ClientListItem extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (client.address.isNotEmpty ?? false)
+            if (client.address?.isNotEmpty ?? false)
               Text(
                 client.address ?? '',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-            if (client.contact?.isNotEmpty ?? false)
+            if (client.contact.isNotEmpty ?? false)
               Text(
                 'Contact: ${client.contact}',
                 style: const TextStyle(fontSize: 12),

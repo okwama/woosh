@@ -4,10 +4,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:woosh/services/hive/pending_journey_plan_hive_service.dart';
 import 'package:woosh/services/hive/pending_session_hive_service.dart';
 import 'package:woosh/services/hive/product_report_hive_service.dart';
-import 'package:woosh/services/jouneyplan_service.dart';
-import 'package:woosh/services/session_service.dart';
+import 'package:woosh/services/journeyplan/jouneyplan_service.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:woosh/models/hive/pending_session_model.dart';
+import 'package:woosh/services/clockInOut/clock_in_out_service.dart';
 
 class OfflineSyncService extends GetxService {
   static OfflineSyncService get instance => Get.find<OfflineSyncService>();
@@ -47,7 +47,21 @@ class OfflineSyncService extends GetxService {
 
     try {
       _productReportService = Get.find<ProductReportHiveService>();
-    } catch (e) {
+      // Ensure the service is properly initialized even if found
+      // Check if the box is initialized by trying to access it safely
+      try {
+        // This will throw if the box is not initialized
+        _productReportService.getUnsyncedReports();
+      } catch (e) {
+        // If the box is not initialized, reinitialize the service
+        print(
+            '⚠️ ProductReportHiveService box not initialized, reinitializing...');
+        _productReportService = ProductReportHiveService();
+        await _productReportService.init();
+        Get.put(_productReportService);
+      }
+        } catch (e) {
+      print('⚠️ ProductReportHiveService not found, initializing...');
       _productReportService = ProductReportHiveService();
       await _productReportService.init();
       Get.put(_productReportService);
@@ -55,8 +69,6 @@ class OfflineSyncService extends GetxService {
   }
 
   void _startConnectivityMonitoring() {
-    print('?? Starting connectivity monitoring...');
-
     // Check initial connectivity state
     Connectivity().checkConnectivity().then((List<ConnectivityResult> results) {
       _isOnline =
@@ -84,7 +96,6 @@ class OfflineSyncService extends GetxService {
 
       // If we just came back online, start syncing
       if (wasOffline && _isOnline && !_isSyncing) {
-        print('?? Connection restored - starting sync...');
         _syncPendingOperations();
       }
     });
@@ -92,16 +103,13 @@ class OfflineSyncService extends GetxService {
 
   Future<void> _syncPendingOperations() async {
     if (_isSyncing) {
-      print('?? Sync already in progress, skipping...');
       return;
     }
 
     _isSyncing = true;
-    print('?? Starting offline sync...');
 
     // Log current pending operations
     final pendingCounts = getPendingOperationsCount();
-    print('?? Pending operations: $pendingCounts');
 
     try {
       // Sync in order of priority:
@@ -109,23 +117,15 @@ class OfflineSyncService extends GetxService {
       // 2. Journey plan creation
       // 3. Product reports
 
-      print('?? Step 1: Syncing pending sessions...');
       await _syncPendingSessions();
 
-      print('?? Step 2: Syncing pending journey plans...');
       await _syncPendingJourneyPlans();
 
-      print('?? Step 3: Syncing pending reports...');
       await _syncPendingReports();
 
       final finalCounts = getPendingOperationsCount();
-      print('? Offline sync completed successfully');
-      print('?? Remaining operations: $finalCounts');
-    } catch (e) {
-      print('? Error during offline sync: $e');
     } finally {
       _isSyncing = false;
-      print('?? Sync process ended');
     }
   }
 
@@ -137,27 +137,21 @@ class OfflineSyncService extends GetxService {
 
     if (pendingSessions.isEmpty) return;
 
-    print('?? Syncing ${pendingSessions.length} pending session operations...');
-
     for (final sessionData in pendingSessions) {
       try {
         await _pendingSessionService.updatePendingSessionStatus(
             sessionData.key.toString(), 'syncing');
 
         if (sessionData.operation == 'start') {
-          await SessionService.recordLogin(sessionData.userId);
-          print('? Synced session start for user ${sessionData.userId}');
+          await ClockInOutService.clockIn(sessionData.userId);
         } else if (sessionData.operation == 'end') {
-          await SessionService.recordLogout(sessionData.userId);
-          print('? Synced session end for user ${sessionData.userId}');
+          await ClockInOutService.clockOut(sessionData.userId);
         }
 
         // Remove successfully synced session
         await _pendingSessionService
             .deletePendingSession(sessionData.key.toString());
       } catch (e) {
-        print('? Failed to sync session operation: $e');
-
         // Check if it's a server error
         if (e.toString().contains('500') ||
             e.toString().contains('501') ||
@@ -175,7 +169,6 @@ class OfflineSyncService extends GetxService {
             // These are validation errors that won't succeed on retry
             await _pendingSessionService
                 .deletePendingSession(sessionData.key.toString());
-            print('??? Deleted session operation due to validation error: $e');
           } else {
             // Mark as error for other failures and retry
             final retryCount = sessionData.retryCount + 1;
@@ -183,7 +176,6 @@ class OfflineSyncService extends GetxService {
               // Max retries reached, delete
               await _pendingSessionService
                   .deletePendingSession(sessionData.key.toString());
-              print('??? Deleted session operation after max retries');
             } else {
               await _pendingSessionService.updatePendingSessionStatus(
                   sessionData.key.toString(), 'error',
@@ -204,8 +196,6 @@ class OfflineSyncService extends GetxService {
 
     if (pendingEntries.isEmpty) return;
 
-    print('?? Syncing ${pendingEntries.length} pending journey plans...');
-
     for (final entry in pendingEntries) {
       try {
         await _pendingJourneyPlanService.updatePendingJourneyPlanStatus(
@@ -219,13 +209,9 @@ class OfflineSyncService extends GetxService {
           routeId: plan.routeId,
         );
 
-        print('? Synced journey plan for client ${plan.clientId}');
-
         // Remove successfully synced plan
         await _pendingJourneyPlanService.deletePendingJourneyPlan(entry.key);
       } catch (e) {
-        print('? Failed to sync journey plan: $e');
-
         // Check if it's a server error
         if (e.toString().contains('500') ||
             e.toString().contains('501') ||
@@ -250,14 +236,11 @@ class OfflineSyncService extends GetxService {
 
     if (unsyncedReports.isEmpty) return;
 
-    print('?? Syncing ${unsyncedReports.length} pending reports...');
-
     for (final reportData in unsyncedReports) {
       try {
         // Convert to API format and submit
         final salesRepId = ApiService.getCurrentUserId();
         if (salesRepId == null) {
-          print('? Cannot sync report - user ID not found');
           continue;
         }
         final report =
@@ -265,12 +248,9 @@ class OfflineSyncService extends GetxService {
 
         await ApiService().submitReport(report);
 
-        print('? Synced report for journey plan ${reportData.journeyPlanId}');
-
         // Mark as synced
         await _productReportService.markAsSynced(reportData.journeyPlanId);
       } catch (e) {
-        print('? Failed to sync report: $e');
         // Reports will remain unsynced and retry on next connection
       }
     }
@@ -278,17 +258,10 @@ class OfflineSyncService extends GetxService {
 
   // Manual sync trigger
   Future<void> forcSync() async {
-    print('?? Force sync requested...');
-    print('?? Online status: $_isOnline');
-    print('?? Currently syncing: $_isSyncing');
-    print('?? Has pending operations: ${hasPendingOperations()}');
-
     if (!_isOnline) {
-      print('?? Cannot sync - device is offline');
       return;
     }
 
-    print('?? Starting manual sync...');
     await _syncPendingOperations();
   }
 

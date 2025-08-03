@@ -49,23 +49,26 @@ class ProductHiveService {
 
       debugPrint('ProductHiveService: Starting initialization');
 
-      // Open the products box if not already open
-      if (!Hive.isBoxOpen(_boxName)) {
-        debugPrint('ProductHiveService: Opening products box');
-        _productBox = await Hive.openBox<ProductHiveModel>(_boxName);
-      } else {
-        debugPrint('ProductHiveService: Products box already open');
-        _productBox = Hive.box<ProductHiveModel>(_boxName);
+      // Clear existing boxes if they exist to avoid schema conflicts
+      if (Hive.isBoxOpen(_boxName)) {
+        debugPrint('ProductHiveService: Clearing existing products box');
+        await Hive.box(_boxName).close();
+        await Hive.deleteBoxFromDisk(_boxName);
       }
 
-      // Open the timestamps box if not already open
-      if (!Hive.isBoxOpen(_timestampBoxName)) {
-        debugPrint('ProductHiveService: Opening timestamps box');
-        _timestampBox = await Hive.openBox(_timestampBoxName);
-      } else {
-        debugPrint('ProductHiveService: Timestamps box already open');
-        _timestampBox = Hive.box(_timestampBoxName);
+      if (Hive.isBoxOpen(_timestampBoxName)) {
+        debugPrint('ProductHiveService: Clearing existing timestamps box');
+        await Hive.box(_timestampBoxName).close();
+        await Hive.deleteBoxFromDisk(_timestampBoxName);
       }
+
+      // Open the products box
+      debugPrint('ProductHiveService: Opening products box');
+      _productBox = await Hive.openBox<ProductHiveModel>(_boxName);
+
+      // Open the timestamps box
+      debugPrint('ProductHiveService: Opening timestamps box');
+      _timestampBox = await Hive.openBox(_timestampBoxName);
 
       _isInitialized = true;
       debugPrint('ProductHiveService: Initialization complete');
@@ -82,7 +85,30 @@ class ProductHiveService {
   Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
       print('ProductHiveService: Not initialized, initializing now');
-      await init();
+      try {
+        await init();
+      } catch (e) {
+        print(
+            'ProductHiveService: Failed to initialize, clearing boxes and retrying: $e');
+        await _clearBoxes();
+        await init();
+      }
+    }
+  }
+
+  // Clear boxes when there are conflicts
+  Future<void> _clearBoxes() async {
+    try {
+      if (Hive.isBoxOpen(_boxName)) {
+        await Hive.box(_boxName).close();
+        await Hive.deleteBoxFromDisk(_boxName);
+      }
+      if (Hive.isBoxOpen(_timestampBoxName)) {
+        await Hive.box(_timestampBoxName).close();
+        await Hive.deleteBoxFromDisk(_timestampBoxName);
+      }
+    } catch (e) {
+      print('ProductHiveService: Error clearing boxes: $e');
     }
   }
 
@@ -97,7 +123,6 @@ class ProductHiveService {
     try {
       final hiveModel = ProductHiveModel.fromProduct(product);
       await _productBox!.put(product.id, hiveModel);
-      print('ProductHiveService: Saved product ${product.id}');
     } catch (e) {
       print('ProductHiveService: Error saving product: $e');
       rethrow;
@@ -118,7 +143,6 @@ class ProductHiveService {
           product.id: ProductHiveModel.fromProduct(product)
       };
       await _productBox!.putAll(productMap);
-      print('ProductHiveService: Saved ${products.length} products');
     } catch (e) {
       print('ProductHiveService: Error saving products: $e');
       rethrow;
@@ -172,7 +196,7 @@ class ProductHiveService {
       final lowercaseQuery = query.toLowerCase();
       return _productBox!.values
           .where((model) =>
-              model.name.toLowerCase().contains(lowercaseQuery) ||
+              model.productName.toLowerCase().contains(lowercaseQuery) ||
               (model.description?.toLowerCase().contains(lowercaseQuery) ??
                   false))
           .map((hiveModel) => hiveModel.toProduct())
@@ -210,7 +234,6 @@ class ProductHiveService {
 
     try {
       await _productBox!.clear();
-      print('ProductHiveService: Cleared all products');
     } catch (e) {
       print('ProductHiveService: Error clearing products: $e');
       rethrow;

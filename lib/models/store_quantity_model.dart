@@ -17,11 +17,25 @@ class StoreQuantity {
 
   factory StoreQuantity.fromJson(Map<String, dynamic> json) {
     return StoreQuantity(
-      id: json['id'],
-      quantity: json['quantity'],
-      storeId: json['storeId'],
-      productId: json['productId'],
-      store: json['store'] != null ? Store.fromJson(json['store']) : null,
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
+      quantity: json['quantity'] != null
+          ? int.tryParse(json['quantity'].toString()) ?? 0
+          : 0,
+      storeId: json['store_id'] != null
+          ? int.tryParse(json['store_id'].toString()) ?? 0
+          : json['storeId'] != null
+              ? int.tryParse(json['storeId'].toString()) ?? 0
+              : 0,
+      productId: json['product_id'] != null
+          ? int.tryParse(json['product_id'].toString()) ?? 0
+          : json['productId'] != null
+              ? int.tryParse(json['productId'].toString()) ?? 0
+              : 0,
+      store: json['stores'] != null
+          ? Store.fromJson(json['stores'])
+          : json['store'] != null
+              ? Store.fromJson(json['store'])
+              : null,
     );
   }
 

@@ -5,8 +5,8 @@ import 'package:woosh/controllers/uplift_sale_controller.dart';
 import 'package:woosh/utils/date_utils.dart' as custom_date;
 import 'package:woosh/utils/currency_utils.dart';
 import 'package:woosh/pages/client/viewclient_page.dart';
-import 'package:woosh/pages/pos/upliftSaleCart_page.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/pages/pos/uplift_sale_cart_page.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 
 class UpliftSalesPage extends StatefulWidget {
   const UpliftSalesPage({super.key});
@@ -260,7 +260,7 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
               ...sale.items.map((item) => Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      '• ${item.product?.name ?? 'Product #${item.productId}'} - '
+                      '• ${item.product?.productName ?? 'Product #${item.productId}'} - '
                       'Qty: ${item.quantity}, '
                       'Price: ${CurrencyUtils.format(item.unitPrice)}, '
                       'Total: ${CurrencyUtils.format(item.total)}',
@@ -344,6 +344,7 @@ class _UpliftSalesPageState extends State<UpliftSalesPage> {
               Get.off(
                 () => UpliftSaleCartPage(
                   outlet: selectedOutlet,
+                  client: null,
                 ),
                 transition: Transition.rightToLeft,
               );

@@ -1,7 +1,7 @@
 name: woosh
 description: "A new Flutter project."
 
-version: 1.0.3+22  # Increment version for App Store submission
+version: 1.0.4+3 # Increment version for App Store submission
 
 
 environment:
@@ -41,6 +41,7 @@ dependencies:
   url_launcher: ^6.2.5
   flutter_image_compress: ^2.4.0
   package_info_plus: ^8.0.2
+  table_calendar: ^3.0.9
 
   image: any
   uuid: any

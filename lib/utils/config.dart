@@ -1,9 +1,10 @@
 class Config {
-  //static const String baseUrl = 'https://woosh-api-mocha.vercel.app';
-  static const String baseUrl = 'https://woosh-api.vercel.app';
+  static const String baseUrl = 'https://moonsunsalesapi.vercel.app/api';
+  //static const String baseUrl = 'http://192.168.100.14:3000';
+  //static const String baseUrl = 'https://woosh-api.vercel.app';
   static const String apiVersion = 'v1';
   static const String imageBaseUrl =
-      'https://woosh-api-mocha.vercel.app/uploads';
+      'https://res.cloudinary.com/citlogistics/image/upload/v1/whoosh';
 
   // API Endpoints
   static const String loginEndpoint = '/auth/login';

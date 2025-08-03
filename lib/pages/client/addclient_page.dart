@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:woosh/services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/hive/client_model.dart';
 import 'package:get/get.dart';
-import 'package:woosh/services/outlet_service.dart';
+import 'package:woosh/services/client/client_service.dart';
 import 'package:woosh/utils/country_tax_labels.dart';
+import 'package:woosh/services/hive/client_hive_service.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 
 class AddClientPage extends StatefulWidget {
   const AddClientPage({super.key});
@@ -63,6 +66,58 @@ class _AddClientPageState extends State<AddClientPage> {
     super.dispose();
   }
 
+  // Check for duplicates before submitting
+  Future<bool> _checkForDuplicates() async {
+    try {
+      final clientHiveService = Get.find<ClientHiveService>();
+      final existingClients = clientHiveService.getAllClients();
+
+      // Check for exact name match (case-insensitive)
+      ClientModel? duplicate;
+      try {
+        duplicate = existingClients.firstWhere(
+          (client) =>
+              client.name.toLowerCase() == _nameController.text.toLowerCase(),
+        );
+      } catch (e) {
+        duplicate = null; // No duplicate found
+      }
+
+      if (duplicate != null) {
+        return await _showDuplicateWarning(duplicate);
+      }
+
+      return true; // No duplicate found, continue
+    } catch (e) {
+      print('Error checking for duplicates: $e');
+      return true; // Continue on error
+    }
+  }
+
+  // Show duplicate warning dialog
+  Future<bool> _showDuplicateWarning(ClientModel existingClient) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Client Already Exists'),
+            content: Text(
+                'A client with name "${existingClient.name}" already exists.\n\n'
+                'Do you want to add this client anyway?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Add Anyway'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   // Method to get the current device position
   Future<void> _getCurrentPosition() async {
     setState(() {
@@ -112,6 +167,10 @@ class _AddClientPageState extends State<AddClientPage> {
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
+      // Check for duplicates before submitting
+      final shouldContinue = await _checkForDuplicates();
+      if (!shouldContinue) return;
+
       setState(() {
         _isLoading = true;
       });
@@ -132,9 +191,19 @@ class _AddClientPageState extends State<AddClientPage> {
           clientType: 1,
         );
 
-        // Notify the OutletService about the new outlet
-        final outletService = Get.find<OutletService>();
-        await outletService.addOutlet(outlet);
+        // Notify the ClientService about the new client
+        await ClientService.createClient({
+          'id': outlet.id,
+          'name': outlet.name,
+          'address': outlet.address,
+          'contact': outlet.contact ?? '',
+          'email': outlet.email,
+          'latitude': outlet.latitude,
+          'longitude': outlet.longitude,
+          'regionId': outlet.regionId,
+          'region': outlet.region,
+          'countryId': outlet.countryId,
+        });
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -149,8 +218,18 @@ class _AddClientPageState extends State<AddClientPage> {
         }
       } catch (e) {
         if (mounted) {
+          // Handle duplicate client error from backend
+          if (e.toString().contains('409')) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Client already exists in the database.'),
+                duration: Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
           // Handle server errors silently
-          if (e.toString().contains('500') ||
+          else if (e.toString().contains('500') ||
               e.toString().contains('501') ||
               e.toString().contains('502') ||
               e.toString().contains('503')) {

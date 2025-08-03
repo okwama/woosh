@@ -7,7 +7,7 @@ import 'package:woosh/utils/config.dart';
 import 'package:woosh/services/token_service.dart';
 
 class ReportService {
-  static const String baseUrl = '${Config.baseUrl}/api';
+  static const String baseUrl = Config.baseUrl;
   static const Duration tokenExpirationDuration = Duration(hours: 5);
 
   static String? _getAuthToken() {

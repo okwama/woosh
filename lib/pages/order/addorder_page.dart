@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/models/hive/order_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/pages/order/product/products_grid_page.dart';
 import 'package:woosh/controllers/cart_controller.dart';
 import 'package:woosh/services/hive/order_hive_service.dart';

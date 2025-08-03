@@ -30,11 +30,7 @@ class SessionHiveService {
     final session = await getSession();
     if (session == null) return false;
 
-    // Check if session is active and last check was within 1 minute
-    if (session.isActive && session.lastCheck != null) {
-      final difference = DateTime.now().difference(session.lastCheck!);
-      return difference < const Duration(minutes: 1);
-    }
-    return false;
+    // Session is valid if it exists - no time-based expiration
+    return true;
   }
 }

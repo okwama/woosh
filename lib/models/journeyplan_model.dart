@@ -1,4 +1,4 @@
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:flutter/material.dart';
 
 class JourneyPlan {
@@ -136,11 +136,11 @@ class JourneyPlan {
   }
 
   factory JourneyPlan.fromJson(Map<String, dynamic> json) {
-    // Debug logging to identify the issue
-    print('JourneyPlan.fromJson - Processing JSON: ${json.keys.join(', ')}');
-    print('JourneyPlan.fromJson - Date field: ${json['date']}');
-    print(
-        'JourneyPlan.fromJson - Client field present: ${json['client'] != null}');
+    // Debug logging to identify the issue (commented out to reduce log spam)
+    // print('JourneyPlan.fromJson - Processing JSON: ${json.keys.join(', ')}');
+    // print('JourneyPlan.fromJson - Date field: ${json['date']}');
+    // print(
+    //     'JourneyPlan.fromJson - Client field present: ${json['client'] != null}');
 
     if (json['date'] == null || json['date'].toString().isEmpty) {
       throw FormatException(
@@ -200,9 +200,9 @@ class JourneyPlan {
     final date = parseDate(json['date']);
     final time = json['time'] ?? getTime(date);
 
-    // Debug date and time parsing
-    print('JourneyPlan parsing - date: ${json['date']} -> $date');
-    print('JourneyPlan parsing - time: ${json['time']} -> $time');
+    // Debug date and time parsing (commented out to reduce log spam)
+    // print('JourneyPlan parsing - date: ${json['date']} -> $date');
+    // print('JourneyPlan parsing - time: ${json['time']} -> $time');
 
     // Convert status to int, default to pending (0)
     final status = json['status'] != null
@@ -211,11 +211,11 @@ class JourneyPlan {
             : int.tryParse(json['status'].toString()) ?? statusPending)
         : statusPending;
 
-    // Debug status parsing
-    print('JourneyPlan parsing - status: ${json['status']} -> $status');
-    print('JourneyPlan parsing - statusText: ${json['statusText']}');
+    // Debug status parsing (commented out to reduce log spam)
+    // print('JourneyPlan parsing - status: ${json['status']} -> $status');
+    // print('JourneyPlan parsing - statusText: ${json['statusText']}');
 
-    // Debug logging for each field
+    // Debug logging for each field (commented out to reduce log spam)
     final id = parseInt(json['id']);
     // Check for both userId and salesRepId (server might use userId)
     final salesRepId = parseInt(json['userId'] ?? json['salesRepId']);
@@ -226,17 +226,17 @@ class JourneyPlan {
     final checkoutLatitude = parseDouble(json['checkoutLatitude']);
     final checkoutLongitude = parseDouble(json['checkoutLongitude']);
 
-    print('JourneyPlan parsing - id: ${json['id']} -> $id');
-    print(
-        'JourneyPlan parsing - userId/salesRepId: ${json['userId'] ?? json['salesRepId']} -> $salesRepId');
-    print('JourneyPlan parsing - routeId: ${json['routeId']} -> $routeId');
-    print('JourneyPlan parsing - clientId: ${json['clientId']} -> $clientId');
-    print('JourneyPlan parsing - latitude: ${json['latitude']} -> $latitude');
-    print(
-        'JourneyPlan parsing - longitude: ${json['longitude']} -> $longitude');
+    // print('JourneyPlan parsing - id: ${json['id']} -> $id');
+    // print(
+    //     'JourneyPlan parsing - userId/salesRepId: ${json['userId'] ?? json['salesRepId']} -> $salesRepId');
+    // print('JourneyPlan parsing - routeId: ${json['routeId']} -> $routeId');
+    // print('JourneyPlan parsing - clientId: ${json['clientId']} -> $clientId');
+    // print('JourneyPlan parsing - latitude: ${json['latitude']} -> $latitude');
+    // print(
+    //     'JourneyPlan parsing - longitude: ${json['longitude']} -> $longitude');
 
-    // Debug client parsing
-    print('JourneyPlan parsing - client: ${json['client']}');
+    // Debug client parsing (commented out to reduce log spam)
+    // print('JourneyPlan parsing - client: ${json['client']}');
 
     return JourneyPlan(
       id: id,

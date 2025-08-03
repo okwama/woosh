@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/controllers/profile_controller.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:woosh/pages/profile/ChangePasswordPage.dart';
+import 'package:woosh/pages/profile/change_password_page.dart';
 import 'package:woosh/pages/profile/deleteaccount.dart';
 import 'package:woosh/pages/profile/targets/targets_page.dart';
 
 import 'package:woosh/pages/profile/user_stats_page.dart';
 import 'package:woosh/pages/profile/session_history_page.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/session_service.dart';
-import 'package:woosh/services/enhanced_session_service.dart';
-import 'package:woosh/services/session_state.dart';
+import 'package:woosh/controllers/clock_in_out_state.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
@@ -20,11 +18,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:get_storage/get_storage.dart';
 import 'dart:async';
-import 'package:woosh/services/hive/session_hive_service.dart';
-import 'package:woosh/models/hive/session_model.dart';
 import 'package:woosh/services/hive/cart_hive_service.dart';
 import 'package:woosh/services/hive/client_hive_service.dart';
 import 'package:woosh/services/hive/hive_service.dart';
+import 'package:woosh/pages/profile/user_details_page.dart';
+import 'package:woosh/services/token_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -35,7 +33,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   final ProfileController controller = Get.put(ProfileController());
-  final SessionState _sessionState = Get.put(SessionState());
+  final ClockInOutState _clockState = Get.put(ClockInOutState());
   bool isProcessing = false;
   Timer? _durationTimer;
 
@@ -43,109 +41,101 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initEnhancedSessionService();
-    // Force refresh session status on profile page load
-    _sessionState.forceRefreshSessionStatus();
+    // Refresh clock status on profile page load
+    _clockState.refreshStatus();
   }
 
-  Future<void> _initEnhancedSessionService() async {
-    await EnhancedSessionService.initialize();
-  }
-
-  Future<void> _toggleSession() async {
+  Future<void> _toggleClock() async {
     if (isProcessing) return;
 
-    setState(() => isProcessing = true);
+    print('🔍 Clock button tapped!');
+    print('🔍 Current clock state: ${_clockState.isClockedIn.value}');
+    print('🔍 Is processing: $isProcessing');
+
+    // Show confirmation dialog first
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: GradientText(
+          _clockState.isClockedIn.value ? 'Clock Out' : 'Clock In',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          _clockState.isClockedIn.value
+              ? 'Are you sure you want to clock out? This will end your current session.'
+              : 'Are you sure you want to clock in? This will start your session.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          GoldGradientButton(
+            onPressed: () => Get.back(result: true),
+            child:
+                Text(_clockState.isClockedIn.value ? 'Clock Out' : 'Clock In'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) return;
+
+    setState(() {
+      isProcessing = true;
+    });
 
     try {
-      final box = GetStorage();
-      final userId = box.read<String>('userId');
-
-      if (userId == null) {
-        Get.snackbar(
-          'Error',
-          'User ID not found',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        return;
-      }
-
-      if (!_sessionState.isSessionActive.value) {
-        // Start session using enhanced service with offline support
-        final response = await EnhancedSessionService.recordLogin(userId);
-
-        // Use the new startSession method to cache the session
-        await _sessionState.startSession();
-        _startDurationTimer();
-
-        // Show appropriate success message
-        final message = response['offline'] == true
-            ? 'Session started (will sync when online)'
-            : 'Session started successfully';
-        final color =
-            response['offline'] == true ? Colors.orange : Colors.green;
-
-        Get.snackbar(
-          'Success',
-          message,
-          backgroundColor: Colors.white,
-          colorText: color,
-        );
+      bool success;
+      if (!_clockState.isClockedIn.value) {
+        // Clock In
+        success = await _clockState.clockIn();
+        if (success) {
+          Get.snackbar(
+            'Success',
+            'Successfully clocked in',
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+        } else {
+          Get.snackbar(
+            'Error',
+            'Failed to clock in',
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
       } else {
-        // Use the new endSession method to clear cache and end session
-        await _sessionState.endSession();
-        _stopDurationTimer();
-
-        // Show success message
-        Get.snackbar(
-          'Success',
-          'Session ended successfully',
-          backgroundColor: Colors.white,
-          colorText: Colors.blue,
-        );
+        // Clock Out
+        success = await _clockState.clockOut();
+        if (success) {
+          Get.snackbar(
+            'Success',
+            'Successfully clocked out',
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+        } else {
+          Get.snackbar(
+            'Error',
+            'Failed to clock out',
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
       }
     } catch (e) {
-      // Handle server errors silently
-      if (e.toString().contains('500') ||
-          e.toString().contains('501') ||
-          e.toString().contains('502') ||
-          e.toString().contains('503')) {
-        print('Server error during session toggle - handled silently: $e');
-        return;
-      }
-
-      String errorMessage =
-          'Failed to ${_sessionState.isSessionActive.value ? 'end' : 'start'} session';
-      Color errorColor = Colors.red;
-
-      // Show dialog for early login attempt
-      if (e.toString().contains('Sessions can only be started from 9:00 AM')) {
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Cannot Start Session'),
-            content: const Text(
-                'Sessions can only be started from 9:00 AM onwards. Please try again later.'),
-            actions: [
-              GoldGradientButton(
-                onPressed: () => Get.back(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
+      print('❌ Clock operation failed: $e');
       Get.snackbar(
         'Error',
-        errorMessage,
-        backgroundColor: Colors.white,
-        colorText: errorColor,
+        'Failed to ${_clockState.isClockedIn.value ? 'clock out' : 'clock in'}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
       );
     } finally {
-      setState(() => isProcessing = false);
+      setState(() {
+        isProcessing = false;
+      });
     }
   }
 
@@ -212,32 +202,8 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-  String _getSessionDuration() {
-    if (_sessionState.sessionStartTime.value == null) return 'N/A';
-
-    final now = DateTime.now();
-    final startTime = _sessionState.sessionStartTime.value!;
-    final duration = now.difference(startTime);
-
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
-  }
-
   void _startDurationTimer() {
-    _stopDurationTimer(); // Stop any existing timer
-    _durationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && _sessionState.isSessionActive.value) {
-        setState(() {}); // Trigger rebuild to update duration
-      } else {
-        timer.cancel();
-      }
-    });
+    // Removed - using ClockInOutState for duration management
   }
 
   void _stopDurationTimer() {
@@ -257,6 +223,14 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
     ImageCache().clear();
     ImageCache().clearLiveImages();
     ApiCache.clear();
+  }
+
+  Future<void> _testSessionAPI() async {
+    // Removed - using new Clock In/Out system
+  }
+
+  Future<void> _forceRefreshSession() async {
+    // Removed - using new Clock In/Out system
   }
 
   @override
@@ -299,29 +273,68 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
                       _buildRoleBadge(),
                       const SizedBox(height: 16),
                       // Profile Info Cards
+                      // Replace the info cards section with only the name card, which is clickable
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Column(
                           children: [
-                            _buildInfoCard(
-                              context,
-                              icon: Icons.person,
-                              label: 'Name',
-                              value: controller.userName.value,
-                            ),
-                            const SizedBox(height: 8),
-                            _buildInfoCard(
-                              context,
-                              icon: Icons.email,
-                              label: 'Email',
-                              value: controller.userEmail.value,
-                            ),
-                            const SizedBox(height: 8),
-                            _buildInfoCard(
-                              context,
-                              icon: Icons.phone,
-                              label: 'Phone',
-                              value: controller.userPhone.value,
+                            // Name card only, clickable
+                            Card(
+                              elevation: 1,
+                              margin: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: InkWell(
+                                onTap: () {
+                                  Get.to(() => UserDetailsPage(
+                                        name: controller.userName.value,
+                                        email: controller.userEmail.value,
+                                        phone: controller.userPhone.value,
+                                      ));
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context)
+                                              .primaryColor
+                                              .withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: Icon(
+                                          Icons.person,
+                                          color: Theme.of(context).primaryColor,
+                                          size: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          controller.userName.value.isEmpty
+                                              ? 'Not provided'
+                                              : controller.userName.value,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14,
+                                        color: Colors.grey.shade600,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
                             _buildActionButtons(),
@@ -806,100 +819,82 @@ class _ProfilePageState extends State<ProfilePage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 8),
-        // Simplified Session Control Button
-        Obx(() => Container(
-              margin: const EdgeInsets.only(top: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _sessionState.isSessionActive.value
-                      ? [Colors.red.shade400, Colors.red.shade600]
-                      : [Colors.green.shade400, Colors.green.shade600],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: (_sessionState.isSessionActive.value
-                            ? Colors.red
-                            : Colors.green)
-                        .withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+        // Clock In/Out Button
+        Card(
+          elevation: 1,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: InkWell(
+            onTap: isProcessing ? null : _toggleClock,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _clockState.isClockedIn.value
+                          ? Colors.red.withOpacity(0.1)
+                          : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      _clockState.isClockedIn.value
+                          ? Icons.stop_circle
+                          : Icons.play_circle,
+                      color: _clockState.isClockedIn.value
+                          ? Colors.red
+                          : Colors.green,
+                      size: 16,
+                    ),
                   ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: isProcessing || _sessionState.isCheckingSession.value
-                      ? null
-                      : _toggleSession,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            _sessionState.isSessionActive.value
-                                ? Icons.stop_circle
-                                : Icons.play_circle,
-                            color: Colors.white,
-                            size: 24,
+                        Text(
+                          _clockState.isClockedIn.value
+                              ? 'Clock Out'
+                              : 'Clock In',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _sessionState.isSessionActive.value
-                                    ? 'End Session'
-                                    : 'Start Session',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              if (_sessionState.isSessionActive.value &&
-                                  _sessionState.sessionStartTime.value !=
-                                      null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Duration: ${_getSessionDuration()}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        if (isProcessing)
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                        if (_clockState.isClockedIn.value) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Duration: ${_clockState.formattedDuration}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),
-                ),
+                  if (isProcessing)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    )
+                ],
               ),
-            )),
+            ),
+          ),
+        ),
         const SizedBox(height: 16), // Add extra padding at the bottom
       ],
     );

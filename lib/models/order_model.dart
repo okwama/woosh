@@ -1,64 +1,61 @@
 import 'package:woosh/models/orderitem_model.dart';
-import 'package:woosh/models/outlet_model.dart';
 import 'package:woosh/models/user_model.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/models/price_option_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 
-enum OrderStatus { PENDING, COMPLETED, CANCELLED }
+enum OrderStatus {
+  DRAFT,
+  CONFIRMED,
+  SHIPPED,
+  DELIVERED,
+  CANCELLED,
+  IN_PAYMENT,
+  PAID
+}
 
 class Order {
   final int id;
-  final int quantity;
-  final SalesRep user;
-  final Client client;
-  final String? imageUrl;
+  final String soNumber;
+  final int clientId;
+  final DateTime orderDate;
+  final DateTime? expectedDeliveryDate;
+  final double? subtotal;
+  final double? taxAmount;
+  final double? totalAmount;
+  final double netPrice;
+  final String? notes;
+  final int createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int riderId;
+  final DateTime? assignedAt;
+  final OrderStatus status;
+  final int myStatus;
+  final SalesRep user;
+  final Client client;
   final List<OrderItem> orderItems;
-  final double? _totalAmount; // Store the total amount from the database
 
   Order({
     required this.id,
-    required this.quantity,
-    required this.user,
-    required this.client,
+    required this.soNumber,
+    required this.clientId,
+    required this.orderDate,
+    this.expectedDeliveryDate,
+    this.subtotal,
+    this.taxAmount,
+    this.totalAmount,
+    required this.netPrice,
+    this.notes,
+    required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
-    this.imageUrl,
+    required this.riderId,
+    this.assignedAt,
+    required this.status,
+    required this.myStatus,
+    required this.user,
+    required this.client,
     required this.orderItems,
-    double? totalAmount,
-  }) : _totalAmount = totalAmount;
-
-  // Get total amount from database or calculate from order items if not available
-  double get totalAmount {
-    // If we have a total amount from the database, use it
-    if (_totalAmount != null) {
-      return _totalAmount;
-    }
-
-    // Otherwise calculate from order items
-    return orderItems.fold(0.0, (total, item) {
-      if (item.product == null || item.priceOptionId == null) return total;
-
-      // Find the matching price option
-      final priceOption = item.product!.priceOptions.firstWhere(
-        (opt) => opt.id == item.priceOptionId,
-        orElse: () => PriceOption(
-            id: 0,
-            option: '',
-            value: null,
-            value_tzs: null,
-            value_ngn: null,
-            categoryId: 0),
-      );
-
-      // Calculate the item price
-      return total + ((priceOption.value ?? 0) * item.quantity);
-    });
-  }
-
-  // Default status is PENDING
-  OrderStatus get status => OrderStatus.PENDING;
+  });
 
   factory Order.fromJson(Map<String, dynamic> json) {
     try {
@@ -67,7 +64,8 @@ class Order {
 
       // Safely extract user/client data with null checks
       Map<String, dynamic>? userData = json['user'];
-      Map<String, dynamic>? clientData = json['client'];
+      Map<String, dynamic>? clientData =
+          json['Clients'] ?? json['client']; // Try both 'Clients' and 'client'
 
       if (userData == null) {
         print('Warning: user data is null in Order JSON');
@@ -75,67 +73,131 @@ class Order {
 
       if (clientData == null) {
         print('Warning: client data is null in Order JSON');
+        print('Available keys in JSON: ${json.keys}');
+      }
+
+      // Parse status
+      OrderStatus status;
+      try {
+        status = OrderStatus.values.firstWhere(
+          (e) =>
+              e.name.toLowerCase() ==
+              (json['status'] ?? 'draft').toString().toLowerCase(),
+          orElse: () => OrderStatus.DRAFT,
+        );
+      } catch (e) {
+        print('Error parsing status: $e');
+        status = OrderStatus.DRAFT;
       }
 
       // Handle dates safely with timezone consideration
+      DateTime orderDate;
+      try {
+        if (json['order_date'] != null) {
+          final String dateStr = json['order_date'].toString();
+          if (dateStr.contains('T') || dateStr.contains('Z')) {
+            orderDate = DateTime.parse(dateStr).toLocal();
+          } else {
+            orderDate = DateTime.parse(dateStr);
+          }
+        } else {
+          orderDate = DateTime.now();
+        }
+      } catch (e) {
+        print('Error parsing order_date: $e');
+        orderDate = DateTime.now();
+      }
+
       DateTime createdAt;
       try {
-        if (json['createdAt'] != null) {
-          // Try to parse with timezone aware handling
-          final String dateStr = json['createdAt'].toString();
+        if (json['created_at'] != null) {
+          final String dateStr = json['created_at'].toString();
           if (dateStr.contains('T') || dateStr.contains('Z')) {
-            // ISO format with timezone info
             createdAt = DateTime.parse(dateStr).toLocal();
           } else {
-            // Plain date string
             createdAt = DateTime.parse(dateStr);
           }
         } else {
           createdAt = DateTime.now();
         }
       } catch (e) {
-        print('Error parsing createdAt: $e');
-        print('Original value: ${json['createdAt']}');
+        print('Error parsing created_at: $e');
         createdAt = DateTime.now();
       }
 
       DateTime updatedAt;
       try {
-        if (json['updatedAt'] != null) {
-          // Try to parse with timezone aware handling
-          final String dateStr = json['updatedAt'].toString();
+        if (json['updated_at'] != null) {
+          final String dateStr = json['updated_at'].toString();
           if (dateStr.contains('T') || dateStr.contains('Z')) {
-            // ISO format with timezone info
             updatedAt = DateTime.parse(dateStr).toLocal();
           } else {
-            // Plain date string
             updatedAt = DateTime.parse(dateStr);
           }
         } else {
           updatedAt = DateTime.now();
         }
       } catch (e) {
-        print('Error parsing updatedAt: $e');
-        print('Original value: ${json['updatedAt']}');
+        print('Error parsing updated_at: $e');
         updatedAt = DateTime.now();
       }
 
-      // Parse totalAmount from JSON if available
-      double? totalAmount;
-      if (json['totalAmount'] != null) {
-        try {
-          totalAmount = double.parse(json['totalAmount'].toString());
-        } catch (e) {
-          print('Error parsing totalAmount: $e');
-          print('Original value: ${json['totalAmount']}');
+      DateTime? expectedDeliveryDate;
+      try {
+        if (json['expected_delivery_date'] != null) {
+          final String dateStr = json['expected_delivery_date'].toString();
+          if (dateStr.contains('T') || dateStr.contains('Z')) {
+            expectedDeliveryDate = DateTime.parse(dateStr).toLocal();
+          } else {
+            expectedDeliveryDate = DateTime.parse(dateStr);
+          }
         }
+      } catch (e) {
+        print('Error parsing expected_delivery_date: $e');
+        expectedDeliveryDate = null;
+      }
+
+      DateTime? assignedAt;
+      try {
+        if (json['assigned_at'] != null) {
+          final String dateStr = json['assigned_at'].toString();
+          if (dateStr.contains('T') || dateStr.contains('Z')) {
+            assignedAt = DateTime.parse(dateStr).toLocal();
+          } else {
+            assignedAt = DateTime.parse(dateStr);
+          }
+        }
+      } catch (e) {
+        print('Error parsing assigned_at: $e');
+        assignedAt = null;
       }
 
       return Order(
-        id: json['id'] as int,
-        quantity: json['quantity'] ?? 0,
-        totalAmount: totalAmount,
-        imageUrl: json['imageUrl'] as String?,
+        id: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
+        soNumber: json['so_number'] ?? '',
+        clientId: json['client_id'] ?? 0,
+        orderDate: orderDate,
+        expectedDeliveryDate: expectedDeliveryDate,
+        subtotal: json['subtotal'] != null
+            ? double.tryParse(json['subtotal'].toString())
+            : null,
+        taxAmount: json['tax_amount'] != null
+            ? double.tryParse(json['tax_amount'].toString())
+            : null,
+        totalAmount: json['total_amount'] != null
+            ? double.tryParse(json['total_amount'].toString())
+            : null,
+        netPrice: json['net_price'] != null
+            ? double.tryParse(json['net_price'].toString()) ?? 0.0
+            : 0.0,
+        notes: json['notes'],
+        createdBy: json['created_by'] ?? 0,
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        riderId: json['rider_id'] ?? 0,
+        assignedAt: assignedAt,
+        status: status,
+        myStatus: json['my_status'] ?? 0,
         // Create user and client objects with safe fallbacks
         user: userData != null
             ? SalesRep.fromJson(userData)
@@ -144,8 +206,6 @@ class Order {
         client: clientData != null
             ? Client.fromJson(clientData)
             : Client.fromJson({'id': 0, 'name': 'Unknown Client'}),
-        createdAt: createdAt,
-        updatedAt: updatedAt,
         orderItems: _parseOrderItems(json),
       );
     } catch (e) {
@@ -158,14 +218,14 @@ class Order {
   // Helper method to safely parse order items
   static List<OrderItem> _parseOrderItems(Map<String, dynamic> json) {
     try {
-      final items = json['orderItems'];
+      final items = json['sales_order_items'] ?? json['orderItems'];
       if (items == null) {
-        print('orderItems is null in Order JSON');
+        print('sales_order_items is null in Order JSON');
         return [];
       }
 
       if (items is! List) {
-        print('orderItems is not a List in Order JSON');
+        print('sales_order_items is not a List in Order JSON');
         return [];
       }
 
@@ -184,13 +244,26 @@ class Order {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'quantity': quantity,
+      'so_number': soNumber,
+      'client_id': clientId,
+      'order_date': orderDate.toIso8601String(),
+      if (expectedDeliveryDate != null)
+        'expected_delivery_date': expectedDeliveryDate!.toIso8601String(),
+      'subtotal': subtotal,
+      'tax_amount': taxAmount,
+      'total_amount': totalAmount,
+      'net_price': netPrice,
+      'notes': notes,
+      'created_by': createdBy,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'rider_id': riderId,
+      if (assignedAt != null) 'assigned_at': assignedAt!.toIso8601String(),
+      'status': status.name.toLowerCase(),
+      'my_status': myStatus,
       'user': user.toJson(),
       'client': client.toJson(),
-      'createdAt': createdAt.toUtc().toIso8601String(),
-      'updatedAt': updatedAt.toUtc().toIso8601String(),
-      'orderItems': orderItems.map((item) => item.toJson()).toList(),
-      'imageUrl': imageUrl,
+      'sales_order_items': orderItems.map((item) => item.toJson()).toList(),
     };
   }
 }

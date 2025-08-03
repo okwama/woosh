@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:woosh/controllers/client_controller.dart';
-import 'package:woosh/models/client_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 import 'package:woosh/widgets/client_list_item.dart';
 
 class InfiniteClientList extends StatelessWidget {

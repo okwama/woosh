@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:woosh/models/hive/order_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/outlet_model.dart';
 import 'package:woosh/models/product_model.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/paginated_service.dart';
+import 'package:woosh/services/shared_data_service.dart';
 import 'package:woosh/utils/pagination_utils.dart';
 import 'package:woosh/pages/order/product/product_detail_page.dart';
 import 'package:woosh/utils/app_theme.dart';
@@ -14,6 +14,7 @@ import 'package:woosh/widgets/gradient_app_bar.dart';
 import 'package:woosh/widgets/skeleton_loader.dart';
 import 'package:woosh/services/hive/product_hive_service.dart';
 import 'package:woosh/models/hive/product_model.dart';
+import 'package:woosh/utils/currency_utils.dart';
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
@@ -38,8 +39,9 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   bool _isLoading = false;
   bool _isRefreshing = false;
   String? _error;
-  late PaginatedService<Product> _productService;
-  PaginatedData<Product>? _paginatedData;
+  late SharedDataService _sharedDataService;
+  List<Product> _allProducts = [];
+  List<Product> _filteredProducts = [];
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _searchDebounce;
@@ -58,16 +60,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   @override
   void initState() {
     super.initState();
-    _productService = PaginatedService<Product>(
-      fetchData: ({int? page, int? limit, String? search}) =>
-          ApiService.getProducts(
-        page: page ?? 1,
-        limit: limit ?? 20,
-        search: search,
-        clientId: widget.outlet.id,
-      ),
-      pageSize: 20,
-    );
+    _sharedDataService = Get.find<SharedDataService>();
     _initializeAndLoad();
     _scrollController.addListener(_onScroll);
     _setupConnectivityListener();
@@ -129,11 +122,11 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   }
 
   List<Product> _getFilteredProducts() {
-    if (_paginatedData == null) return [];
+    if (_allProducts.isEmpty) return [];
     final query = _currentSearchQuery.toLowerCase();
-    if (query.isEmpty) return _paginatedData!.items;
-    return _paginatedData!.items.where((product) {
-      return product.name.toLowerCase().contains(query) ||
+    if (query.isEmpty) return _allProducts;
+    return _allProducts.where((product) {
+      return product.productName.toLowerCase().contains(query) ||
           (product.description?.toLowerCase().contains(query) ?? false);
     }).toList();
   }
@@ -146,8 +139,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
           _currentSearchQuery = query;
         });
         if (query.length >= 2 || query.isEmpty) {
-          _productService.updateSearch(query);
-          _loadInitialData();
+          _loadProducts();
         }
       }
     });
@@ -158,17 +150,17 @@ class _ProductsGridPageState extends State<ProductsGridPage>
 
     setState(() {
       _isRefreshing = true;
-      _error = null;
     });
 
     try {
-      await _loadInitialData();
+      await _sharedDataService.loadProducts(forceRefresh: true);
+      _loadProducts();
+    } catch (e) {
+      print('Failed to refresh products: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isRefreshing = false;
-        });
-      }
+      setState(() {
+        _isRefreshing = false;
+      });
     }
   }
 
@@ -181,7 +173,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
 
     if (_isConnected) {
       await _loadInitialData();
-    } else if (_paginatedData == null || _paginatedData!.items.isEmpty) {
+    } else if (_allProducts.isEmpty) {
       setState(() {
         _error = 'No internet connection. Please check your network settings.';
         _isLoading = false;
@@ -190,41 +182,35 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   }
 
   Future<void> _loadFromCache() async {
-    if (_paginatedData == null) {
+    if (_allProducts.isEmpty) {
       setState(() {
         _isLoading = true;
       });
-    }
 
-    try {
-      final cachedProducts = await _productHiveService.getAllProducts();
-      if (cachedProducts.isNotEmpty) {
-        print(
-            '[ProductsGrid] Loaded ${cachedProducts.length} products from cache');
+      try {
+        // Get cached products from SharedDataService
+        final cachedProducts = _sharedDataService.getProducts();
 
         if (mounted) {
           setState(() {
-            _paginatedData = PaginatedData<Product>(
-              items: cachedProducts,
-              currentPage: 1,
-              totalPages: 1,
-              hasMore: false,
-            );
+            _allProducts = cachedProducts;
+            _filteredProducts = _getFilteredProducts();
             _isLoading = false;
           });
         }
-      } else {
-        print('[ProductsGrid] No cached products found');
+      } catch (e) {
+        print('Failed to load cached products: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
-    } catch (e) {
-      debugPrint('[ProductsGrid] Error loading products from cache: $e');
     }
   }
 
   Future<void> _loadInitialData() async {
-    if (!_isConnected &&
-        _paginatedData != null &&
-        _paginatedData!.items.isNotEmpty) {
+    if (!_isConnected && _allProducts.isNotEmpty) {
       return; // Don't load if offline and we have cached data
     }
 
@@ -234,43 +220,40 @@ class _ProductsGridPageState extends State<ProductsGridPage>
     });
 
     try {
-      final data = await _productService.loadInitialData();
+      // Load products from SharedDataService (cached or fresh)
+      await _sharedDataService.loadProducts();
+      final products = _sharedDataService.getProducts();
 
       if (mounted) {
         setState(() {
-          _paginatedData = data;
+          _allProducts = products;
+          _filteredProducts = _getFilteredProducts();
           _isLoading = false;
         });
+      }
 
-        // Try to save products to local storage if possible
-        try {
-          ensureProductHiveAdapterRegistered();
-
-          if (Get.isRegistered<ProductHiveService>()) {
-            _productHiveService = Get.find<ProductHiveService>();
-            await _productHiveService.saveProducts(data.items);
-            debugPrint(
-                '[ProductsGrid] Saved ${data.items.length} products to local storage');
-
-            // Update last update timestamp
-            await _productHiveService.setLastUpdateTime(DateTime.now());
-          } else {
-            debugPrint(
-                '[ProductsGrid] ProductHiveService not registered, skipping local storage');
-          }
-        } catch (storageError) {
-          // Just log the error but don't fail the whole operation
+      // Save to local storage if available
+      try {
+        if (Get.isRegistered<ProductHiveService>()) {
+          _productHiveService = Get.find<ProductHiveService>();
+          await _productHiveService.saveProducts(products);
           debugPrint(
-              '[ProductsGrid] Error saving to local storage: $storageError');
+              '[ProductsGrid] Saved ${products.length} products to local storage');
+
+          // Update last update timestamp
+          final box = GetStorage();
+          await box.write(
+              'products_last_update', DateTime.now().toIso8601String());
         }
+      } catch (e) {
+        debugPrint(
+            '[ProductsGrid] Failed to save products to local storage: $e');
       }
     } catch (e) {
-      debugPrint('[ProductsGrid] Error loading products from API: $e');
+      debugPrint('[ProductsGrid] Failed to load products: $e');
       if (mounted) {
         setState(() {
-          _error = _isConnected
-              ? 'Failed to load products. Please try again.'
-              : 'No internet connection. Showing cached data.';
+          _error = 'Failed to load products. Please try again.';
           _isLoading = false;
         });
       }
@@ -290,58 +273,15 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   }
 
   Future<void> _loadMoreData() async {
-    if (_paginatedData == null ||
-        !_paginatedData!.hasMore ||
-        _isLoading ||
-        !_isConnected) {
-      return;
-    }
+    // Products are cached and don't need pagination
+    // This method is kept for compatibility but doesn't do anything
+    return;
+  }
 
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final newData = await _productService.loadMoreData(_paginatedData!);
-
-      if (mounted) {
-        setState(() {
-          _paginatedData = newData;
-          _isLoading = false;
-        });
-
-        // Try to save new products to local storage
-        try {
-          ensureProductHiveAdapterRegistered();
-
-          if (Get.isRegistered<ProductHiveService>()) {
-            _productHiveService = Get.find<ProductHiveService>();
-            // Calculate the new products that were added
-            final int previousCount = _paginatedData!.items.length;
-            final int newCount = newData.items.length;
-            final newProducts = newData.items.sublist(previousCount, newCount);
-
-            if (newProducts.isNotEmpty) {
-              await _productHiveService.saveProducts(newProducts);
-              debugPrint(
-                  '[ProductsGrid] Saved ${newProducts.length} more products to local storage');
-            }
-          }
-        } catch (storageError) {
-          // Just log the error but don't fail the whole operation
-          debugPrint(
-              '[ProductsGrid] Error saving more products to local storage: $storageError');
-        }
-      }
-    } catch (e) {
-      debugPrint('[ProductsGrid] Error loading more products: $e');
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load more products';
-          _isLoading = false;
-        });
-      }
-    }
+  void _loadProducts() {
+    setState(() {
+      _filteredProducts = _getFilteredProducts();
+    });
   }
 
   void _onScroll() {
@@ -362,11 +302,39 @@ class _ProductsGridPageState extends State<ProductsGridPage>
     });
   }
 
+  String _getPriceRange(Product product, int countryId) {
+    if (product.priceOptions.isEmpty) return '0';
+
+    final prices = product.priceOptions
+        .map((option) => CurrencyUtils.getPriceForCountry(option, countryId))
+        .where((price) => price > 0)
+        .toList();
+
+    if (prices.isEmpty) return '0';
+
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+
+    if (minPrice == maxPrice) {
+      return minPrice.toStringAsFixed(0);
+    } else {
+      return '${minPrice.toStringAsFixed(0)} - ${maxPrice.toStringAsFixed(0)}';
+    }
+  }
+
   Widget _buildProductCard(Product product, int index, double spacing) {
     final userData = GetStorage().read('salesRep');
+    final countryId = userData?['countryId'] ?? userData?['country_id'];
     final regionId = userData?['region_id'];
-    final availableStock =
-        regionId != null ? product.getMaxQuantityInRegion(regionId) : 0;
+
+    // Try country first, then region as fallback
+    int availableStock = 0;
+    if (countryId != null) {
+      availableStock = product.getMaxQuantityInCountry(countryId);
+    } else if (regionId != null) {
+      availableStock = product.getMaxQuantityInRegion(regionId);
+    }
+
     final isOutOfStock = availableStock <= 0;
 
     return Card(
@@ -380,9 +348,12 @@ class _ProductsGridPageState extends State<ProductsGridPage>
         onTap: () {
           // Pre-calculate stock data before navigation for better performance
           final userData = GetStorage().read('salesRep');
+          final countryId = userData?['countryId'] ?? userData?['country_id'];
           final regionId = userData?['region_id'];
           int? availableStock;
-          if (regionId != null) {
+          if (countryId != null) {
+            availableStock = product.getMaxQuantityInCountry(countryId);
+          } else if (regionId != null) {
             availableStock = product.getMaxQuantityInRegion(regionId);
           }
 
@@ -529,7 +500,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                   children: [
                     Expanded(
                       child: Text(
-                        product.name,
+                        product.productName,
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 11,
@@ -546,13 +517,43 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                       children: [
                         if (product.priceOptions.isNotEmpty)
                           Expanded(
-                            child: Text(
-                              'Ksh ${product.priceOptions.first.value}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.green[700],
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Show price range if multiple options
+                                if (product.priceOptions.length > 1)
+                                  Text(
+                                    '${CurrencyUtils.getCurrencySymbol(countryId ?? 1)}${_getPriceRange(product, countryId ?? 1)}',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.green[700],
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    CurrencyUtils.format(
+                                      CurrencyUtils.getPriceForCountry(
+                                          product.priceOptions.first,
+                                          countryId ?? 1),
+                                      countryId: countryId,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.green[700],
+                                    ),
+                                  ),
+                                // Show indicator for multiple options
+                                if (product.priceOptions.length > 1)
+                                  Text(
+                                    'Tap to select',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: Colors.blue[600],
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         if (!isOutOfStock)
@@ -708,7 +709,7 @@ class _ProductsGridPageState extends State<ProductsGridPage>
     super.build(context);
 
     final filteredProducts = _getFilteredProducts();
-    final bool isInitialLoading = _isLoading && _paginatedData == null;
+    final bool isInitialLoading = _isLoading && _allProducts.isEmpty;
 
     // Use FutureBuilder to handle the async lastUpdate
     return FutureBuilder<DateTime?>(
@@ -845,19 +846,8 @@ class _ProductsGridPageState extends State<ProductsGridPage>
                                 crossAxisSpacing: 8,
                                 mainAxisSpacing: 8,
                               ),
-                              itemCount: filteredProducts.length +
-                                  (_paginatedData?.hasMore ?? false ? 1 : 0),
+                              itemCount: filteredProducts.length,
                               itemBuilder: (context, index) {
-                                if (index == filteredProducts.length) {
-                                  return const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.all(16.0),
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  );
-                                }
                                 return _buildProductCard(
                                     filteredProducts[index], index, 8.0);
                               },
@@ -924,7 +914,6 @@ class _ProductsGridPageState extends State<ProductsGridPage>
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
-    _productService.dispose();
     _searchDebounce?.cancel();
     _connectivitySubscription.cancel();
     super.dispose();

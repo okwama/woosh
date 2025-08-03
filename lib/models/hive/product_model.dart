@@ -6,108 +6,147 @@ import 'package:woosh/models/store_quantity_model.dart';
 // This part reference will be generated after running build_runner
 part 'product_model.g.dart';
 
-@HiveType(typeId: 2)
+@HiveType(typeId: 21)
 class ProductHiveModel extends HiveObject {
   @HiveField(0)
   final int id;
 
   @HiveField(1)
-  final String name;
+  final String productCode;
 
   @HiveField(2)
-  final int category_id;
+  final String productName;
 
   @HiveField(3)
-  final String category;
+  final int category_id;
 
   @HiveField(4)
-  final String? description;
+  final String? category;
 
   @HiveField(5)
-  final String createdAt;
+  final String? description;
 
   @HiveField(6)
-  final String updatedAt;
+  final String? unitOfMeasure;
 
   @HiveField(7)
-  final String? imageUrl;
+  final double? costPrice;
 
   @HiveField(8)
-  final int? clientId;
+  final double? sellingPrice;
 
   @HiveField(9)
-  final int? packSize;
+  final int? reorderLevel;
 
-  // Price option fields
   @HiveField(10)
-  final int? defaultPriceOptionId;
+  final int? currentStock;
 
   @HiveField(11)
-  final String? defaultPriceOption;
+  final bool? isActive;
 
   @HiveField(12)
-  final double? defaultPriceValue;
+  final String createdAt;
 
   @HiveField(13)
+  final String updatedAt;
+
+  @HiveField(14)
+  final String? imageUrl;
+
+  // Price option data
+  @HiveField(15)
+  final int? defaultPriceOptionId;
+
+  @HiveField(16)
+  final String? defaultPriceOptionLabel;
+
+  @HiveField(17)
+  final double? defaultPriceValue;
+
+  @HiveField(18)
+  final double? defaultPriceValueTzs;
+
+  @HiveField(19)
+  final double? defaultPriceValueNgn;
+
+  @HiveField(20)
   final int? defaultPriceCategoryId;
 
-  // Store quantities for stock information
-  @HiveField(14)
-  final List<Map<String, dynamic>> storeQuantitiesData;
+  // Store inventory data
+  @HiveField(21)
+  final List<Map<String, dynamic>> storeInventoryData;
 
   ProductHiveModel({
     required this.id,
-    required this.name,
+    required this.productCode,
+    required this.productName,
     required this.category_id,
-    required this.category,
+    this.category,
     this.description,
+    this.unitOfMeasure,
+    this.costPrice,
+    this.sellingPrice,
+    this.reorderLevel,
+    this.currentStock,
+    this.isActive,
     required this.createdAt,
     required this.updatedAt,
     this.imageUrl,
-    this.clientId,
-    this.packSize,
     this.defaultPriceOptionId,
-    this.defaultPriceOption,
+    this.defaultPriceOptionLabel,
     this.defaultPriceValue,
+    this.defaultPriceValueTzs,
+    this.defaultPriceValueNgn,
     this.defaultPriceCategoryId,
-    this.storeQuantitiesData = const [],
+    this.storeInventoryData = const [],
   });
 
   // Convert from API Product model to Hive model
   static ProductHiveModel fromProduct(Product product) {
     int? defaultPriceOptionId;
-    String? defaultPriceOption;
+    String? defaultPriceOptionLabel;
     double? defaultPriceValue;
+    double? defaultPriceValueTzs;
+    double? defaultPriceValueNgn;
     int? defaultPriceCategoryId;
 
     if (product.priceOptions.isNotEmpty) {
       final firstOption = product.priceOptions.first;
       defaultPriceOptionId = firstOption.id;
-      defaultPriceOption = firstOption.option;
-      defaultPriceValue = firstOption.value?.toDouble();
+      defaultPriceOptionLabel = firstOption.label;
+      defaultPriceValue = firstOption.value;
+      defaultPriceValueTzs = firstOption.valueTzs;
+      defaultPriceValueNgn = firstOption.valueNgn;
       defaultPriceCategoryId = firstOption.categoryId;
     }
 
-    // Convert store quantities to serializable format
-    final storeQuantitiesData =
-        product.storeQuantities.map((sq) => sq.toJson()).toList();
+    // Convert store inventory to serializable format
+    final storeInventoryData =
+        product.storeInventory.map((si) => si.toJson()).toList();
 
     return ProductHiveModel(
       id: product.id,
-      name: product.name,
+      productCode: product.productCode,
+      productName: product.productName,
       category_id: product.category_id,
       category: product.category,
       description: product.description,
+      unitOfMeasure: product.unitOfMeasure,
+      costPrice: product.costPrice,
+      sellingPrice: product.sellingPrice,
+      reorderLevel: product.reorderLevel,
+      currentStock: product.currentStock,
+      isActive: product.isActive,
       createdAt: product.createdAt.toIso8601String(),
       updatedAt: product.updatedAt.toIso8601String(),
       imageUrl: product.imageUrl,
-      clientId: product.clientId,
-      packSize: product.packSize,
       defaultPriceOptionId: defaultPriceOptionId,
-      defaultPriceOption: defaultPriceOption,
+      defaultPriceOptionLabel: defaultPriceOptionLabel,
       defaultPriceValue: defaultPriceValue,
+      defaultPriceValueTzs: defaultPriceValueTzs,
+      defaultPriceValueNgn: defaultPriceValueNgn,
       defaultPriceCategoryId: defaultPriceCategoryId,
-      storeQuantitiesData: storeQuantitiesData,
+      storeInventoryData: storeInventoryData,
     );
   }
 
@@ -117,32 +156,36 @@ class ProductHiveModel extends HiveObject {
 
     // Create a price option if we have default price values
     if (defaultPriceOptionId != null &&
-        defaultPriceOption != null &&
+        defaultPriceOptionLabel != null &&
         defaultPriceValue != null) {
       priceOptions.add(PriceOption(
         id: defaultPriceOptionId!,
-        option: defaultPriceOption!,
-        value: defaultPriceValue!.toInt(),
-        value_tzs: null, // Nullable value
-        value_ngn: null, // Nullable value
-        categoryId: defaultPriceCategoryId ??
-            category_id, // Use the stored category ID or fall back to product's category_id
+        categoryId: defaultPriceCategoryId ?? category_id,
+        label: defaultPriceOptionLabel!,
+        value: defaultPriceValue,
+        valueTzs: defaultPriceValueTzs,
+        valueNgn: defaultPriceValueNgn,
       ));
     }
 
     return Product(
       id: id,
-      name: name,
+      productCode: productCode,
+      productName: productName,
       category_id: category_id,
       category: category,
       description: description,
+      unitOfMeasure: unitOfMeasure,
+      costPrice: costPrice,
+      sellingPrice: sellingPrice,
+      reorderLevel: reorderLevel,
+      currentStock: currentStock,
+      isActive: isActive,
       createdAt: DateTime.parse(createdAt),
       updatedAt: DateTime.parse(updatedAt),
       imageUrl: imageUrl,
-      clientId: clientId,
-      packSize: packSize,
       priceOptions: priceOptions,
-      storeQuantities: storeQuantitiesData
+      storeInventory: storeInventoryData
           .map((data) => StoreQuantity.fromJson(data))
           .toList(),
     );

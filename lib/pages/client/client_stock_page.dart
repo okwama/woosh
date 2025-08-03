@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:woosh/models/client_stock_model.dart';
 import 'package:woosh/models/product_model.dart';
-import 'package:woosh/services/client_stock_service.dart';
+import 'package:woosh/models/clients/client_model.dart';
+import 'package:woosh/models/client_stock_model.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/client_stock_service.dart';
+import 'package:woosh/services/shared_data_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_app_bar.dart';
+import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ClientStockPage extends StatefulWidget {
@@ -33,10 +36,12 @@ class _ClientStockPageState extends State<ClientStockPage> {
   String _selectedCategory = 'ALL';
   bool _editMode = false;
   final List<int> _changedProducts = [];
+  late SharedDataService _sharedDataService;
 
   @override
   void initState() {
     super.initState();
+    _sharedDataService = Get.find<SharedDataService>();
     _loadData();
   }
 
@@ -106,10 +111,8 @@ class _ClientStockPageState extends State<ClientStockPage> {
     });
 
     try {
-      final products = await ApiService.getProducts(
-        limit: 1000,
-        clientId: widget.clientId,
-      );
+      await _sharedDataService.loadProducts();
+      final products = _sharedDataService.getProducts();
       setState(() {
         _products = products;
       });
@@ -127,12 +130,13 @@ class _ClientStockPageState extends State<ClientStockPage> {
 
   List<Product> get _filteredProducts {
     return _products.where((product) {
-      final matchesSearch =
-          product.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              (product.description
-                      ?.toLowerCase()
-                      .contains(_searchQuery.toLowerCase()) ??
-                  false);
+      final matchesSearch = product.productName
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()) ||
+          (product.description
+                  ?.toLowerCase()
+                  .contains(_searchQuery.toLowerCase()) ??
+              false);
       final matchesCategory =
           _selectedCategory == 'ALL' || product.category == _selectedCategory;
       return matchesSearch && matchesCategory;
@@ -140,7 +144,7 @@ class _ClientStockPageState extends State<ClientStockPage> {
   }
 
   List<String> get _categories {
-    final categories = _products.map((p) => p.category).toSet().toList();
+    final categories = _products.map((p) => p.category ?? '').toSet().toList();
     categories.sort();
     return ['ALL', ...categories];
   }
@@ -518,7 +522,7 @@ class _ClientStockPageState extends State<ClientStockPage> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  product.name,
+                                                  product.productName,
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.w600,
                                                     fontSize: 13,
@@ -529,7 +533,7 @@ class _ClientStockPageState extends State<ClientStockPage> {
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  product.category,
+                                                  product.category ?? '',
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: Colors.grey[600],

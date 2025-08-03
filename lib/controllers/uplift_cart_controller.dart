@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
+import 'package:woosh/models/hive/client_model.dart';
 import 'package:woosh/models/product_model.dart';
-import 'package:woosh/models/outlet_model.dart';
+import 'package:woosh/models/clients/client_model.dart';
 
 class UpliftCartItem {
   final Product product;
@@ -20,10 +21,10 @@ class UpliftCartController extends GetxController {
   final RxList<UpliftCartItem> items = <UpliftCartItem>[].obs;
   final RxBool isLoading = false.obs;
   final RxString errorMessage = ''.obs;
-  Outlet? currentOutlet;
+  ClientModel? currentClient;
 
-  void setOutlet(Outlet outlet) {
-    currentOutlet = outlet;
+  void setClient(ClientModel client) {
+    currentClient = client;
   }
 
   void addItem(Product product, int quantity, double unitPrice) {
@@ -81,9 +82,11 @@ class UpliftCartController extends GetxController {
 
   int get totalPieces {
     return items.fold(0, (sum, item) {
-      final packSize = item.product.packSize;
+      final unitOfMeasure = item.product.unitOfMeasure;
       return sum +
-          (packSize != null ? item.quantity * packSize : item.quantity);
+          (unitOfMeasure != null
+              ? item.quantity * (int.tryParse(unitOfMeasure) ?? 1)
+              : item.quantity);
     });
   }
 

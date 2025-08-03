@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:woosh/models/client_model.dart';
-import 'package:woosh/services/api_service.dart';
+import 'package:woosh/models/clients/client_model.dart';
+import 'package:woosh/services/client/client_service.dart';
 
 class ClientController extends GetxController {
   final RxList<Client> clients = <Client>[].obs;
@@ -22,14 +22,19 @@ class ClientController extends GetxController {
       currentPage.value = 1;
       hasMore.value = true;
 
-      final response = await ApiService.fetchClients(
+      final response = await ClientService.fetchClients(
         routeId: routeId,
         page: currentPage.value,
         limit: pageSize,
       );
 
-      clients.value = response.data;
-      hasMore.value = response.page < response.totalPages;
+      final List<dynamic> clientData = response['data'] ?? [];
+      final List<Client> clientList = clientData
+          .map((json) => Client.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      clients.value = clientList;
+      hasMore.value = response['page'] < response['totalPages'];
     } catch (e) {
       print('Error loading initial data: $e');
       Get.snackbar(
@@ -49,14 +54,19 @@ class ClientController extends GetxController {
       isLoading.value = true;
       currentPage.value++;
 
-      final response = await ApiService.fetchClients(
+      final response = await ClientService.fetchClients(
         routeId: routeId,
         page: currentPage.value,
         limit: pageSize,
       );
 
-      clients.addAll(response.data);
-      hasMore.value = response.page < response.totalPages;
+      final List<dynamic> clientData = response['data'] ?? [];
+      final List<Client> newClients = clientData
+          .map((json) => Client.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      clients.addAll(newClients);
+      hasMore.value = response['page'] < response['totalPages'];
     } catch (e) {
       print('Error loading more data: $e');
       currentPage.value--; // Revert page number on error

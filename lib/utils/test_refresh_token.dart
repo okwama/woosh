@@ -1,5 +1,6 @@
 import 'package:woosh/services/token_service.dart';
 import 'package:woosh/services/api_service.dart';
+import 'package:woosh/services/client/client_service.dart';
 
 class RefreshTokenTest {
   static Future<void> testTokenStorage() async {
@@ -17,9 +18,9 @@ class RefreshTokenTest {
     // Test API call
     print('\n2. Testing API call:');
     try {
-      final clients = await ApiService.fetchClients(limit: 1);
-      print(
-          '   ? API call successful - fetched ${clients.data.length} clients');
+      final clients = await ClientService.fetchClients(limit: 1);
+      final clientCount = clients['data']?.length ?? 0;
+      print('   ? API call successful - fetched $clientCount clients');
     } catch (e) {
       print('   ? API call failed: $e');
     }
@@ -50,13 +51,40 @@ class RefreshTokenTest {
     if (isAuthenticated) {
       print('3. Testing API access...');
       try {
-        final clients = await ApiService.fetchClients(limit: 1);
-        print('   ? API access working - ${clients.data.length} clients');
+        final clients = await ClientService.fetchClients(limit: 1);
+        final clientCount = clients['data']?.length ?? 0;
+        print('   ? API access working - $clientCount clients');
       } catch (e) {
         print('   ? API access failed: $e');
       }
     }
 
     print('=== LOGIN FLOW TEST COMPLETE ===');
+  }
+
+  static Future<void> testRefreshToken() async {
+    try {
+      print('🔄 Testing refresh token...');
+
+      // Test API call that requires authentication
+      final clients = await ClientService.fetchClients(limit: 1);
+      print('✅ API call successful after refresh');
+      print('📋 Retrieved ${clients['data']?.length ?? 0} clients');
+    } catch (e) {
+      print('❌ API call failed after refresh: $e');
+    }
+  }
+
+  static Future<void> testDirectAPI() async {
+    try {
+      print('🔄 Testing direct API call...');
+
+      // Test API call that requires authentication
+      final clients = await ClientService.fetchClients(limit: 1);
+      print('✅ Direct API call successful');
+      print('📋 Retrieved ${clients['data']?.length ?? 0} clients');
+    } catch (e) {
+      print('❌ Direct API call failed: $e');
+    }
   }
 }

@@ -79,7 +79,7 @@ class OrdersTab extends StatelessWidget {
                 '${order.orderItems.length ?? 0} items - ${DateFormat('MMM d, yyyy').format(order.createdAt)}',
               ),
               trailing: Text(
-                '\$${order.totalAmount.toStringAsFixed(2)}',
+                '\$${order.totalAmount?.toStringAsFixed(2) ?? '0.00'}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,

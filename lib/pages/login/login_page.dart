@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:woosh/services/api_service.dart';
-import 'package:woosh/services/session_service.dart';
 import 'package:woosh/controllers/auth_controller.dart';
+import 'package:woosh/services/progressive_login_service.dart';
 import 'package:woosh/utils/app_theme.dart';
 import 'package:woosh/widgets/gradient_widgets.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:woosh/services/token_service.dart';
+import 'dart:async'; // Import Timer
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,15 +23,34 @@ class _LoginPageState extends State<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final AuthController _authController = Get.find<AuthController>();
   final ApiService _apiService = ApiService();
+  late ProgressiveLoginService _progressiveLoginService;
   bool _isLoading = false;
   bool _obscurePassword = true;
   DateTime? _lastLoginAttempt;
+  Timer? _loginDebounceTimer; // Debounce timer
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeProgressiveLoginService();
+  }
 
   @override
   void dispose() {
     _phoneNumberController.dispose();
     _passwordController.dispose();
+    _loginDebounceTimer?.cancel(); // Cancel debounce timer
     super.dispose();
+  }
+
+  Future<void> _initializeProgressiveLoginService() async {
+    try {
+      _progressiveLoginService = Get.find<ProgressiveLoginService>();
+    } catch (e) {
+      _progressiveLoginService = ProgressiveLoginService();
+      await _progressiveLoginService.onInit();
+      Get.put(_progressiveLoginService);
+    }
   }
 
   String? _validatePhoneNumber(String? value) {
@@ -101,113 +121,77 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
-    // Try login with retry mechanism
-    await _loginWithRetry();
-  }
+    try {
+      // Use progressive login
+      final result = await _progressiveLoginService.login(
+        _phoneNumberController.text.trim(),
+        _passwordController.text,
+      );
 
-  Future<void> _loginWithRetry() async {
-    const int maxRetries = 2;
-    const Duration initialDelay = Duration(seconds: 1);
-
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // Show appropriate message based on attempt
-        if (attempt == 1) {
-          _showMessage('Logging in...', false);
-        } else {
-          _showMessage(
-              'Retrying login... (Attempt $attempt/$maxRetries)', false);
-        }
-
-        final result = await _apiService.login(
-          _phoneNumberController.text.trim(),
-          _passwordController.text,
-        );
-
-        if (result['success']) {
-          // Pass the result to auth controller
-          await _authController.handleLoginResult(result);
-
-          // Get user role from the result
-          final salesRep = result['salesRep'];
-          final userRole = salesRep?['role'] ?? '';
-
-          // Store user ID for later use
-          if (salesRep?['id'] != null) {
-            GetStorage().write('userId', salesRep!['id'].toString());
-          }
-
-          // Show success message
-          _showMessage('Login successful!', false);
-
-          // Redirect based on role after a brief delay
-          await Future.delayed(const Duration(milliseconds: 800));
-
-          if (userRole.toString().toLowerCase() == 'manager') {
-            Get.offAllNamed('/manager-home');
-          } else {
-            Get.offAllNamed('/home');
-          }
-          return; // Success, exit retry loop
-        } else {
-          // Login failed but no exception thrown - show error immediately
-          _showMessage(result['message'] ?? 'Login failed', true);
-          return; // Don't retry for authentication failures
-        }
-      } catch (e) {
-        String errorMessage = 'Login failed';
-        bool shouldRetry = false;
-
-        // Handle specific error types
-        if (e.toString().toLowerCase().contains('network') ||
-            e.toString().toLowerCase().contains('socket') ||
-            e.toString().toLowerCase().contains('connection')) {
-          errorMessage = 'No internet connection. Please check your network.';
-          shouldRetry = true;
-        } else if (e.toString().toLowerCase().contains('timeout')) {
-          errorMessage = 'Request timed out. Please try again.';
-          shouldRetry = true;
-        } else if (e.toString().toLowerCase().contains('401') ||
-            e.toString().toLowerCase().contains('unauthorized')) {
-          errorMessage = 'Invalid phone number or password.';
-          // Don't retry for authentication errors
-        } else if (e.toString().toLowerCase().contains('500') ||
-            e.toString().toLowerCase().contains('server')) {
-          errorMessage = 'Server temporarily unavailable.';
-          shouldRetry = true;
-        } else if (e.toString().toLowerCase().contains('429') ||
-            e.toString().toLowerCase().contains('too many requests')) {
-          errorMessage = 'Too many login attempts. Please wait a moment.';
-          // Don't retry for rate limiting
-        } else {
-          // Unknown error, retry once
-          errorMessage = 'Connection error. Please try again.';
-          shouldRetry = true;
-        }
-
-        // If this is the last attempt or we shouldn't retry
-        if (attempt == maxRetries || !shouldRetry) {
-          // Show final error message only after all retries are exhausted
-          _showMessage(errorMessage, true);
-          break;
-        }
-
-        // Wait before retry with exponential backoff (no error message during retry)
-        final delay = Duration(seconds: initialDelay.inSeconds * attempt);
-        await Future.delayed(delay);
-
-        // Check if user is still on the login page
-        if (!mounted || !_isLoading) {
-          break;
-        }
+      if (result.isSuccess) {
+        // Online login successful
+        await _handleSuccessfulLogin(result.data!);
+      } else if (result.isOffline) {
+        // Offline login successful
+        await _handleOfflineLogin(result);
+      } else {
+        // Login failed
+        _showMessage(result.message, true);
+      }
+    } catch (e) {
+      _showMessage('An unexpected error occurred. Please try again.', true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
+  }
 
-    // Reset loading state
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  Future<void> _handleSuccessfulLogin(Map<String, dynamic> loginData) async {
+    try {
+      // Pass the result to auth controller
+      await _authController.handleLoginResult(loginData);
+
+      // Store user ID for later use
+      final salesRep = loginData['salesRep'];
+      if (salesRep?['id'] != null) {
+        GetStorage().write('userId', salesRep!['id'].toString());
+      }
+
+      // Show success message
+      _showMessage('Login successful!', false);
+
+      // Redirect to home after a brief delay
+      await Future.delayed(const Duration(milliseconds: 800));
+      Get.offAllNamed('/home');
+    } catch (e) {
+      _showMessage('Failed to process login: ${e.toString()}', true);
+    }
+  }
+
+  Future<void> _handleOfflineLogin(ProgressiveLoginResult result) async {
+    try {
+      // Handle offline login
+      if (result.data != null) {
+        await _authController.handleLoginResult(result.data!);
+
+        // Store user ID
+        final salesRep = result.data!['salesRep'];
+        if (salesRep?['id'] != null) {
+          GetStorage().write('userId', salesRep!['id'].toString());
+        }
+      }
+
+      // Show success message (same as online login)
+      _showMessage('Login successful!', false);
+
+      // Redirect to home
+      await Future.delayed(const Duration(milliseconds: 800));
+      Get.offAllNamed('/home');
+    } catch (e) {
+      _showMessage('Failed to process login: ${e.toString()}', true);
     }
   }
 
@@ -507,7 +491,17 @@ class _LoginPageState extends State<LoginPage> {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: _isLoading ? null : _handleLogin,
+                  onTap: _isLoading
+                      ? null
+                      : () {
+                          if (_loginDebounceTimer?.isActive ?? false) {
+                            _loginDebounceTimer!.cancel();
+                          }
+                          _loginDebounceTimer =
+                              Timer(const Duration(milliseconds: 500), () {
+                            _handleLogin();
+                          });
+                        },
                   borderRadius: BorderRadius.circular(14),
                   child: const Center(
                     child: Text(

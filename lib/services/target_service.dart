@@ -21,7 +21,7 @@ class TargetsApiException implements Exception {
 }
 
 class TargetService {
-  static const String baseUrl = '${Config.baseUrl}/api';
+  static const String baseUrl = Config.baseUrl;
   static const Duration _cacheDuration =
       Duration(minutes: 10); // Increased cache duration
   static final Map<String, dynamic> _cache = {};
@@ -91,7 +91,6 @@ class TargetService {
       }
 
       final url = '$baseUrl/targets/dashboard/$userId?period=$period';
-      print('Debug - Making dashboard API call to: $url');
 
       final response = await http
           .get(
@@ -100,14 +99,18 @@ class TargetService {
           )
           .timeout(const Duration(seconds: 10));
 
-      print('Debug - Dashboard response status: ${response.statusCode}');
-      print('Debug - Dashboard response body: ${response.body}');
-
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final dashboard = SalesRepDashboard.fromJson(data);
-        _cacheData(cacheKey, dashboard);
-        return dashboard;
+        try {
+          final data = jsonDecode(response.body);
+          print('🔍 Dashboard API Response: $data'); // Debug log
+          final dashboard = SalesRepDashboard.fromJson(data);
+          _cacheData(cacheKey, dashboard);
+          return dashboard;
+        } catch (e) {
+          print('❌ Error parsing dashboard data: $e');
+          print('❌ Response body: ${response.body}');
+          throw TargetsApiException('Failed to parse dashboard data: $e');
+        }
       } else if (response.statusCode == 404) {
         throw TargetsApiException('Sales rep not found', 404);
       } else if (response.statusCode == 401) {
@@ -118,7 +121,6 @@ class TargetService {
       }
     } catch (e) {
       if (e is TargetsApiException) rethrow;
-      print('Debug - Error in getDashboard: $e');
       throw TargetsApiException('Network error: ${e.toString()}');
     }
   }
@@ -387,8 +389,6 @@ class TargetService {
     if (visitsTargets != null) {
       clearDailyVisitsCache(userId.toString());
     }
-
-    print('Debug - Smart cache invalidation completed for user: $userId');
   }
 
   /// Clear cache entries with specific prefix
@@ -407,7 +407,6 @@ class TargetService {
   static void clearCache() {
     _cache.clear();
     _cacheTimestamps.clear();
-    print('Debug - Cleared all cache');
   }
 
   /// Clear specific data type cache
@@ -452,8 +451,6 @@ class TargetService {
   /// Preload common data for better performance
   static Future<void> preloadUserData(int userId) async {
     try {
-      print('Debug - Preloading data for user: $userId');
-
       // Preload dashboard data for current month
       await getDashboard(userId, period: 'current_month');
 
@@ -469,11 +466,7 @@ class TargetService {
           '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
       await getDailyVisitTargets(
           userId: userId.toString(), date: formattedDate);
-
-      print('Debug - Preloading completed for user: $userId');
-    } catch (e) {
-      print('Debug - Error preloading data: $e');
-    }
+    } catch (e) {}
   }
 
   // Get daily visit targets for a user
@@ -484,14 +477,12 @@ class TargetService {
     final cacheKey = 'daily_visits_${userId}_$date';
     final cachedData = _getCachedData(cacheKey);
     if (cachedData != null) {
-      print('Debug - Using cached data for key: $cacheKey');
       return cachedData;
     }
 
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Debug - No auth token found');
         return {
           'error': 'No authentication token found',
           'visitTarget': 0,
@@ -504,8 +495,6 @@ class TargetService {
 
       final queryParams = date != null ? '?date=$date' : '';
       final url = '$baseUrl/targets/daily-visits/$userId$queryParams';
-      print('Debug - Making API call to: $url');
-      print('Debug - Headers: ${await _headers()}');
 
       final response = await http
           .get(
@@ -513,9 +502,6 @@ class TargetService {
             headers: await _headers(),
           )
           .timeout(const Duration(seconds: 5));
-
-      print('Debug - Response status: ${response.statusCode}');
-      print('Debug - Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -542,7 +528,6 @@ class TargetService {
         };
       }
     } catch (e) {
-      print('Debug - Error in getDailyVisitTargets: $e');
       return {
         'error': 'Failed to fetch daily visit targets',
         'details': e.toString(),
@@ -576,14 +561,12 @@ class TargetService {
 
     final cachedData = _getCachedData(cacheKey);
     if (cachedData != null) {
-      print('Debug - Using cached targets data for key: $cacheKey');
       return cachedData;
     }
 
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return [];
       }
 
@@ -608,8 +591,6 @@ class TargetService {
       final uri =
           Uri.parse('$baseUrl/targets').replace(queryParameters: queryParams);
 
-      print('Debug - Fetching targets with params: $queryParams');
-
       final response = await http
           .get(
             uri,
@@ -628,7 +609,6 @@ class TargetService {
       }
       return [];
     } catch (e) {
-      print('Error fetching targets: $e');
       return [];
     }
   }
@@ -659,7 +639,6 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return null;
       }
 
@@ -677,7 +656,6 @@ class TargetService {
 
         // Clear targets cache since we added a new target
         _clearCacheWithPrefix(_targetsCachePrefix);
-        print('Debug - Cleared targets cache after creating new target');
 
         return newTarget;
       }
@@ -693,7 +671,6 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return null;
       }
 
@@ -711,7 +688,6 @@ class TargetService {
 
         // Clear targets cache since we updated a target
         _clearCacheWithPrefix(_targetsCachePrefix);
-        print('Debug - Cleared targets cache after updating target');
 
         return updatedTarget;
       }
@@ -727,7 +703,6 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return false;
       }
 
@@ -741,7 +716,6 @@ class TargetService {
       if (response.statusCode == 200) {
         // Clear targets cache since we deleted a target
         _clearCacheWithPrefix(_targetsCachePrefix);
-        print('Debug - Cleared targets cache after deleting target');
         return true;
       }
       return false;
@@ -757,7 +731,6 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return null;
       }
 
@@ -797,7 +770,6 @@ class TargetService {
     try {
       final token = _getAuthToken();
       if (token == null) {
-        print('Error: No authentication token found');
         return {
           'totalItemsSold': 0,
           'orderCount': 0,
@@ -847,7 +819,6 @@ class TargetService {
         'hasMore': false,
       };
     } catch (e) {
-      print('Error fetching sales data: $e');
       return {
         'totalItemsSold': 0,
         'orderCount': 0,
@@ -884,7 +855,6 @@ class TargetService {
     clearProductSalesCache(userId);
     clearClientDetailsCache(userId);
     clearDailyVisitsCache(userId.toString());
-    print('Debug - Cleared all cache for user: $userId');
   }
 
   /// Clear cache for specific data types across all users
