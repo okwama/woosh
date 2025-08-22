@@ -8,8 +8,8 @@ This document outlines the complete implementation of **Woosh** - a modern, high
 **New Woosh App Specifications:**
 - **App Name**: Woosh Field Sales
 - **Version**: 1.0.0+1 (Fresh start)
-- **Bundle ID (iOS)**: com.woosh.fieldsales
-- **Package Name (Android)**: com.woosh.fieldsales
+- **Bundle ID (iOS)**: com.cit.woosh (Keep existing)
+- **Package Name (Android)**: com.cit.wooshs (Keep existing)
 - **Architecture**: Clean Architecture + Feature-based modules
 - **Backend**: NestJS + TypeScript + PostgreSQL + Redis
 
@@ -53,10 +53,10 @@ name: woosh
 description: "Modern field sales management application built with clean architecture"
 version: 1.0.0+1  # Starting fresh
 
-# New Bundle IDs for Clean Implementation
-# iOS Bundle ID: com.woosh.fieldsales
-# Android Package: com.woosh.fieldsales
-# Firebase Project: woosh-field-sales-app
+# Existing Bundle IDs (Keep Current)
+# iOS Bundle ID: com.cit.woosh
+# Android Package: com.cit.wooshs
+# Firebase Project: Not using Firebase
 
 # Core Framework  
 flutter: ^3.24.0
@@ -766,14 +766,15 @@ lib/
 # Platform-specific configuration files:
 android/
 ├── app/
-│   ├── build.gradle              # Android package: com.woosh.fieldsales
+│   ├── build.gradle              # Android package: com.cit.wooshs (existing)
 │   └── proguard-rules.pro       # Code obfuscation rules
 ├── gradle.properties
-└── local.properties
+├── local.properties
+└── key.properties               # Existing keystore configuration
 
 ios/
 ├── Runner/
-│   ├── Info.plist               # iOS Bundle ID: com.woosh.fieldsales
+│   ├── Info.plist               # iOS Bundle ID: com.cit.woosh (existing)
 │   └── Runner.entitlements      # iOS capabilities
 ├── Runner.xcodeproj/
 └── Runner.xcworkspace/
@@ -3354,23 +3355,23 @@ Scalability: Enterprise-ready architecture
 
 ## 📱 **New Woosh App Configuration (Clean Start)**
 
-### **iOS App Store Setup**
+### **iOS App Store Setup (Keep Existing Bundle ID)**
 ```xml
 <!-- ios/Runner/Info.plist -->
 <key>CFBundleIdentifier</key>
-<string>com.woosh.fieldsales</string>
+<string>com.cit.woosh</string>
 <key>CFBundleName</key>
-<string>Woosh</string>
+<string>WOOSH</string>
 <key>CFBundleDisplayName</key>
-<string>Woosh Field Sales</string>
+<string>WOOSH</string>
 <key>CFBundleVersion</key>
 <string>1</string>
 <key>CFBundleShortVersionString</key>
 <string>1.0.0</string>
 
 <!-- App Store Connect Configuration -->
-App Name: Woosh Field Sales
-Bundle ID: com.woosh.fieldsales
+App Name: WOOSH (Keep existing or update to "Woosh Field Sales")
+Bundle ID: com.cit.woosh (Keep existing)
 SKU: woosh-field-sales-2024
 Primary Language: English
 Category: Business
@@ -3378,15 +3379,15 @@ Subcategory: Sales & Marketing
 Age Rating: 4+ (Business app)
 ```
 
-### **Android Play Store Setup**
+### **Android Play Store Setup (Keep Existing Package)**
 ```gradle
 // android/app/build.gradle
 android {
-    namespace 'com.woosh.fieldsales'
+    namespace 'com.cit.wooshs'  // Keep existing
     compileSdkVersion 34
     
     defaultConfig {
-        applicationId "com.woosh.fieldsales"
+        applicationId "com.cit.wooshs"  // Keep existing
         minSdkVersion 21
         targetSdkVersion 34
         versionCode 1
@@ -3400,10 +3401,10 @@ android {
     
     signingConfigs {
         release {
-            keyAlias 'woosh-release-key'
-            keyPassword System.getenv('WOOSH_KEY_PASSWORD')
-            storeFile file('woosh-release-keystore.jks')
-            storePassword System.getenv('WOOSH_STORE_PASSWORD')
+            keyAlias keystoreProperties['keyAlias']  // Use existing keystore
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
         }
     }
     
@@ -3418,8 +3419,8 @@ android {
 }
 
 // Play Console Configuration
-App Name: Woosh Field Sales
-Package Name: com.woosh.fieldsales
+App Name: woosh (Keep existing or update to "Woosh Field Sales")
+Package Name: com.cit.wooshs (Keep existing)
 Category: Business
 Content Rating: Everyone
 Target Audience: Business professionals
@@ -3430,9 +3431,10 @@ Countries: Global (or specific regions)
 ```dart
 // lib/config/app_config.dart
 class WooshAppConfig {
-  static const String appName = 'Woosh Field Sales';
+  static const String appName = 'WOOSH';  // Keep existing name
   static const String appVersion = '1.0.0';
-  static const String bundleId = 'com.woosh.fieldsales';
+  static const String iosBundleId = 'com.cit.woosh';      // Existing iOS bundle
+  static const String androidPackage = 'com.cit.wooshs';  // Existing Android package
   
   // API Configuration
   static const String apiBaseUrl = 'https://api.woosh.com/v1';
@@ -3440,7 +3442,7 @@ class WooshAppConfig {
   
   // App Store Configuration
   static const String appStoreId = 'your-app-store-id';
-  static const String playStoreId = 'com.woosh.fieldsales';
+  static const String playStoreId = 'com.cit.wooshs';  // Keep existing
   
   // Performance Configuration
   static const int apiTimeout = 30000;
@@ -3634,18 +3636,20 @@ Journey Plan Conflicts:
 **Implementation Proposal Date**: December 2024  
 **Target**: Brand New Woosh Field Sales App (Offline-First)  
 **Version**: 1.0.0+1 (Clean start)  
-**Bundle ID (iOS)**: com.woosh.fieldsales  
-**Package Name (Android)**: com.woosh.fieldsales  
+**Bundle ID (iOS)**: com.cit.woosh (Keep existing)  
+**Package Name (Android)**: com.cit.wooshs (Keep existing)  
+**App Name**: WOOSH (Keep existing branding)  
 **Tech Stack**: Flutter + NestJS + PostgreSQL + Redis (No Firebase)  
 **Offline Storage**: Hive + SQLite/Drift + GetStorage  
 **Real-time**: WebSocket (Socket.io) + Local notifications  
 **Analytics**: Sentry + Custom analytics service  
+**Theme**: Existing gold gradient brand identity  
 **Approach**: Offline-first clean architecture implementation  
 **Timeline**: 12 weeks development + 4 weeks testing/deployment  
-**Risk Level**: LOW (proven offline patterns, existing dependencies)  
+**Risk Level**: LOW (proven offline patterns, existing dependencies, existing bundle IDs)  
 **Performance Target**: <3s startup, <200ms API, <100MB memory, 100% offline core features  
 **Scalability**: 1000+ concurrent users, 99.9% uptime, works in any network condition  
-**Recommendation**: Build modern, offline-capable field sales app with zero network dependency for core features
+**Recommendation**: Build modern, offline-capable field sales app with existing brand identity and bundle IDs
 
 ---
 
