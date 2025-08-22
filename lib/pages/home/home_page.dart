@@ -39,8 +39,6 @@ import 'package:woosh/services/progressive_login_service.dart';
 import 'package:woosh/widgets/progressive_login_status.dart';
 import 'package:woosh/services/token_service.dart';
 import 'package:woosh/controllers/clock_in_out_state.dart';
-import 'package:woosh/services/logout_checklist_service.dart';
-import 'package:woosh/services/enhanced_session_service.dart';
 import 'dart:async';
 
 class HomePage extends StatefulWidget {
@@ -351,44 +349,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _logout() async {
     try {
-      // Reset session activity to prevent automatic timeout during logout process
-      try {
-        final sessionService = Get.find<EnhancedSessionService>();
-        sessionService.resetActivity();
-      } catch (e) {
-        print('Session service not available: $e');
-      }
-      
-      // Show logout checklist
-      bool canProceed = false;
-      try {
-        final checklistService = Get.find<LogoutChecklistService>();
-        canProceed = await checklistService.showLogoutChecklist();
-      } catch (e) {
-        print('Checklist service not available, using fallback: $e');
-        // Fallback to simple confirmation dialog
-        final shouldLogout = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: GradientText('Logout',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            content: const Text('Are you sure you want to logout?'),
-            actions: [
-              TextButton(
-                onPressed: () => Get.back(result: false),
-                child: const Text('Cancel'),
-              ),
-              GoldGradientButton(
-                onPressed: () => Get.back(result: true),
-                child: const Text('Logout'),
-              ),
-            ],
-          ),
-        );
-        canProceed = shouldLogout == true;
-      }
-      
-      if (!canProceed) return;
+      // Show confirmation dialog
+      final shouldLogout = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: GradientText('Logout',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('Cancel'),
+            ),
+            GoldGradientButton(
+              onPressed: () => Get.back(result: true),
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldLogout != true) return;
 
       // Show immediate loading feedback
       ScaffoldMessenger.of(context).showSnackBar(
