@@ -1,9 +1,16 @@
-# NestJS Backend Architecture
+# Woosh NestJS Backend Architecture
 ## High-Performance Field Sales API
 
 ### Executive Summary
 
-This document outlines a high-performance NestJS backend architecture specifically designed for your field sales application. NestJS provides 40-60% better performance than plain Express and includes enterprise-grade features like dependency injection, validation, and auto-generated documentation.
+This document outlines a high-performance NestJS backend architecture specifically designed for **Woosh** - your field sales application. NestJS provides 40-60% better performance than plain Express and includes enterprise-grade features like dependency injection, validation, and auto-generated documentation.
+
+**Backend Details:**
+- **API Name**: Woosh Field Sales API
+- **Framework**: NestJS + TypeScript
+- **Database**: PostgreSQL + Redis
+- **Version**: 2.0.0
+- **Performance Target**: 35,000+ req/s with Fastify
 
 ---
 
@@ -37,10 +44,10 @@ NestJS + Fastify:     ~70-100MB (Better than Express!)
 
 ### **Recommended Folder Structure**
 ```
-field-sales-api/
+woosh-api/
 ├── src/
-│   ├── app.module.ts                    # Root module
-│   ├── main.ts                          # Application entry point
+│   ├── woosh.module.ts                  # Woosh root module
+│   ├── main.ts                          # Woosh API entry point
 │   │
 │   ├── core/                            # Core functionality
 │   │   ├── config/                      # Configuration
@@ -157,12 +164,14 @@ async function bootstrap() {
     transform: true,
   }));
 
-  // Swagger documentation
+  // Woosh API Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('Field Sales API')
-    .setDescription('High-performance field sales management API')
-    .setVersion('1.0')
+    .setTitle('Woosh Field Sales API')
+    .setDescription('High-performance Woosh field sales management API')
+    .setVersion('2.0.0')
     .addBearerAuth()
+    .setContact('Woosh Development Team', 'https://woosh.com', 'dev@woosh.com')
+    .addTag('woosh', 'Woosh Field Sales Operations')
     .build();
   
   const document = SwaggerModule.createDocument(app, config);

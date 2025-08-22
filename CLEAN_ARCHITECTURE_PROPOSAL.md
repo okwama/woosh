@@ -1,9 +1,15 @@
-# Clean Architecture Proposal
+# Clean Architecture Proposal - Woosh Field Sales App
 ## Modern Field Sales App - Tech Stack & Best Practices
 
 ### Executive Summary
 
-This document proposes a clean, scalable architecture for your field sales application using modern Flutter best practices, optimal tech stack, and proper separation of concerns. The proposed structure will improve performance, maintainability, and developer productivity while following industry standards.
+This document proposes a clean, scalable architecture for **Woosh** - your field sales application using modern Flutter best practices, optimal tech stack, and proper separation of concerns. The proposed structure will improve performance, maintainability, and developer productivity while following industry standards.
+
+**App Details:**
+- **App Name**: Woosh
+- **Current Version**: 1.0.7+1
+- **Platform**: Flutter + NestJS
+- **Target**: Field Sales Management
 
 ---
 
@@ -40,7 +46,12 @@ This document proposes a clean, scalable architecture for your field sales appli
 
 ### **Frontend (Flutter)**
 ```yaml
-# Core Framework
+# Woosh App Configuration
+name: woosh
+description: "High-performance field sales management application"
+version: 2.0.0+1  # New clean architecture version
+
+# Core Framework  
 flutter: ^3.24.0
 dart: ^3.6.0
 
@@ -120,11 +131,11 @@ CDN (CloudFlare/AWS CloudFront)
 
 ```
 lib/
-├── core/                          # Core functionality
+├── core/                          # Woosh core functionality
 │   ├── constants/                 # App constants
-│   │   ├── api_constants.dart
-│   │   ├── storage_keys.dart
-│   │   └── app_constants.dart
+│   │   ├── woosh_api_constants.dart
+│   │   ├── woosh_storage_keys.dart
+│   │   └── woosh_app_constants.dart
 │   ├── errors/                    # Error handling
 │   │   ├── exceptions.dart
 │   │   ├── failures.dart
@@ -142,8 +153,8 @@ lib/
 │       ├── colors.dart
 │       └── text_styles.dart
 │
-├── features/                      # Feature modules
-│   ├── authentication/           # Auth feature
+├── features/                      # Woosh feature modules
+│   ├── authentication/           # Woosh auth feature
 │   │   ├── data/
 │   │   │   ├── datasources/
 │   │   │   │   ├── auth_remote_datasource.dart
@@ -237,35 +248,57 @@ graph TD
 
 #### **Startup Implementation**
 ```dart
-// lib/main.dart
+// lib/main.dart - Woosh App Entry Point
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize core dependencies
-  await DependencyInjection.init();
+  // Initialize Woosh core dependencies
+  await WooshDependencyInjection.init();
   
-  // Initialize storage
-  await StorageService.init();
+  // Initialize Woosh storage
+  await WooshStorageService.init();
   
-  // Check authentication state
-  final authController = Get.find<AuthController>();
+  // Check Woosh authentication state
+  final authController = Get.find<WooshAuthController>();
   await authController.checkAuthStatus();
   
-  runApp(MyApp());
+  runApp(WooshApp());
 }
 
-// lib/config/dependency_injection.dart
-class DependencyInjection {
+class WooshApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Woosh - Field Sales',
+      theme: WooshTheme.lightTheme,
+      darkTheme: WooshTheme.darkTheme,
+      initialRoute: WooshRoutes.splash,
+      getPages: WooshRoutes.routes,
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+// lib/config/woosh_dependency_injection.dart
+class WooshDependencyInjection {
   static Future<void> init() async {
-    // Core services
-    Get.put<NetworkInfo>(NetworkInfoImpl());
-    Get.put<StorageService>(StorageServiceImpl());
+    // Woosh core services
+    Get.put<WooshNetworkInfo>(WooshNetworkInfoImpl());
+    Get.put<WooshStorageService>(WooshStorageServiceImpl());
     
-    // Feature dependencies
-    _initAuthDependencies();
-    _initOrderDependencies();
-    _initClientDependencies();
-    // ... other features
+    // Woosh feature dependencies
+    _initWooshAuthDependencies();
+    _initWooshOrderDependencies();
+    _initWooshClientDependencies();
+    _initWooshJourneyPlanDependencies();
+    _initWooshDashboardDependencies();
+  }
+  
+  static void _initWooshAuthDependencies() {
+    // Woosh authentication module setup
+    Get.lazyPut<WooshAuthRepository>(() => WooshAuthRepositoryImpl());
+    Get.lazyPut<WooshLoginUsecase>(() => WooshLoginUsecase(Get.find()));
+    Get.put<WooshAuthController>(WooshAuthController(Get.find()));
   }
 }
 ```
@@ -617,9 +650,10 @@ class CreateOrderUsecase {
 
 ### **Route Management**
 ```dart
-// lib/config/routes/app_routes.dart
-class AppRoutes {
-  // Route names
+// lib/config/routes/woosh_routes.dart
+class WooshRoutes {
+  // Woosh app route names
+  static const String splash = '/splash';
   static const String login = '/login';
   static const String home = '/home';
   static const String orders = '/orders';
@@ -629,20 +663,26 @@ class AppRoutes {
   static const String journeyPlans = '/journey-plans';
   static const String reports = '/reports';
   static const String profile = '/profile';
+  static const String settings = '/settings';
   
-  // Route pages
+  // Woosh route pages
   static final routes = [
     GetPage(
+      name: splash,
+      page: () => const WooshSplashPage(),
+      transition: Transition.fadeIn,
+    ),
+    GetPage(
       name: login,
-      page: () => const LoginPage(),
-      binding: AuthBinding(),
+      page: () => const WooshLoginPage(),
+      binding: WooshAuthBinding(),
       transition: Transition.fadeIn,
     ),
     GetPage(
       name: home,
-      page: () => const HomePage(),
-      binding: HomeBinding(),
-      middlewares: [AuthMiddleware()],
+      page: () => const WooshHomePage(),
+      binding: WooshHomeBinding(),
+      middlewares: [WooshAuthMiddleware()],
     ),
     GetPage(
       name: orders,
@@ -677,15 +717,16 @@ class AuthMiddleware extends GetMiddleware {
 
 ### **Navigation Service**
 ```dart
-// lib/core/navigation/navigation_service.dart
-class NavigationService {
-  static void toLogin() => Get.offAllNamed(AppRoutes.login);
-  static void toHome() => Get.offAllNamed(AppRoutes.home);
-  static void toOrders() => Get.toNamed(AppRoutes.orders);
+// lib/core/navigation/woosh_navigation_service.dart
+class WooshNavigationService {
+  static void toSplash() => Get.offAllNamed(WooshRoutes.splash);
+  static void toLogin() => Get.offAllNamed(WooshRoutes.login);
+  static void toHome() => Get.offAllNamed(WooshRoutes.home);
+  static void toOrders() => Get.toNamed(WooshRoutes.orders);
   static void toOrderDetail(String orderId) => 
-      Get.toNamed(AppRoutes.orderDetail.replaceAll(':orderId', orderId));
+      Get.toNamed(WooshRoutes.orderDetail.replaceAll(':orderId', orderId));
   static void toClientDetail(String clientId) => 
-      Get.toNamed(AppRoutes.clientDetail.replaceAll(':clientId', clientId));
+      Get.toNamed(WooshRoutes.clientDetail.replaceAll(':clientId', clientId));
   
   static void back() => Get.back();
   static void backUntil(String routeName) => Get.until((route) => route.settings.name == routeName);
