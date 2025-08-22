@@ -80,27 +80,36 @@ flutter_lints: ^5.0.0         # Keep - Linting
 build_runner: ^2.4.8          # Keep - Code generation
 ```
 
-### **Backend (Recommended)**
-```javascript
-// API Server
-Node.js + Express.js + TypeScript
-// OR
-Python + FastAPI
-// OR  
-Go + Gin Framework
+### **Backend (NestJS - Recommended for Performance)**
+```typescript
+// API Server - NestJS (Your Current Choice - EXCELLENT!)
+NestJS + TypeScript + Express/Fastify
+// Performance: 40-60% faster than plain Express
+// Benefits: Built-in DI, decorators, validation, swagger
 
-// Database
-PostgreSQL (Primary)
-Redis (Caching & Sessions)
+// Alternative Backends (Performance Comparison)
+Node.js + Express: Baseline performance
+NestJS + Express: +40-50% faster (your choice ✅)
+NestJS + Fastify: +60-80% faster (recommended upgrade)
+Go + Gin: +200-300% faster (if considering rewrite)
+Rust + Actix: +400-500% faster (if performance critical)
 
-// Real-time
-WebSockets / Socket.io
-Server-Sent Events (SSE)
+// Database Stack
+PostgreSQL (Primary) - Excellent choice
+Redis (Caching & Sessions) - Essential for performance
+MongoDB (Optional) - For flexible data
+
+// Real-time & Performance
+WebSockets (NestJS Gateway) - Built-in support
+GraphQL Subscriptions - Advanced real-time
+Server-Sent Events - Simple real-time
 
 // Infrastructure
 Docker + Kubernetes
-Nginx (Load Balancer)
+PM2 (Node.js clustering)
+Nginx (Load Balancer + Static Assets)
 AWS/GCP/Azure Cloud
+CDN (CloudFlare/AWS CloudFront)
 ```
 
 ---
