@@ -142,10 +142,12 @@ dependencies:
   json_annotation: ^4.8.0
   connectivity_plus: ^6.1.4
   
-  # Local Storage (Optimized)
+  # Local Storage & Offline (Optimized)
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.5
+  sqflite: ^2.3.0                 # Local database for complex queries
+  drift: ^2.14.0                  # Type-safe SQL with offline support
   
   # Location & Maps (Enhanced)
   geolocator: ^13.0.3
@@ -705,7 +707,10 @@ lib/
 │   │   │   ├── loading_indicator.dart
 │   │   │   ├── progress_indicator.dart
 │   │   │   ├── status_indicator.dart
-│   │   │   └── shimmer_loading.dart
+│   │   │   ├── shimmer_loading.dart
+│   │   │   ├── offline_indicator.dart
+│   │   │   ├── sync_status_indicator.dart
+│   │   │   └── connection_status_widget.dart
 │   │   ├── navigation/
 │   │   │   ├── app_bar.dart
 │   │   │   ├── bottom_navigation.dart
@@ -723,14 +728,17 @@ lib/
 │   │       └── summary_card.dart
 │   ├── services/                 # Shared services
 │   │   ├── storage_service.dart
+│   │   ├── offline_storage_service.dart    # Hive + SQLite offline storage
+│   │   ├── sync_service.dart              # Online/offline synchronization
 │   │   ├── location_service.dart
-│   │   ├── notification_service.dart  # Local notifications only
+│   │   ├── notification_service.dart      # Local notifications only
 │   │   ├── connectivity_service.dart
 │   │   ├── permission_service.dart
 │   │   ├── file_service.dart
-│   │   ├── analytics_service.dart     # Custom analytics (no Firebase)
-│   │   ├── websocket_service.dart     # Socket.io for real-time
-│   │   └── encryption_service.dart    # Local encryption
+│   │   ├── analytics_service.dart         # Custom analytics (no Firebase)
+│   │   ├── websocket_service.dart         # Socket.io for real-time
+│   │   ├── encryption_service.dart        # Local encryption
+│   │   └── offline_queue_service.dart     # Queue operations for sync
 │   ├── models/                   # Shared models
 │   │   ├── api_response.dart
 │   │   ├── pagination.dart
@@ -797,6 +805,367 @@ assets/
     ├── WooshSans-Medium.ttf
     ├── WooshSans-SemiBold.ttf
     └── WooshSans-Bold.ttf
+```
+
+---
+
+## 📱 **Offline-First Architecture**
+
+### **Offline Strategy Overview**
+```
+Online Mode:
+- Real-time data sync
+- Live order tracking  
+- Instant updates
+
+Offline Mode:
+- Local data access
+- Queue operations
+- Background sync when online
+- Critical features work offline
+
+Hybrid Mode:
+- Smart caching
+- Partial sync
+- Conflict resolution
+```
+
+### **Offline Storage Architecture**
+```dart
+// lib/shared/services/offline_storage_service.dart
+class OfflineStorageService extends GetxService {
+  late Box<WooshUser> _userBox;
+  late Box<WooshOrder> _ordersBox;
+  late Box<WooshClient> _clientsBox;
+  late Box<WooshProduct> _productsBox;
+  late Box<WooshJourneyPlan> _journeyPlansBox;
+  late Box<WooshOfflineOperation> _offlineOperationsBox;
+  
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await _initializeBoxes();
+  }
+  
+  Future<void> _initializeBoxes() async {
+    await Hive.initFlutter();
+    
+    // Register adapters
+    Hive.registerAdapter(WooshUserAdapter());
+    Hive.registerAdapter(WooshOrderAdapter());
+    Hive.registerAdapter(WooshClientAdapter());
+    Hive.registerAdapter(WooshProductAdapter());
+    Hive.registerAdapter(WooshJourneyPlanAdapter());
+    Hive.registerAdapter(WooshOfflineOperationAdapter());
+    
+    // Open boxes
+    _userBox = await Hive.openBox<WooshUser>('woosh_users');
+    _ordersBox = await Hive.openBox<WooshOrder>('woosh_orders');
+    _clientsBox = await Hive.openBox<WooshClient>('woosh_clients');
+    _productsBox = await Hive.openBox<WooshProduct>('woosh_products');
+    _journeyPlansBox = await Hive.openBox<WooshJourneyPlan>('woosh_journey_plans');
+    _offlineOperationsBox = await Hive.openBox<WooshOfflineOperation>('woosh_offline_ops');
+  }
+  
+  // Offline CRUD operations
+  Future<void> saveOrder(WooshOrder order) async {
+    await _ordersBox.put(order.id, order);
+  }
+  
+  Future<WooshOrder?> getOrder(String orderId) async {
+    return _ordersBox.get(orderId);
+  }
+  
+  Future<List<WooshOrder>> getAllOrders() async {
+    return _ordersBox.values.toList();
+  }
+  
+  Future<void> saveClient(WooshClient client) async {
+    await _clientsBox.put(client.id, client);
+  }
+  
+  Future<List<WooshClient>> getAllClients() async {
+    return _clientsBox.values.toList();
+  }
+  
+  Future<List<WooshProduct>> getAllProducts() async {
+    return _productsBox.values.toList();
+  }
+  
+  // Offline operations queue
+  Future<void> queueOperation(WooshOfflineOperation operation) async {
+    await _offlineOperationsBox.put(operation.id, operation);
+  }
+  
+  Future<List<WooshOfflineOperation>> getPendingOperations() async {
+    return _offlineOperationsBox.values.toList();
+  }
+  
+  Future<void> removeOperation(String operationId) async {
+    await _offlineOperationsBox.delete(operationId);
+  }
+}
+
+// lib/shared/services/sync_service.dart
+class WooshSyncService extends GetxService {
+  final OfflineStorageService _offlineStorage;
+  final ConnectivityService _connectivity;
+  final WooshApiClient _apiClient;
+  
+  final _isSyncing = false.obs;
+  final _lastSyncTime = Rxn<DateTime>();
+  final _pendingOperationsCount = 0.obs;
+  
+  Timer? _syncTimer;
+  
+  WooshSyncService(this._offlineStorage, this._connectivity, this._apiClient);
+  
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    _startConnectivityMonitoring();
+    _startPeriodicSync();
+  }
+  
+  void _startConnectivityMonitoring() {
+    _connectivity.onConnectivityChanged.listen((isConnected) {
+      if (isConnected && !_isSyncing.value) {
+        _syncPendingOperations();
+      }
+    });
+  }
+  
+  void _startPeriodicSync() {
+    _syncTimer = Timer.periodic(Duration(minutes: 5), (_) {
+      if (_connectivity.isConnected && !_isSyncing.value) {
+        _syncPendingOperations();
+      }
+    });
+  }
+  
+  Future<void> _syncPendingOperations() async {
+    if (_isSyncing.value) return;
+    
+    _isSyncing.value = true;
+    
+    try {
+      final pendingOperations = await _offlineStorage.getPendingOperations();
+      _pendingOperationsCount.value = pendingOperations.length;
+      
+      for (final operation in pendingOperations) {
+        try {
+          await _executeOperation(operation);
+          await _offlineStorage.removeOperation(operation.id);
+        } catch (e) {
+          print('Failed to sync operation ${operation.id}: $e');
+          // Keep in queue for retry
+        }
+      }
+      
+      _lastSyncTime.value = DateTime.now();
+      _pendingOperationsCount.value = 0;
+      
+    } catch (e) {
+      print('Sync failed: $e');
+    } finally {
+      _isSyncing.value = false;
+    }
+  }
+  
+  Future<void> _executeOperation(WooshOfflineOperation operation) async {
+    switch (operation.type) {
+      case OfflineOperationType.createOrder:
+        await _apiClient.createOrder(operation.data);
+        break;
+      case OfflineOperationType.updateOrder:
+        await _apiClient.updateOrder(operation.data['id'], operation.data);
+        break;
+      case OfflineOperationType.checkIn:
+        await _apiClient.checkIn(operation.data);
+        break;
+      case OfflineOperationType.checkOut:
+        await _apiClient.checkOut(operation.data);
+        break;
+      case OfflineOperationType.addPayment:
+        await _apiClient.addPayment(operation.data);
+        break;
+    }
+  }
+}
+
+// lib/shared/models/offline_operation.dart
+@HiveType(typeId: 10)
+class WooshOfflineOperation {
+  @HiveField(0)
+  final String id;
+  
+  @HiveField(1)
+  final OfflineOperationType type;
+  
+  @HiveField(2)
+  final Map<String, dynamic> data;
+  
+  @HiveField(3)
+  final DateTime createdAt;
+  
+  @HiveField(4)
+  final int retryCount;
+  
+  WooshOfflineOperation({
+    required this.id,
+    required this.type,
+    required this.data,
+    required this.createdAt,
+    this.retryCount = 0,
+  });
+}
+
+@HiveType(typeId: 11)
+enum OfflineOperationType {
+  @HiveField(0)
+  createOrder,
+  
+  @HiveField(1)
+  updateOrder,
+  
+  @HiveField(2)
+  checkIn,
+  
+  @HiveField(3)
+  checkOut,
+  
+  @HiveField(4)
+  addPayment,
+  
+  @HiveField(5)
+  createClient,
+  
+  @HiveField(6)
+  updateClient,
+}
+```
+
+### **Offline-First Repository Pattern**
+```dart
+// lib/features/orders/data/repositories/orders_repository_impl.dart
+class OrdersRepositoryImpl implements OrdersRepository {
+  final OrdersRemoteDataSource _remoteDataSource;
+  final OrdersLocalDataSource _localDataSource;
+  final ConnectivityService _connectivity;
+  final WooshSyncService _syncService;
+  
+  OrdersRepositoryImpl({
+    required OrdersRemoteDataSource remoteDataSource,
+    required OrdersLocalDataSource localDataSource,
+    required ConnectivityService connectivity,
+    required WooshSyncService syncService,
+  }) : _remoteDataSource = remoteDataSource,
+       _localDataSource = localDataSource,
+       _connectivity = connectivity,
+       _syncService = syncService;
+  
+  @override
+  Future<Either<WooshFailure, List<WooshOrder>>> getOrders({
+    WooshOrderStatus? status,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      // Always return local data first for instant UI
+      final localOrders = await _localDataSource.getOrders(
+        status: status,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      
+      // If online, fetch fresh data and update local storage
+      if (await _connectivity.isConnected) {
+        try {
+          final remoteOrders = await _remoteDataSource.getOrders(
+            status: status,
+            startDate: startDate,
+            endDate: endDate,
+          );
+          
+          // Update local storage with fresh data
+          await _localDataSource.saveOrders(remoteOrders);
+          
+          return Right(remoteOrders);
+        } catch (e) {
+          // If remote fails, return local data
+          return Right(localOrders);
+        }
+      }
+      
+      // Return local data when offline
+      return Right(localOrders);
+      
+    } catch (e) {
+      return Left(WooshCacheFailure('Failed to get orders: ${e.toString()}'));
+    }
+  }
+  
+  @override
+  Future<Either<WooshFailure, WooshOrder>> createOrder(CreateOrderParams params) async {
+    try {
+      // Create order locally first for instant feedback
+      final localOrder = WooshOrder(
+        id: const Uuid().v4(),
+        clientId: params.clientId,
+        items: params.items,
+        totalAmount: params.totalAmount,
+        status: WooshOrderStatus.draft,
+        createdAt: DateTime.now(),
+        createdBy: params.userId,
+        isOfflineCreated: true,
+      );
+      
+      // Save locally immediately
+      await _localDataSource.saveOrder(localOrder);
+      
+      // If online, try to sync immediately
+      if (await _connectivity.isConnected) {
+        try {
+          final remoteOrder = await _remoteDataSource.createOrder(params);
+          
+          // Update local order with server response
+          final updatedOrder = localOrder.copyWith(
+            id: remoteOrder.id,
+            status: remoteOrder.status,
+            isOfflineCreated: false,
+          );
+          
+          await _localDataSource.saveOrder(updatedOrder);
+          return Right(updatedOrder);
+          
+        } catch (e) {
+          // Queue for later sync
+          await _syncService.queueOperation(WooshOfflineOperation(
+            id: const Uuid().v4(),
+            type: OfflineOperationType.createOrder,
+            data: params.toJson(),
+            createdAt: DateTime.now(),
+          ));
+          
+          return Right(localOrder);
+        }
+      } else {
+        // Queue for sync when online
+        await _syncService.queueOperation(WooshOfflineOperation(
+          id: const Uuid().v4(),
+          type: OfflineOperationType.createOrder,
+          data: params.toJson(),
+          createdAt: DateTime.now(),
+        ));
+        
+        return Right(localOrder);
+      }
+      
+    } catch (e) {
+      return Left(WooshServerFailure('Failed to create order: ${e.toString()}'));
+    }
+  }
+}
 ```
 
 ---
@@ -2677,12 +3046,13 @@ class OptimizedLocationService {
 - [ ] **Expected Outcome**: Production-ready authentication system
 
 ### **Phase 3: Core Business Features (Weeks 4-6)**
-- [ ] Implement orders module with real-time status tracking
-- [ ] Create client management with balance/credit visibility
-- [ ] Build journey planning with GPS and route optimization
-- [ ] Add product catalog with smart search and filtering
-- [ ] Implement offline capabilities with intelligent sync
-- [ ] **Expected Outcome**: Complete core business functionality
+- [ ] Implement offline-first orders module with Hive storage
+- [ ] Create client management with offline balance/credit data
+- [ ] Build journey planning with offline GPS and route storage
+- [ ] Add product catalog with offline search and filtering
+- [ ] Implement comprehensive offline sync with conflict resolution
+- [ ] Add offline indicators and sync status throughout UI
+- [ ] **Expected Outcome**: Complete offline-capable business functionality
 
 ### **Phase 4: Advanced Features (Weeks 7-9)**
 - [ ] Build manager dashboard with live analytics
@@ -3002,10 +3372,10 @@ class EnvironmentConfig {
 
 ### **Core Features (Weeks 1-6)**
 1. **Secure Authentication** → JWT + biometric + role-based access
-2. **Real-time Order Management** → Live status tracking + balance validation
-3. **Smart Client Management** → Credit limits + payment tracking
-4. **GPS Journey Planning** → Route optimization + geofencing
-5. **Offline Capabilities** → Intelligent sync + local storage
+2. **Offline-First Order Management** → Create/edit orders offline + auto-sync
+3. **Smart Client Management** → Offline client data + balance tracking
+4. **GPS Journey Planning** → Offline route planning + GPS tracking
+5. **Comprehensive Offline Mode** → All critical features work offline
 
 ### **Advanced Features (Weeks 7-9)**
 1. **Manager Dashboard** → Live analytics + team performance
@@ -3021,17 +3391,121 @@ class EnvironmentConfig {
 
 ---
 
+---
+
+## 📱 **Offline Capabilities Summary**
+
+### **Offline-First Features (Work 100% Offline)**
+```
+✅ Order Creation & Management
+  - Create new orders completely offline
+  - Edit draft orders without internet
+  - Add/remove products from orders
+  - Calculate totals and taxes locally
+  - Save order drafts automatically
+
+✅ Client Management
+  - Browse complete client list offline
+  - Search clients by name/location
+  - View client details and history
+  - Access cached balance information
+  - Add new clients offline (sync later)
+
+✅ Product Catalog
+  - Browse full product catalog offline
+  - Search products by name/category
+  - View product details and pricing
+  - Check cached inventory levels
+  - Filter products by category
+
+✅ Journey Planning
+  - View scheduled visits offline
+  - Plan routes using cached client locations
+  - Track visit progress offline
+  - Check-in/check-out with GPS
+  - Navigate using cached maps
+
+✅ Reporting
+  - Generate daily activity reports
+  - View cached performance metrics
+  - Export data to local files
+  - Access historical reports
+```
+
+### **Sync-When-Online Features**
+```
+🔄 Real-time Order Status
+  - Cached status shown offline
+  - Live updates when online
+  - Automatic status refresh
+
+🔄 Balance Validation
+  - Use cached balance offline
+  - Validate against server when online
+  - Show warnings for stale data
+
+🔄 Manager Dashboard
+  - Cached metrics offline
+  - Live data when online
+  - Background refresh
+
+🔄 Team Collaboration
+  - Local notifications offline
+  - Real-time updates online
+  - Message queue for offline actions
+```
+
+### **Offline Storage Strategy**
+```
+Hive Boxes (Key-Value Storage):
+- User sessions and settings
+- App configuration
+- Simple cached data
+
+SQLite/Drift (Relational Storage):
+- Complex order data with relationships
+- Client data with search capabilities
+- Product catalog with filtering
+- Journey plans with route data
+
+GetStorage (Simple Storage):
+- User preferences
+- App state
+- Quick access data
+```
+
+### **Sync Conflict Resolution**
+```
+Order Conflicts:
+- Server version wins for approved orders
+- Local version wins for draft orders
+- Merge strategy for pending orders
+
+Client Data Conflicts:
+- Server version wins for balance data
+- Local version wins for contact updates
+- Timestamp-based resolution
+
+Journey Plan Conflicts:
+- Server version wins for scheduled plans
+- Local version wins for check-in/out times
+- GPS data always from local device
+```
+
+---
+
 **Implementation Proposal Date**: December 2024  
-**Target**: Brand New Woosh Field Sales App  
+**Target**: Brand New Woosh Field Sales App (Offline-First)  
 **Version**: 1.0.0+1 (Clean start)  
 **Bundle ID (iOS)**: com.woosh.fieldsales  
 **Package Name (Android)**: com.woosh.fieldsales  
 **Tech Stack**: Flutter + NestJS + PostgreSQL + Redis (No Firebase)  
+**Offline Storage**: Hive + SQLite/Drift + GetStorage  
 **Real-time**: WebSocket (Socket.io) + Local notifications  
 **Analytics**: Sentry + Custom analytics service  
-**Approach**: Clean architecture implementation from scratch  
+**Approach**: Offline-first clean architecture implementation  
 **Timeline**: 12 weeks development + 4 weeks testing/deployment  
-**Risk Level**: LOW (proven architecture patterns, no external dependencies)  
-**Performance Target**: <3s startup, <200ms API, <100MB memory  
-**Scalability**: 1000+ concurrent users, 99.9% uptime  
-**Recommendation**: Build modern, self-contained field sales app with enterprise-grade features
+**Risk Level**: LOW (proven offline patterns, existing dependencies)  
+**Performance Target**: <3s startup, <200ms API, <100MB memory, 100% offline core features  
+**Scalability**: 1000+ concurrent users, 99.9% uptime, works in any network condition  
+**Recommendation**: Build modern, offline-capable field sales app with zero network dependency for core features
