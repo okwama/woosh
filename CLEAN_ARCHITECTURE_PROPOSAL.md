@@ -323,6 +323,139 @@ lib/
 │       ├── token_manager.dart
 │       └── secure_storage.dart
 │
+## 📊 **Field Reports System (Journey Plan Reports)**
+
+### **Report Types & Implementation**
+
+The Woosh app implements a comprehensive field reporting system with 5 report types integrated into journey plans:
+
+#### **Required Reports (3/3 must be completed for checkout)**
+
+**1. Product Availability Report** 📦
+- **Purpose**: Track product stock levels at client locations
+- **Data**: Product selection, quantity, availability status, comments
+- **Validation**: Product must be selected, quantity required
+- **Storage**: Offline-first with Hive + sync to server
+
+**2. Visibility Activity Report** 📸  
+- **Purpose**: Document marketing/promotional activities with photo evidence
+- **Data**: Photos (camera integration), location tags, activity comments
+- **Validation**: Photo OR comment required
+- **Features**: Image compression, GPS tagging, upload progress
+
+**3. Feedback Report** 💬
+- **Purpose**: Collect client feedback and general observations
+- **Data**: Text feedback, rating (optional), category classification
+- **Validation**: Feedback text required
+- **Storage**: Simple text-based submission
+
+#### **Optional Reports**
+
+**4. Product Return Report** ↩️
+- **Purpose**: Process product returns from clients
+- **Data**: Multiple products, quantities, return reasons, photo evidence
+- **Features**: Cart-style interface, bulk return processing
+
+**5. Product Sample Report** 🎁
+- **Purpose**: Track product samples distributed to clients  
+- **Data**: Sample products, quantities, distribution purpose
+- **Features**: Multi-item selection, sample tracking
+
+### **Visit Completion Logic**
+```
+Checkout Requirements:
+✅ Product Availability Report (REQUIRED)
+✅ Visibility Activity Report (REQUIRED)  
+✅ Feedback Report (REQUIRED)
+🟡 Product Return Report (OPTIONAL)
+🟡 Product Sample Report (OPTIONAL)
+
+Progress: 3/3 Required → Checkout Enabled
+```
+
+### **Report Architecture in Clean Structure**
+
+```dart
+// Domain Entities
+abstract class Report {
+  final String id;
+  final String journeyPlanId;
+  final String salesRepId;
+  final String clientId;
+  final DateTime createdAt;
+  final ReportType type;
+  final ReportStatus status;
+}
+
+enum ReportType {
+  PRODUCT_AVAILABILITY,
+  VISIBILITY_ACTIVITY, 
+  FEEDBACK,
+  PRODUCT_RETURN,
+  PRODUCT_SAMPLE
+}
+
+enum ReportStatus {
+  draft,
+  submitted,
+  synced,
+  failed
+}
+
+// Use Cases
+class SubmitReportUseCase {
+  Future<Result<void>> execute(Report report);
+}
+
+class ValidateVisitCompletionUseCase {
+  Future<Result<bool>> execute(String journeyPlanId);
+}
+
+// Repository Pattern
+abstract class ReportsRepository {
+  Future<void> submitReport(Report report);
+  Future<List<Report>> getReportsForJourney(String journeyPlanId);
+  Future<bool> areRequiredReportsComplete(String journeyPlanId);
+  Future<void> syncPendingReports();
+}
+```
+
+### **Offline-First Report Handling**
+```dart
+// Local Storage Strategy
+class ReportsLocalDataSource {
+  // Hive boxes for each report type
+  Box<ProductAvailabilityReport> productAvailabilityBox;
+  Box<VisibilityActivityReport> visibilityActivityBox;
+  Box<FeedbackReport> feedbackBox;
+  
+  // Offline submission queue
+  Box<PendingReportSync> pendingSyncBox;
+  
+  Future<void> saveReportOffline(Report report);
+  Future<void> queueForSync(Report report);
+  Future<List<Report>> getPendingSyncReports();
+}
+
+// Sync Service
+class ReportSyncService {
+  Future<void> syncAllPendingReports() async {
+    final pendingReports = await localDataSource.getPendingSyncReports();
+    for (final report in pendingReports) {
+      try {
+        await remoteDataSource.submitReport(report);
+        await localDataSource.markAsSynced(report.id);
+      } catch (e) {
+        // Handle sync failure, retry later
+        await localDataSource.markSyncFailed(report.id);
+      }
+    }
+  }
+}
+```
+
+---
+
 ├── features/                      # Woosh feature modules
 │   ├── authentication/           # Authentication feature
 │   │   ├── data/
@@ -549,6 +682,11 @@ lib/
 │   │   │   │   └── reports_local_datasource.dart
 │   │   │   ├── models/
 │   │   │   │   ├── report_model.dart
+│   │   │   │   ├── product_availability_report_model.dart
+│   │   │   │   ├── visibility_activity_report_model.dart
+│   │   │   │   ├── feedback_report_model.dart
+│   │   │   │   ├── product_return_report_model.dart
+│   │   │   │   ├── product_sample_report_model.dart
 │   │   │   │   ├── daily_report_model.dart
 │   │   │   │   └── custom_report_model.dart
 │   │   │   └── repositories/
@@ -556,24 +694,45 @@ lib/
 │   │   ├── domain/
 │   │   │   ├── entities/
 │   │   │   │   ├── report.dart
+│   │   │   │   ├── product_availability_report.dart
+│   │   │   │   ├── visibility_activity_report.dart
+│   │   │   │   ├── feedback_report.dart
+│   │   │   │   ├── product_return_report.dart
+│   │   │   │   ├── product_sample_report.dart
 │   │   │   │   ├── daily_report.dart
 │   │   │   │   └── report_filter.dart
 │   │   │   ├── repositories/
 │   │   │   │   └── reports_repository.dart
 │   │   │   └── usecases/
-│   │   │       ├── generate_daily_report_usecase.dart
+│   │   │       ├── submit_product_availability_usecase.dart
+│   │   │       ├── submit_visibility_activity_usecase.dart
+│   │   │       ├── submit_feedback_usecase.dart
+│   │   │       ├── submit_product_return_usecase.dart
+│   │   │       ├── submit_product_sample_usecase.dart
 │   │   │       ├── get_reports_usecase.dart
-│   │   │       ├── export_report_usecase.dart
-│   │   │       └── submit_report_usecase.dart
+│   │   │       ├── validate_visit_completion_usecase.dart
+│   │   │       ├── generate_daily_report_usecase.dart
+│   │   │       └── export_report_usecase.dart
 │   │   └── presentation/
 │   │       ├── controllers/
 │   │       │   ├── reports_controller.dart
 │   │       │   └── daily_report_controller.dart
 │   │       ├── pages/
-│   │       │   ├── reports_page.dart
+│   │       │   ├── reports_main_page.dart
+│   │       │   ├── product_availability_page.dart
+│   │       │   ├── visibility_activity_page.dart
+│   │       │   ├── feedback_page.dart
+│   │       │   ├── product_return_page.dart
+│   │       │   ├── product_sample_page.dart
 │   │       │   ├── daily_report_page.dart
 │   │       │   └── report_detail_page.dart
 │   │       ├── widgets/
+│   │       │   ├── report_progress_indicator.dart
+│   │       │   ├── report_type_button.dart
+│   │       │   ├── product_selector_widget.dart
+│   │       │   ├── image_capture_widget.dart
+│   │       │   ├── report_submission_widget.dart
+│   │       │   ├── visit_completion_widget.dart
 │   │       │   ├── report_card.dart
 │   │       │   ├── report_chart.dart
 │   │       │   └── export_options_widget.dart
@@ -3564,7 +3723,16 @@ class EnvironmentConfig {
   - Check-in/check-out with GPS
   - Navigate using cached maps
 
-✅ Reporting
+✅ Field Reports (Journey Plan)
+  - Product Availability Report (Required)
+  - Visibility Activity Report with Photos (Required)
+  - Feedback Report (Required)
+  - Product Return Report (Optional)
+  - Product Sample Report (Optional)
+  - Progress tracking (3/3 required for checkout)
+  - Offline submission with sync
+  
+✅ Analytics & Reporting
   - Generate daily activity reports
   - View cached performance metrics
   - Export data to local files
