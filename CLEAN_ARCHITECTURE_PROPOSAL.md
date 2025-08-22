@@ -112,13 +112,13 @@ firebase_performance: ^0.10.0 # Add - Performance monitoring
 sentry_flutter: ^8.9.0        # Add - Error tracking
 ```
 
-### **Complete Woosh pubspec.yaml**
+### **Improved Woosh pubspec.yaml (Gradual Upgrade)**
 ```yaml
 name: woosh
-description: "High-performance field sales management application"
-publish_to: 'none' # Prevent accidental publishing
+description: "A new Flutter project."  # Keep existing
+publish_to: 'none'
 
-version: 2.0.0+1
+version: 1.0.8+1  # Increment from current 1.0.7+1
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
@@ -128,80 +128,87 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Core UI
+  # Keep existing dependencies (don't break current functionality)
   cupertino_icons: ^1.0.8
-  google_fonts: ^6.2.1
-  flutter_svg: ^2.0.5
-
-  # State Management & Navigation
-  get: ^4.6.5
   get_storage: ^2.1.1
-
-  # Network & API
-  dio: ^5.8.0
-  retrofit: ^4.0.0
-  json_annotation: ^4.8.0
-  connectivity_plus: ^6.1.4
-
-  # Local Storage
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-  path_provider: ^2.1.5
-
-  # Location & Maps
-  geolocator: ^13.0.3
-  geocoding: ^2.1.1
-  google_maps_flutter: ^2.5.0
-
-  # UI Components
-  cached_network_image: ^3.3.1
-  shimmer: ^3.0.0
-  pull_to_refresh: ^2.0.0
-  flutter_animate: ^4.2.0
-  percent_indicator: ^4.2.3
-
-  # Utilities
+  get: ^4.6.5
+  http: ^1.3.0                    # Keep existing, can upgrade to dio later
+  flutter_svg: ^2.0.5
+  fluttertoast: ^8.2.2
+  google_fonts: ^6.2.1
   permission_handler: ^11.0.1
   intl: ^0.20.2
   image_picker: ^1.1.2
+  geolocator: ^13.0.3
+  camera: ^0.10.5+9
+  path_provider: ^2.1.5
+  path: ^1.9.0
+  geocoding: ^2.1.1
+  flutter_staggered_animations: ^1.1.1
+  percent_indicator: ^4.2.3
   file_picker: ^9.2.1
+  dio: ^5.8.0+1                   # Already added - good!
+  http_parser: ^4.1.2
+  flex_color_scheme: ^7.0.0
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  pull_to_refresh: ^2.0.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^6.1.4
+  flutter_riverpod: ^2.6.1
   url_launcher: ^6.2.5
+  flutter_image_compress: ^2.4.0
   package_info_plus: ^8.0.2
+  table_calendar: ^3.0.9
+  image: any
+  uuid: any
 
-  # Firebase
-  firebase_core: ^3.6.0
-  firebase_messaging: ^15.1.3
-  firebase_analytics: ^11.3.3
-  firebase_crashlytics: ^4.1.3
-  firebase_performance: ^0.10.0
-
-  # Performance & Monitoring
-  sentry_flutter: ^8.9.0
+  # Add new dependencies gradually (optional upgrades)
+  # Uncomment when ready to implement:
+  # retrofit: ^4.0.0               # For type-safe API calls
+  # json_annotation: ^4.8.0       # For better JSON handling
+  # firebase_core: ^3.6.0         # For push notifications
+  # firebase_messaging: ^15.1.3   # For real-time updates
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  build_runner: ^2.4.8
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.10
   hive_generator: ^2.0.1
-  retrofit_generator: ^8.0.0
-  json_serializable: ^6.7.0
-  mockito: ^5.4.0
+  build_runner: ^2.4.8
+
+  # Add when implementing clean architecture:
+  # mockito: ^5.4.0               # For testing
+  # retrofit_generator: ^8.0.0    # For API generation
+
+# Keep existing Flutter configuration
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/woosh.png
+  android: true
+  ios: true
+  android_gravity: center
+  ios_content_mode: center
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/new.png"
+  remove_alpha_ios: true 
+  web:
+    generate: true
+    image_path: "assets/new.png"
+    background_color: "#FFFFFF"
 
 flutter:
   uses-material-design: true
-  
   assets:
-    - assets/images/
-    - assets/icons/
-    - assets/logos/
-
-  fonts:
-    - family: WooshSans
-      fonts:
-        - asset: assets/fonts/WooshSans-Regular.ttf
-        - asset: assets/fonts/WooshSans-Bold.ttf
-          weight: 700
+    - assets/
+    - assets/new.png
+    - assets/name.png
 ```
 
 ### **Backend (NestJS - Recommended for Performance)**
@@ -2361,110 +2368,58 @@ Scalability: Enterprise-ready architecture
 
 ---
 
-## 📱 **Woosh App Store Configuration**
+## 📱 **Existing Woosh App Bundle Configuration**
 
-### **iOS App Store Setup**
+### **Keep Your Current Bundle IDs (Don't Change)**
 ```xml
-<!-- ios/Runner/Info.plist -->
+<!-- ios/Runner/Info.plist - Keep your existing configuration -->
 <key>CFBundleIdentifier</key>
-<string>com.woosh.fieldsales</string>
+<string>[Your existing iOS Bundle ID]</string>
 <key>CFBundleName</key>
-<string>Woosh</string>
+<string>woosh</string>
 <key>CFBundleDisplayName</key>
-<string>Woosh Field Sales</string>
+<string>woosh</string>
 <key>CFBundleVersion</key>
-<string>1</string>
+<string>8</string>  <!-- Increment from current -->
 <key>CFBundleShortVersionString</key>
-<string>2.0.0</string>
+<string>1.0.8</string>  <!-- Increment from 1.0.7 -->
 
-<!-- App Store Connect Configuration -->
-App Name: Woosh Field Sales
-Bundle ID: com.woosh.fieldsales
-SKU: woosh-field-sales-2024
-Primary Language: English
-Category: Business
-Subcategory: Sales & Marketing
+<!-- Keep your existing App Store Connect configuration -->
 ```
 
-### **Android Play Store Setup**
+### **Keep Your Current Android Configuration**
 ```gradle
-// android/app/build.gradle
+// android/app/build.gradle - Keep your existing configuration
 android {
-    namespace 'com.woosh.fieldsales'
+    namespace '[Your existing namespace]'
     compileSdkVersion 34
     
     defaultConfig {
-        applicationId "com.woosh.fieldsales"
+        applicationId "[Your existing applicationId]"
         minSdkVersion 21
         targetSdkVersion 34
-        versionCode 1
-        versionName "2.0.0"
+        versionCode 8  // Increment from current
+        versionName "1.0.8"  // Increment from 1.0.7
     }
     
-    signingConfigs {
-        release {
-            keyAlias 'woosh-key'
-            keyPassword 'your-key-password'
-            storeFile file('woosh-keystore.jks')
-            storePassword 'your-store-password'
-        }
-    }
+    // Keep your existing signingConfigs if any
 }
-
-// Play Console Configuration
-App Name: Woosh Field Sales
-Package Name: com.woosh.fieldsales
-Category: Business
-Content Rating: Everyone
-Target Audience: Business professionals
 ```
 
-### **Firebase Configuration**
+### **Optional: Add Firebase Later (Don't Rush)**
 ```dart
-// lib/config/woosh_firebase_config.dart
-class WooshFirebaseConfig {
-  static const String projectId = 'woosh-field-sales';
-  static const String appId = 'com.woosh.fieldsales';
+// lib/config/woosh_app_config.dart - Add when ready
+class WooshAppConfig {
+  static const String appName = 'woosh';  // Keep existing
+  static const String version = '1.0.8+1';
   
-  // iOS Configuration
-  static const String iosApiKey = 'your-ios-api-key';
-  static const String iosAppId = '1:123456789:ios:abcdef123456';
+  // Your existing API configuration
+  static const String apiBaseUrl = '[Your existing API URL]';
   
-  // Android Configuration  
-  static const String androidApiKey = 'your-android-api-key';
-  static const String androidAppId = '1:123456789:android:abcdef123456';
-  
-  // Messaging
-  static const String fcmSenderId = '123456789';
-  static const String fcmServerKey = 'your-fcm-server-key';
+  // Add Firebase later when implementing real-time features:
+  // static const String firebaseProjectId = '[Your project ID]';
+  // static const String fcmSenderId = '[Your sender ID]';
 }
-
-// google-services.json (Android)
-{
-  "project_info": {
-    "project_number": "123456789",
-    "project_id": "woosh-field-sales",
-    "storage_bucket": "woosh-field-sales.appspot.com"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:123456789:android:abcdef123456",
-        "android_client_info": {
-          "package_name": "com.woosh.fieldsales"
-        }
-      }
-    }
-  ]
-}
-
-// GoogleService-Info.plist (iOS)
-<key>CLIENT_ID</key>
-<string>123456789-abcdef.apps.googleusercontent.com</string>
-<key>BUNDLE_ID</key>
-<string>com.woosh.fieldsales</string>
-<key>PROJECT_ID</key>
-<string>woosh-field-sales</string>
 ```
 
 ---
@@ -2499,9 +2454,12 @@ class WooshFirebaseConfig {
 ---
 
 **Refactoring Proposal Date**: December 2024  
-**Target App**: Woosh Field Sales (Existing v1.0.7+1)  
-**Approach**: Gradual improvement, no rewrite  
+**Target App**: Woosh (Existing v1.0.7+1)  
+**New Version**: 1.0.8+1 → 1.1.0+1 → 1.2.0+1 (Incremental)  
+**Approach**: Gradual improvement, keep existing app working  
+**Bundle IDs**: Keep your existing iOS/Android identifiers  
 **Timeline**: 8-10 weeks incremental refactoring  
-**Risk Level**: LOW (existing app keeps working)  
+**Risk Level**: VERY LOW (existing app always works)  
+**User Impact**: ZERO disruption, only performance improvements  
 **Expected Performance Gain**: 40-60% improvement  
-**Recommendation**: Start with immediate performance fixes, then gradual clean architecture adoption
+**Recommendation**: Start with Week 1 quick wins (remove debug prints) for immediate +20-30% performance boost
