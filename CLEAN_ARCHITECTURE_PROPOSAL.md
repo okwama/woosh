@@ -288,7 +288,7 @@ CDN (CloudFlare/AWS CloudFront)
 
 ## 📁 **Proposed Folder Structure**
 
-### **Clean Architecture Directory Layout**
+### **Woosh Flutter App Structure (Clean Architecture)**
 
 ```
 lib/
@@ -305,97 +305,495 @@ lib/
 │   │   ├── api_client.dart
 │   │   ├── network_info.dart
 │   │   └── interceptors/
+│   │       ├── auth_interceptor.dart
+│   │       ├── logging_interceptor.dart
+│   │       └── error_interceptor.dart
 │   ├── utils/                     # Utilities
 │   │   ├── validators.dart
 │   │   ├── formatters.dart
-│   │   └── extensions.dart
-│   └── themes/                    # App theming
-│       ├── app_theme.dart
-│       ├── colors.dart
-│       └── text_styles.dart
+│   │   ├── extensions.dart
+│   │   └── helpers.dart
+│   ├── themes/                    # App theming
+│   │   ├── app_theme.dart
+│   │   ├── colors.dart
+│   │   ├── text_styles.dart
+│   │   └── dimensions.dart
+│   └── security/                  # Security utilities
+│       ├── encryption.dart
+│       ├── token_manager.dart
+│       └── secure_storage.dart
 │
 ├── features/                      # Woosh feature modules
-│   ├── authentication/           # Woosh auth feature
+│   ├── authentication/           # Authentication feature
 │   │   ├── data/
 │   │   │   ├── datasources/
 │   │   │   │   ├── auth_remote_datasource.dart
 │   │   │   │   └── auth_local_datasource.dart
 │   │   │   ├── models/
 │   │   │   │   ├── user_model.dart
-│   │   │   │   └── login_response_model.dart
+│   │   │   │   ├── login_request_model.dart
+│   │   │   │   ├── login_response_model.dart
+│   │   │   │   └── token_model.dart
 │   │   │   └── repositories/
 │   │   │       └── auth_repository_impl.dart
 │   │   ├── domain/
 │   │   │   ├── entities/
-│   │   │   │   └── user.dart
+│   │   │   │   ├── user.dart
+│   │   │   │   └── session.dart
 │   │   │   ├── repositories/
 │   │   │   │   └── auth_repository.dart
 │   │   │   └── usecases/
 │   │   │       ├── login_usecase.dart
 │   │   │       ├── logout_usecase.dart
-│   │   │       └── refresh_token_usecase.dart
+│   │   │       ├── refresh_token_usecase.dart
+│   │   │       ├── get_current_user_usecase.dart
+│   │   │       └── reset_password_usecase.dart
 │   │   └── presentation/
 │   │       ├── controllers/
-│   │       │   └── auth_controller.dart
+│   │       │   ├── auth_controller.dart
+│   │       │   └── session_controller.dart
 │   │       ├── pages/
+│   │       │   ├── splash_page.dart
 │   │       │   ├── login_page.dart
-│   │       │   └── signup_page.dart
-│   │       └── widgets/
-│   │           ├── login_form.dart
-│   │           └── auth_button.dart
+│   │       │   ├── signup_page.dart
+│   │       │   └── forgot_password_page.dart
+│   │       ├── widgets/
+│   │       │   ├── login_form.dart
+│   │       │   ├── auth_button.dart
+│   │       │   ├── social_login_buttons.dart
+│   │       │   └── biometric_auth_widget.dart
+│   │       └── bindings/
+│   │           └── auth_binding.dart
 │   │
-│   ├── orders/                   # Orders feature
+│   ├── orders/                   # Order management feature
 │   │   ├── data/
 │   │   │   ├── datasources/
+│   │   │   │   ├── orders_remote_datasource.dart
+│   │   │   │   └── orders_local_datasource.dart
 │   │   │   ├── models/
+│   │   │   │   ├── order_model.dart
+│   │   │   │   ├── order_item_model.dart
+│   │   │   │   ├── create_order_request_model.dart
+│   │   │   │   └── order_status_model.dart
 │   │   │   └── repositories/
+│   │   │       └── orders_repository_impl.dart
 │   │   ├── domain/
 │   │   │   ├── entities/
+│   │   │   │   ├── order.dart
+│   │   │   │   ├── order_item.dart
+│   │   │   │   └── order_status.dart
 │   │   │   ├── repositories/
+│   │   │   │   └── orders_repository.dart
 │   │   │   └── usecases/
+│   │   │       ├── create_order_usecase.dart
+│   │   │       ├── get_orders_usecase.dart
+│   │   │       ├── get_order_by_id_usecase.dart
+│   │   │       ├── update_order_usecase.dart
+│   │   │       ├── cancel_order_usecase.dart
+│   │   │       └── validate_order_balance_usecase.dart
 │   │   └── presentation/
 │   │       ├── controllers/
+│   │       │   ├── orders_controller.dart
+│   │       │   ├── create_order_controller.dart
+│   │       │   ├── order_detail_controller.dart
+│   │       │   └── cart_controller.dart
 │   │       ├── pages/
-│   │       └── widgets/
+│   │       │   ├── orders_list_page.dart
+│   │       │   ├── create_order_page.dart
+│   │       │   ├── order_detail_page.dart
+│   │       │   └── cart_page.dart
+│   │       ├── widgets/
+│   │       │   ├── order_card.dart
+│   │       │   ├── order_status_badge.dart
+│   │       │   ├── order_item_widget.dart
+│   │       │   ├── balance_warning_widget.dart
+│   │       │   └── order_timeline_widget.dart
+│   │       └── bindings/
+│   │           ├── orders_binding.dart
+│   │           └── create_order_binding.dart
 │   │
-│   ├── clients/                  # Client management
-│   ├── journey_plans/            # Journey planning
-│   ├── reports/                  # Reporting
-│   ├── dashboard/                # Analytics dashboard
-│   └── settings/                 # App settings
+│   ├── clients/                  # Client management feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── clients_remote_datasource.dart
+│   │   │   │   └── clients_local_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   ├── client_model.dart
+│   │   │   │   ├── client_balance_model.dart
+│   │   │   │   └── payment_model.dart
+│   │   │   └── repositories/
+│   │   │       └── clients_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── client.dart
+│   │   │   │   ├── client_balance.dart
+│   │   │   │   └── payment.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── clients_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── get_clients_usecase.dart
+│   │   │       ├── get_client_by_id_usecase.dart
+│   │   │       ├── create_client_usecase.dart
+│   │   │       ├── update_client_usecase.dart
+│   │   │       ├── get_client_balance_usecase.dart
+│   │   │       └── add_payment_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   ├── clients_controller.dart
+│   │       │   ├── client_detail_controller.dart
+│   │       │   └── add_payment_controller.dart
+│   │       ├── pages/
+│   │       │   ├── clients_list_page.dart
+│   │       │   ├── client_detail_page.dart
+│   │       │   ├── add_client_page.dart
+│   │       │   └── add_payment_page.dart
+│   │       ├── widgets/
+│   │       │   ├── client_card.dart
+│   │       │   ├── client_balance_widget.dart
+│   │       │   ├── payment_history_widget.dart
+│   │       │   └── client_location_widget.dart
+│   │       └── bindings/
+│   │           ├── clients_binding.dart
+│   │           └── client_detail_binding.dart
+│   │
+│   ├── journey_plans/            # Journey planning feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── journey_plans_remote_datasource.dart
+│   │   │   │   └── journey_plans_local_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   ├── journey_plan_model.dart
+│   │   │   │   ├── route_model.dart
+│   │   │   │   └── visit_model.dart
+│   │   │   └── repositories/
+│   │   │       └── journey_plans_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── journey_plan.dart
+│   │   │   │   ├── route.dart
+│   │   │   │   └── visit.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── journey_plans_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── get_journey_plans_usecase.dart
+│   │   │       ├── create_journey_plan_usecase.dart
+│   │   │       ├── optimize_route_usecase.dart
+│   │   │       ├── check_in_usecase.dart
+│   │   │       ├── check_out_usecase.dart
+│   │   │       └── validate_geofence_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   ├── journey_plans_controller.dart
+│   │       │   ├── journey_detail_controller.dart
+│   │       │   └── route_optimization_controller.dart
+│   │       ├── pages/
+│   │       │   ├── journey_plans_page.dart
+│   │       │   ├── journey_detail_page.dart
+│   │       │   ├── create_journey_plan_page.dart
+│   │       │   └── route_map_page.dart
+│   │       ├── widgets/
+│   │       │   ├── journey_plan_card.dart
+│   │       │   ├── route_map_widget.dart
+│   │       │   ├── visit_status_widget.dart
+│   │       │   ├── geofence_indicator.dart
+│   │       │   └── check_in_button.dart
+│   │       └── bindings/
+│   │           ├── journey_plans_binding.dart
+│   │           └── journey_detail_binding.dart
+│   │
+│   ├── dashboard/                # Analytics dashboard feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── dashboard_remote_datasource.dart
+│   │   │   │   └── dashboard_local_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   ├── dashboard_model.dart
+│   │   │   │   ├── performance_metrics_model.dart
+│   │   │   │   └── sales_analytics_model.dart
+│   │   │   └── repositories/
+│   │   │       └── dashboard_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── dashboard_data.dart
+│   │   │   │   ├── performance_metrics.dart
+│   │   │   │   └── sales_analytics.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── dashboard_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── get_dashboard_data_usecase.dart
+│   │   │       ├── get_performance_metrics_usecase.dart
+│   │   │       └── get_sales_analytics_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   ├── home_controller.dart
+│   │       │   ├── dashboard_controller.dart
+│   │       │   └── analytics_controller.dart
+│   │       ├── pages/
+│   │       │   ├── home_page.dart
+│   │       │   ├── dashboard_page.dart
+│   │       │   └── analytics_page.dart
+│   │       ├── widgets/
+│   │       │   ├── stats_card.dart
+│   │       │   ├── performance_chart.dart
+│   │       │   ├── sales_chart.dart
+│   │       │   ├── quick_actions_grid.dart
+│   │       │   └── recent_activities_list.dart
+│   │       └── bindings/
+│   │           ├── home_binding.dart
+│   │           └── dashboard_binding.dart
+│   │
+│   ├── reports/                  # Reporting feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── reports_remote_datasource.dart
+│   │   │   │   └── reports_local_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   ├── report_model.dart
+│   │   │   │   ├── daily_report_model.dart
+│   │   │   │   └── custom_report_model.dart
+│   │   │   └── repositories/
+│   │   │       └── reports_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── report.dart
+│   │   │   │   ├── daily_report.dart
+│   │   │   │   └── report_filter.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── reports_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── generate_daily_report_usecase.dart
+│   │   │       ├── get_reports_usecase.dart
+│   │   │       ├── export_report_usecase.dart
+│   │   │       └── submit_report_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   ├── reports_controller.dart
+│   │       │   └── daily_report_controller.dart
+│   │       ├── pages/
+│   │       │   ├── reports_page.dart
+│   │       │   ├── daily_report_page.dart
+│   │       │   └── report_detail_page.dart
+│   │       ├── widgets/
+│   │       │   ├── report_card.dart
+│   │       │   ├── report_chart.dart
+│   │       │   └── export_options_widget.dart
+│   │       └── bindings/
+│   │           └── reports_binding.dart
+│   │
+│   ├── products/                 # Product catalog feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   ├── products_remote_datasource.dart
+│   │   │   │   └── products_local_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   ├── product_model.dart
+│   │   │   │   ├── category_model.dart
+│   │   │   │   └── inventory_model.dart
+│   │   │   └── repositories/
+│   │   │       └── products_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   ├── product.dart
+│   │   │   │   ├── category.dart
+│   │   │   │   └── inventory.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── products_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── get_products_usecase.dart
+│   │   │       ├── search_products_usecase.dart
+│   │   │       ├── get_categories_usecase.dart
+│   │   │       └── check_inventory_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   ├── products_controller.dart
+│   │       │   └── product_search_controller.dart
+│   │       ├── pages/
+│   │       │   ├── products_page.dart
+│   │       │   ├── product_detail_page.dart
+│   │       │   └── product_search_page.dart
+│   │       ├── widgets/
+│   │       │   ├── product_card.dart
+│   │       │   ├── product_grid.dart
+│   │       │   ├── category_filter.dart
+│   │       │   └── search_bar.dart
+│   │       └── bindings/
+│   │           └── products_binding.dart
+│   │
+│   ├── notifications/            # Notifications feature
+│   │   ├── data/
+│   │   │   ├── datasources/
+│   │   │   │   └── notifications_remote_datasource.dart
+│   │   │   ├── models/
+│   │   │   │   └── notification_model.dart
+│   │   │   └── repositories/
+│   │   │       └── notifications_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── entities/
+│   │   │   │   └── notification.dart
+│   │   │   ├── repositories/
+│   │   │   │   └── notifications_repository.dart
+│   │   │   └── usecases/
+│   │   │       ├── get_notifications_usecase.dart
+│   │   │       ├── mark_as_read_usecase.dart
+│   │   │       └── setup_push_notifications_usecase.dart
+│   │   └── presentation/
+│   │       ├── controllers/
+│   │       │   └── notifications_controller.dart
+│   │       ├── pages/
+│   │       │   └── notifications_page.dart
+│   │       ├── widgets/
+│   │       │   ├── notification_card.dart
+│   │       │   └── notification_badge.dart
+│   │       └── bindings/
+│   │           └── notifications_binding.dart
+│   │
+│   └── settings/                 # App settings feature
+│       ├── data/
+│       │   ├── datasources/
+│       │   │   └── settings_local_datasource.dart
+│       │   ├── models/
+│       │   │   └── app_settings_model.dart
+│       │   └── repositories/
+│       │       └── settings_repository_impl.dart
+│       ├── domain/
+│       │   ├── entities/
+│       │   │   └── app_settings.dart
+│       │   ├── repositories/
+│       │   │   └── settings_repository.dart
+│       │   └── usecases/
+│       │       ├── get_settings_usecase.dart
+│       │       ├── update_settings_usecase.dart
+│       │       └── reset_settings_usecase.dart
+│       └── presentation/
+│           ├── controllers/
+│           │   ├── settings_controller.dart
+│           │   └── profile_controller.dart
+│           ├── pages/
+│           │   ├── settings_page.dart
+│           │   ├── profile_page.dart
+│           │   └── about_page.dart
+│           ├── widgets/
+│           │   ├── settings_tile.dart
+│           │   ├── profile_avatar.dart
+│           │   └── version_info.dart
+│           └── bindings/
+│               └── settings_binding.dart
 │
 ├── shared/                       # Shared components
 │   ├── widgets/                  # Reusable widgets
 │   │   ├── buttons/
+│   │   │   ├── primary_button.dart
+│   │   │   ├── secondary_button.dart
+│   │   │   ├── icon_button.dart
+│   │   │   └── floating_action_button.dart
 │   │   ├── forms/
+│   │   │   ├── custom_text_field.dart
+│   │   │   ├── dropdown_field.dart
+│   │   │   ├── date_picker_field.dart
+│   │   │   └── search_field.dart
 │   │   ├── lists/
-│   │   └── indicators/
+│   │   │   ├── paginated_list_view.dart
+│   │   │   ├── infinite_scroll_list.dart
+│   │   │   ├── grouped_list_view.dart
+│   │   │   └── empty_state_widget.dart
+│   │   ├── indicators/
+│   │   │   ├── loading_indicator.dart
+│   │   │   ├── progress_indicator.dart
+│   │   │   ├── status_indicator.dart
+│   │   │   └── shimmer_loading.dart
+│   │   ├── navigation/
+│   │   │   ├── app_bar.dart
+│   │   │   ├── bottom_navigation.dart
+│   │   │   ├── drawer.dart
+│   │   │   └── tab_bar.dart
+│   │   ├── dialogs/
+│   │   │   ├── confirmation_dialog.dart
+│   │   │   ├── info_dialog.dart
+│   │   │   ├── error_dialog.dart
+│   │   │   └── loading_dialog.dart
+│   │   └── cards/
+│   │       ├── info_card.dart
+│   │       ├── stats_card.dart
+│   │       ├── action_card.dart
+│   │       └── summary_card.dart
 │   ├── services/                 # Shared services
 │   │   ├── storage_service.dart
 │   │   ├── location_service.dart
-│   │   └── notification_service.dart
-│   └── models/                   # Shared models
-│       ├── api_response.dart
-│       └── pagination.dart
+│   │   ├── notification_service.dart
+│   │   ├── connectivity_service.dart
+│   │   ├── permission_service.dart
+│   │   ├── file_service.dart
+│   │   ├── analytics_service.dart
+│   │   └── websocket_service.dart
+│   ├── models/                   # Shared models
+│   │   ├── api_response.dart
+│   │   ├── pagination.dart
+│   │   ├── result.dart
+│   │   ├── base_model.dart
+│   │   └── error_model.dart
+│   └── utils/                    # Shared utilities
+│       ├── date_utils.dart
+│       ├── currency_utils.dart
+│       ├── image_utils.dart
+│       ├── permission_utils.dart
+│       └── performance_utils.dart
 │
-├── config/                       # Woosh app configuration
-│   ├── woosh_app_config.dart
-│   ├── woosh_environment.dart
-│   ├── woosh_dependency_injection.dart
-│   └── woosh_firebase_config.dart
+├── config/                       # App configuration
+│   ├── app_config.dart
+│   ├── environment.dart
+│   ├── dependency_injection.dart
+│   ├── firebase_config.dart
+│   └── routes/
+│       ├── app_routes.dart
+│       ├── route_middleware.dart
+│       └── navigation_service.dart
 │
-└── main.dart                     # Woosh app entry point
+└── main.dart                     # App entry point
 
 # Platform-specific configuration files:
 android/
 ├── app/
-│   └── build.gradle              # Android package: com.woosh.fieldsales
-└── gradle.properties
+│   ├── build.gradle              # Android package: com.woosh.fieldsales
+│   ├── google-services.json     # Firebase configuration
+│   └── proguard-rules.pro       # Code obfuscation rules
+├── gradle.properties
+└── local.properties
 
 ios/
 ├── Runner/
-│   └── Info.plist               # iOS Bundle ID: com.woosh.fieldsales
-└── Runner.xcodeproj/
+│   ├── Info.plist               # iOS Bundle ID: com.woosh.fieldsales
+│   ├── GoogleService-Info.plist # Firebase configuration
+│   └── Runner.entitlements      # iOS capabilities
+├── Runner.xcodeproj/
+└── Runner.xcworkspace/
+
+# Assets structure:
+assets/
+├── images/
+│   ├── logos/
+│   │   ├── woosh_logo.png
+│   │   ├── woosh_logo_dark.png
+│   │   └── woosh_icon.png
+│   ├── illustrations/
+│   │   ├── empty_state.svg
+│   │   ├── error_state.svg
+│   │   └── success_state.svg
+│   └── placeholders/
+│       ├── user_placeholder.png
+│       └── image_placeholder.png
+├── icons/
+│   ├── app_icon.png
+│   ├── notification_icon.png
+│   └── custom_icons/
+├── animations/
+│   ├── loading.json
+│   ├── success.json
+│   └── error.json
+└── fonts/
+    ├── WooshSans-Regular.ttf
+    ├── WooshSans-Medium.ttf
+    ├── WooshSans-SemiBold.ttf
+    └── WooshSans-Bold.ttf
 ```
 
 ---
