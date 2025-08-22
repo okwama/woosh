@@ -171,21 +171,19 @@ dependencies:
   package_info_plus: ^8.0.2
   device_info_plus: ^10.1.0
   
-  # Firebase (Real-time features)
-  firebase_core: ^3.6.0
-  firebase_messaging: ^15.1.3
-  firebase_analytics: ^11.3.3
-  firebase_crashlytics: ^4.1.3
-  firebase_performance: ^0.10.0
+  # Real-time & WebSocket
+  socket_io_client: ^2.0.3
   
   # Performance & Monitoring
   sentry_flutter: ^8.9.0
   
+  # Additional utilities
+  crypto: ^3.0.3                  # Encryption
+  uuid: ^4.5.0                    # Unique ID generation
+  
   # Additional modern packages
   equatable: ^2.0.5               # Value equality
   dartz: ^0.10.1                  # Functional programming
-  socket_io_client: ^2.0.3        # Real-time WebSocket
-  crypto: ^3.0.3                  # Encryption utilities
 
 dev_dependencies:
   flutter_test:
@@ -272,15 +270,15 @@ Redis (Caching & Sessions) - Essential for performance
 MongoDB (Optional) - For flexible data
 
 // Real-time & Performance
-WebSockets (NestJS Gateway) - Built-in support
-GraphQL Subscriptions - Advanced real-time
-Server-Sent Events - Simple real-time
+WebSockets (NestJS Gateway + Socket.io) - Built-in support
+Server-Sent Events - Simple real-time updates
+Custom Push Notifications - Self-hosted solution
 
 // Infrastructure
 Docker + Kubernetes
 PM2 (Node.js clustering)
 Nginx (Load Balancer + Static Assets)
-AWS/GCP/Azure Cloud
+AWS/GCP/Azure Cloud (No Firebase dependency)
 CDN (CloudFlare/AWS CloudFront)
 ```
 
@@ -619,31 +617,38 @@ lib/
 │   │       └── bindings/
 │   │           └── products_binding.dart
 │   │
-│   ├── notifications/            # Notifications feature
+│   ├── notifications/            # Local notifications feature
 │   │   ├── data/
 │   │   │   ├── datasources/
-│   │   │   │   └── notifications_remote_datasource.dart
+│   │   │   │   ├── notifications_remote_datasource.dart
+│   │   │   │   └── notifications_local_datasource.dart
 │   │   │   ├── models/
-│   │   │   │   └── notification_model.dart
+│   │   │   │   ├── notification_model.dart
+│   │   │   │   └── local_notification_model.dart
 │   │   │   └── repositories/
 │   │   │       └── notifications_repository_impl.dart
 │   │   ├── domain/
 │   │   │   ├── entities/
-│   │   │   │   └── notification.dart
+│   │   │   │   ├── notification.dart
+│   │   │   │   └── notification_settings.dart
 │   │   │   ├── repositories/
 │   │   │   │   └── notifications_repository.dart
 │   │   │   └── usecases/
 │   │   │       ├── get_notifications_usecase.dart
 │   │   │       ├── mark_as_read_usecase.dart
-│   │   │       └── setup_push_notifications_usecase.dart
+│   │   │       ├── schedule_local_notification_usecase.dart
+│   │   │       └── update_notification_settings_usecase.dart
 │   │   └── presentation/
 │   │       ├── controllers/
-│   │       │   └── notifications_controller.dart
+│   │       │   ├── notifications_controller.dart
+│   │       │   └── notification_settings_controller.dart
 │   │       ├── pages/
-│   │       │   └── notifications_page.dart
+│   │       │   ├── notifications_page.dart
+│   │       │   └── notification_settings_page.dart
 │   │       ├── widgets/
 │   │       │   ├── notification_card.dart
-│   │       │   └── notification_badge.dart
+│   │       │   ├── notification_badge.dart
+│   │       │   └── notification_settings_tile.dart
 │   │       └── bindings/
 │   │           └── notifications_binding.dart
 │   │
@@ -719,12 +724,13 @@ lib/
 │   ├── services/                 # Shared services
 │   │   ├── storage_service.dart
 │   │   ├── location_service.dart
-│   │   ├── notification_service.dart
+│   │   ├── notification_service.dart  # Local notifications only
 │   │   ├── connectivity_service.dart
 │   │   ├── permission_service.dart
 │   │   ├── file_service.dart
-│   │   ├── analytics_service.dart
-│   │   └── websocket_service.dart
+│   │   ├── analytics_service.dart     # Custom analytics (no Firebase)
+│   │   ├── websocket_service.dart     # Socket.io for real-time
+│   │   └── encryption_service.dart    # Local encryption
 │   ├── models/                   # Shared models
 │   │   ├── api_response.dart
 │   │   ├── pagination.dart
@@ -742,7 +748,6 @@ lib/
 │   ├── app_config.dart
 │   ├── environment.dart
 │   ├── dependency_injection.dart
-│   ├── firebase_config.dart
 │   └── routes/
 │       ├── app_routes.dart
 │       ├── route_middleware.dart
@@ -754,7 +759,6 @@ lib/
 android/
 ├── app/
 │   ├── build.gradle              # Android package: com.woosh.fieldsales
-│   ├── google-services.json     # Firebase configuration
 │   └── proguard-rules.pro       # Code obfuscation rules
 ├── gradle.properties
 └── local.properties
@@ -762,7 +766,6 @@ android/
 ios/
 ├── Runner/
 │   ├── Info.plist               # iOS Bundle ID: com.woosh.fieldsales
-│   ├── GoogleService-Info.plist # Firebase configuration
 │   └── Runner.entitlements      # iOS capabilities
 ├── Runner.xcodeproj/
 └── Runner.xcworkspace/
@@ -833,28 +836,32 @@ void main() async {
   final authController = Get.find<WooshAuthController>();
   await authController.checkAuthStatus();
   
-  runApp(WooshApp());
-}
-
-class WooshApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: 'Woosh - Field Sales',
-      theme: WooshTheme.lightTheme,
-      darkTheme: WooshTheme.darkTheme,
-      initialRoute: WooshRoutes.splash,
-      getPages: WooshRoutes.routes,
-      debugShowCheckedModeBanner: false,
-      // App configuration
-      defaultTransition: Transition.cupertino,
-      transitionDuration: Duration(milliseconds: 300),
-      // Localization ready
-      locale: Get.deviceLocale,
-      fallbackLocale: Locale('en', 'US'),
-    );
-  }
-}
+        runApp(WooshApp());
+    }
+    
+    class WooshApp extends StatelessWidget {
+      @override
+      Widget build(BuildContext context) {
+        return GetMaterialApp(
+          title: 'Woosh Field Sales',
+          theme: WooshTheme.lightTheme,
+          darkTheme: WooshTheme.darkTheme,
+          initialRoute: WooshRoutes.splash,
+          getPages: WooshRoutes.routes,
+          debugShowCheckedModeBanner: false,
+          // App configuration
+          defaultTransition: Transition.cupertino,
+          transitionDuration: Duration(milliseconds: 300),
+          // Localization ready
+          locale: Get.deviceLocale,
+          fallbackLocale: Locale('en', 'US'),
+          // Custom error handling
+          unknownRoute: WooshRoutes.notFound,
+          // Performance optimization
+          smartManagement: SmartManagement.keepFactory,
+        );
+      }
+    }
 
 // lib/config/woosh_dependency_injection.dart
 class WooshDependencyInjection {
@@ -2912,93 +2919,73 @@ Target Audience: Business professionals
 Countries: Global (or specific regions)
 ```
 
-### **Firebase Configuration (Modern Setup)**
+### **App Configuration (No Firebase)**
 ```dart
-// lib/config/woosh_firebase_config.dart
-class WooshFirebaseConfig {
-  static const String projectId = 'woosh-field-sales-app';
-  static const String appId = 'com.woosh.fieldsales';
+// lib/config/app_config.dart
+class WooshAppConfig {
+  static const String appName = 'Woosh Field Sales';
+  static const String appVersion = '1.0.0';
+  static const String bundleId = 'com.woosh.fieldsales';
   
-  // iOS Configuration
-  static const String iosApiKey = 'AIzaSyC_your_ios_api_key';
-  static const String iosAppId = '1:123456789:ios:abcdef123456woosh';
+  // API Configuration
+  static const String apiBaseUrl = 'https://api.woosh.com/v1';
+  static const String websocketUrl = 'wss://api.woosh.com/ws';
   
-  // Android Configuration
-  static const String androidApiKey = 'AIzaSyC_your_android_api_key';
-  static const String androidAppId = '1:123456789:android:abcdef123456woosh';
+  // App Store Configuration
+  static const String appStoreId = 'your-app-store-id';
+  static const String playStoreId = 'com.woosh.fieldsales';
   
-  // Cloud Messaging
-  static const String fcmSenderId = '123456789';
-  static const String fcmVapidKey = 'your_vapid_key_for_web';
+  // Performance Configuration
+  static const int apiTimeout = 30000;
+  static const int cacheTimeout = 900; // 15 minutes
+  static const double geofenceRadius = 100.0;
   
-  // Analytics
-  static const String measurementId = 'G-XXXXXXXXXX';
+  // Security Configuration
+  static const String encryptionKey = 'woosh-encryption-key-2024';
+  static const int tokenRefreshThreshold = 300; // 5 minutes
 }
 
-// google-services.json (Android)
-{
-  "project_info": {
-    "project_number": "123456789",
-    "project_id": "woosh-field-sales-app",
-    "storage_bucket": "woosh-field-sales-app.appspot.com"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:123456789:android:abcdef123456woosh",
-        "android_client_info": {
-          "package_name": "com.woosh.fieldsales"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "123456789-abcdef.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyC_your_android_api_key"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
+// lib/config/environment.dart
+enum Environment { development, staging, production }
+
+class EnvironmentConfig {
+  static Environment get environment {
+    const env = String.fromEnvironment('ENV', defaultValue: 'development');
+    switch (env) {
+      case 'staging':
+        return Environment.staging;
+      case 'production':
+        return Environment.production;
+      default:
+        return Environment.development;
     }
-  ]
+  }
+  
+  static String get apiBaseUrl {
+    switch (environment) {
+      case Environment.development:
+        return 'http://localhost:3000/api/v1';
+      case Environment.staging:
+        return 'https://staging-api.woosh.com/v1';
+      case Environment.production:
+        return 'https://api.woosh.com/v1';
+    }
+  }
+  
+  static String get websocketUrl {
+    switch (environment) {
+      case Environment.development:
+        return 'ws://localhost:3000/ws';
+      case Environment.staging:
+        return 'wss://staging-api.woosh.com/ws';
+      case Environment.production:
+        return 'wss://api.woosh.com/ws';
+    }
+  }
+  
+  static bool get enableLogging => environment != Environment.production;
+  static bool get enableAnalytics => environment == Environment.production;
 }
-
-// GoogleService-Info.plist (iOS)
-<key>CLIENT_ID</key>
-<string>123456789-abcdef.apps.googleusercontent.com</string>
-<key>REVERSED_CLIENT_ID</key>
-<string>com.googleusercontent.apps.123456789-abcdef</string>
-<key>API_KEY</key>
-<string>AIzaSyC_your_ios_api_key</string>
-<key>GCM_SENDER_ID</key>
-<string>123456789</string>
-<key>PLIST_VERSION</key>
-<string>1</string>
-<key>BUNDLE_ID</key>
-<string>com.woosh.fieldsales</string>
-<key>PROJECT_ID</key>
-<string>woosh-field-sales-app</string>
-<key>STORAGE_BUCKET</key>
-<string>woosh-field-sales-app.appspot.com</string>
-<key>IS_ADS_ENABLED</key>
-<false/>
-<key>IS_ANALYTICS_ENABLED</key>
-<true/>
-<key>IS_APPINVITE_ENABLED</key>
-<true/>
-<key>IS_GCM_ENABLED</key>
-<true/>
-<key>IS_SIGNIN_ENABLED</key>
-<true/>
-<key>GOOGLE_APP_ID</key>
-<string>1:123456789:ios:abcdef123456woosh</string>
 ```
 
 ---
@@ -3022,10 +3009,10 @@ class WooshFirebaseConfig {
 
 ### **Advanced Features (Weeks 7-9)**
 1. **Manager Dashboard** → Live analytics + team performance
-2. **Real-time Notifications** → WebSocket + push notifications
+2. **Real-time Updates** → WebSocket + local notifications
 3. **Comprehensive Reporting** → Custom reports + data export
-4. **Performance Monitoring** → Crash reporting + analytics
-5. **Advanced Security** → Encryption + audit logging
+4. **Performance Monitoring** → Sentry crash reporting + custom analytics
+5. **Advanced Security** → Local encryption + secure storage + audit logging
 
 ### **Production Ready (Weeks 10-12)**
 - **Enterprise scalability**: 1000+ users, 99.9% uptime
@@ -3039,10 +3026,12 @@ class WooshFirebaseConfig {
 **Version**: 1.0.0+1 (Clean start)  
 **Bundle ID (iOS)**: com.woosh.fieldsales  
 **Package Name (Android)**: com.woosh.fieldsales  
-**Firebase Project**: woosh-field-sales-app  
+**Tech Stack**: Flutter + NestJS + PostgreSQL + Redis (No Firebase)  
+**Real-time**: WebSocket (Socket.io) + Local notifications  
+**Analytics**: Sentry + Custom analytics service  
 **Approach**: Clean architecture implementation from scratch  
 **Timeline**: 12 weeks development + 4 weeks testing/deployment  
-**Risk Level**: LOW (proven architecture patterns)  
+**Risk Level**: LOW (proven architecture patterns, no external dependencies)  
 **Performance Target**: <3s startup, <200ms API, <100MB memory  
 **Scalability**: 1000+ concurrent users, 99.9% uptime  
-**Recommendation**: Build modern, scalable field sales app with enterprise-grade features
+**Recommendation**: Build modern, self-contained field sales app with enterprise-grade features
