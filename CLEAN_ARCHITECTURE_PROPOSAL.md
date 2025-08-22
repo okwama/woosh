@@ -208,9 +208,9 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.3.10
 
-# Modern splash screen configuration
+# Woosh splash screen (using existing gold theme)
 flutter_native_splash:
-  color: "#1976D2"
+  color: "#AE8625"  # goldStart color from existing theme
   image: assets/logos/woosh_logo.png
   android: true
   ios: true
@@ -219,7 +219,7 @@ flutter_native_splash:
   ios_content_mode: center
   fullscreen: true
 
-# Modern app icon configuration  
+# Woosh app icon (using existing gold theme)
 flutter_launcher_icons:
   android: true
   ios: true
@@ -229,7 +229,7 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/icons/woosh_app_icon.png"
-    background_color: "#1976D2"
+    background_color: "#AE8625"  # goldStart color
 
 flutter:
   uses-material-design: true
@@ -1517,7 +1517,7 @@ class LoginPage extends GetView<AuthController> {
   }
   
   Widget _buildLoginButton() {
-    return Obx(() => PrimaryButton(
+    return Obx(() => WooshPrimaryButton(
       text: 'Login',
       isLoading: controller.isLoading.value,
       onPressed: controller.isLoading.value ? null : _handleLogin,
@@ -1758,41 +1758,73 @@ class OrderRepositoryImpl implements OrderRepository {
 
 ## 🎨 **UI Architecture & Best Practices**
 
-### **Widget Organization**
+### **Woosh Widget Organization (Using Existing Gold Gradient)**
 ```dart
-// lib/shared/widgets/buttons/primary_button.dart
-class PrimaryButton extends StatelessWidget {
+// lib/shared/widgets/buttons/woosh_primary_button.dart
+class WooshPrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final bool isLoading;
-  final ButtonSize size;
+  final WooshButtonSize size;
   
-  const PrimaryButton({
+  const WooshPrimaryButton({
     Key? key,
     required this.text,
     this.onPressed,
     this.isLoading = false,
-    this.size = ButtonSize.medium,
+    this.size = WooshButtonSize.medium,
   }) : super(key: key);
-  
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
       height: size.height,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        style: _buttonStyle(context),
-        child: isLoading 
-            ? _buildLoadingIndicator()
-            : Text(text, style: _textStyle(context)),
+      decoration: WooshGradientDecoration.goldBox(borderRadius: 12.0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            alignment: Alignment.center,
+            child: isLoading 
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: size.fontSize,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }
 }
 
-// lib/shared/widgets/forms/custom_text_field.dart
-class CustomTextField extends StatelessWidget {
+enum WooshButtonSize {
+  small(height: 40, fontSize: 14),
+  medium(height: 48, fontSize: 16),
+  large(height: 56, fontSize: 18);
+
+  const WooshButtonSize({required this.height, required this.fontSize});
+  
+  final double height;
+  final double fontSize;
+}
+
+// lib/shared/widgets/forms/woosh_text_field.dart
+class WooshTextField extends StatelessWidget {
   final String label;
   final String? hint;
   final TextEditingController? controller;
@@ -1802,7 +1834,7 @@ class CustomTextField extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   
-  const CustomTextField({
+  const WooshTextField({
     Key? key,
     required this.label,
     this.hint,
@@ -2863,10 +2895,38 @@ android {
 <string>2.0.0</string>
 ```
 
-### **Theme Management**
+### **Woosh Gold Gradient Theme (Existing Style)**
 ```dart
 // lib/core/themes/woosh_theme.dart
 class WooshTheme {
+  // Existing Woosh Gold Gradient Colors
+  static const Color goldStart = Color(0xFFAE8625);
+  static const Color goldMiddle1 = Color(0xFFF7EF8A);
+  static const Color goldMiddle2 = Color(0xFFD2AC47);
+  static const Color goldEnd = Color(0xFFEDC967);
+  
+  // Existing Woosh App Colors
+  static const Color blackColor = Color.fromARGB(255, 0, 0, 0);
+  static const Color accentGrey = Color(0xFF666666);
+  static const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
+  static const Color appBackground = Color(0xFFF4EBD0);
+  
+  // Existing Gold Gradients
+  static const LinearGradient goldGradient = LinearGradient(
+    colors: [goldStart, goldMiddle1, goldMiddle2, goldEnd],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+  
+  static const RadialGradient goldRadialGradient = RadialGradient(
+    colors: [goldMiddle1, goldMiddle2, goldStart],
+    radius: 1.0,
+  );
+  
+  static const SweepGradient goldSweepGradient = SweepGradient(
+    colors: [goldStart, goldMiddle1, goldMiddle2, goldEnd, goldStart],
+  );
+  
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -2875,6 +2935,7 @@ class WooshTheme {
       elevatedButtonTheme: _elevatedButtonTheme,
       inputDecorationTheme: _inputDecorationTheme,
       appBarTheme: _appBarTheme,
+      scaffoldBackgroundColor: appBackground,
     );
   }
   
@@ -2886,23 +2947,99 @@ class WooshTheme {
       elevatedButtonTheme: _elevatedButtonTheme,
       inputDecorationTheme: _inputDecorationTheme,
       appBarTheme: _appBarTheme,
+      scaffoldBackgroundColor: const Color(0xFF1A1A1A),
     );
   }
   
   static const ColorScheme _lightColorScheme = ColorScheme(
     brightness: Brightness.light,
-    primary: Color(0xFF1976D2),
+    primary: goldStart,                    // Use existing gold
     onPrimary: Colors.white,
-    secondary: Color(0xFF03DAC6),
+    secondary: goldMiddle2,                // Use existing gold
     onSecondary: Colors.black,
     error: Color(0xFFB00020),
     onError: Colors.white,
-    background: Color(0xFFFAFAFA),
-    onBackground: Colors.black,
+    background: appBackground,             // Use existing background
+    onBackground: blackColor,              // Use existing black
     surface: Colors.white,
-    onSurface: Colors.black,
+    onSurface: blackColor,
+  );
+  
+  static const ColorScheme _darkColorScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: goldMiddle1,                  // Lighter gold for dark mode
+    onPrimary: Colors.black,
+    secondary: goldEnd,
+    onSecondary: Colors.black,
+    error: Color(0xFFCF6679),
+    onError: Colors.black,
+    background: Color(0xFF1A1A1A),
+    onBackground: Colors.white,
+    surface: Color(0xFF2A2A2A),
+    onSurface: Colors.white,
   );
 }
+
+// Existing Gradient Decoration Helper (Keep Same)
+class WooshGradientDecoration {
+  static BoxDecoration goldBox({double borderRadius = 8.0, BoxBorder? border}) {
+    return BoxDecoration(
+      gradient: WooshTheme.goldGradient,
+      borderRadius: BorderRadius.circular(borderRadius),
+      border: border,
+    );
+  }
+
+  static BoxDecoration goldCircular({BoxBorder? border}) {
+    return BoxDecoration(
+      gradient: WooshTheme.goldRadialGradient,
+      shape: BoxShape.circle,
+      border: border,
+    );
+  }
+  
+  static BoxDecoration goldCard({double borderRadius = 12.0}) {
+    return BoxDecoration(
+      gradient: WooshTheme.goldGradient,
+      borderRadius: BorderRadius.circular(borderRadius),
+      boxShadow: [
+        BoxShadow(
+          color: WooshTheme.goldStart.withOpacity(0.3),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+}
+
+// Existing Gradient Text Widget (Keep Same)
+class WooshGradientText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  const WooshGradientText(
+    this.text, {
+    super.key,
+    this.style,
+    this.textAlign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      shaderCallback: (bounds) => WooshTheme.goldGradient.createShader(bounds),
+      child: Text(
+        text,
+        style: style?.copyWith(color: Colors.white) ??
+            const TextStyle(color: Colors.white),
+        textAlign: textAlign,
+      ),
+    );
+  }
+}
+```
 ```
 
 ### **Responsive Design**
@@ -3509,3 +3646,242 @@ Journey Plan Conflicts:
 **Performance Target**: <3s startup, <200ms API, <100MB memory, 100% offline core features  
 **Scalability**: 1000+ concurrent users, 99.9% uptime, works in any network condition  
 **Recommendation**: Build modern, offline-capable field sales app with zero network dependency for core features
+
+---
+
+## 🎨 **Woosh Brand Consistency (Existing Gold Gradient Theme)**
+
+### **Use Existing Woosh Gold Gradient Colors**
+```dart
+// lib/core/themes/woosh_colors.dart (Keep Existing Colors)
+class WooshColors {
+  // Existing Woosh Gold Gradient
+  static const Color goldStart = Color(0xFFAE8625);
+  static const Color goldMiddle1 = Color(0xFFF7EF8A);
+  static const Color goldMiddle2 = Color(0xFFD2AC47);
+  static const Color goldEnd = Color(0xFFEDC967);
+  
+  // Existing Woosh App Colors
+  static const Color blackColor = Color.fromARGB(255, 0, 0, 0);
+  static const Color accentGrey = Color(0xFF666666);
+  static const Color lightGrey = Color.fromARGB(255, 236, 235, 227);
+  static const Color appBackground = Color(0xFFF4EBD0);
+  
+  // Existing Gradients
+  static const LinearGradient goldGradient = LinearGradient(
+    colors: [goldStart, goldMiddle1, goldMiddle2, goldEnd],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
+  
+  static const RadialGradient goldRadialGradient = RadialGradient(
+    colors: [goldMiddle1, goldMiddle2, goldStart],
+    radius: 1.0,
+  );
+}
+```
+
+### **Woosh Gradient Widgets (Keep Existing Style)**
+```dart
+// lib/shared/widgets/woosh_gradient_widgets.dart
+class WooshGradientButton extends StatelessWidget {
+  final String text;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const WooshGradientButton({
+    Key? key,
+    required this.text,
+    this.onPressed,
+    this.isLoading = false,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: WooshColors.goldGradient,  // Use existing gradient
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: WooshColors.goldStart.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            alignment: Alignment.center,
+            child: isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WooshGradientCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  final double? borderRadius;
+
+  const WooshGradientCard({
+    Key? key,
+    required this.child,
+    this.padding,
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding ?? EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: WooshColors.goldGradient,  // Use existing gradient
+        borderRadius: BorderRadius.circular(borderRadius ?? 12),
+        boxShadow: [
+          BoxShadow(
+            color: WooshColors.goldStart.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class WooshGradientAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget>? actions;
+  final Widget? leading;
+
+  const WooshGradientAppBar({
+    Key? key,
+    required this.title,
+    this.actions,
+    this.leading,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: WooshColors.goldGradient,  // Use existing gradient
+      ),
+      child: AppBar(
+        title: Text(
+          title,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        leading: leading,
+        actions: actions,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+    );
+  }
+
+  @override
+  Size get preferredSize => Size.fromHeight(kToolbarHeight);
+}
+
+class WooshGradientText extends StatelessWidget {
+  final String text;
+  final TextStyle? style;
+
+  const WooshGradientText(
+    this.text, {
+    Key? key,
+    this.style,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      shaderCallback: (bounds) => WooshColors.goldGradient.createShader(bounds),
+      child: Text(
+        text,
+        style: style?.copyWith(color: Colors.white) ??
+            TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+```
+
+### **App Theme Using Existing Woosh Colors**
+```dart
+// lib/core/themes/woosh_app_theme.dart
+class WooshAppTheme {
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: WooshColors.goldStart,  // Use existing gold
+        brightness: Brightness.light,
+        background: WooshColors.appBackground,  // Use existing background
+      ),
+      scaffoldBackgroundColor: WooshColors.appBackground,
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: WooshColors.accentGrey.withOpacity(0.3)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: WooshColors.goldStart, width: 2),
+        ),
+      ),
+    );
+  }
+}
