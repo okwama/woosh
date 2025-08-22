@@ -181,7 +181,26 @@ class _CartPageState extends State<CartPage> with WidgetsBindingObserver {
       print('Order response received: $response');
       print('Response type: ${response.runtimeType}');
 
-      // Check for outstanding balance
+      // TODO: Replace with enhanced balance checking
+      // Example integration with AccountBalanceService:
+      /*
+      final balanceService = Get.find<AccountBalanceService>();
+      final orderTotal = _calculateOrderTotal();
+      final validationResult = await balanceService.validateOrderAgainstBalance(
+        widget.client.id, 
+        orderTotal
+      );
+      
+      if (!validationResult.canProceed) {
+        final shouldProceed = await balanceService.showBalanceWarningDialog(
+          widget.client.id, 
+          orderTotal
+        );
+        if (!shouldProceed) return;
+      }
+      */
+
+      // Check for outstanding balance (legacy implementation)
       if (response != null) {
         print('Response is not null, checking type...');
         if (response is Map<String, dynamic>) {

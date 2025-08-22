@@ -29,6 +29,16 @@ import 'package:woosh/models/hive/product_model.dart';
 import 'package:woosh/services/client/index.dart';
 import 'package:woosh/services/shared_data_service.dart';
 import 'package:woosh/services/journeyplan/journey_plan_state_service.dart';
+import 'package:woosh/services/enhanced_session_service.dart';
+import 'package:woosh/services/performance_monitor_service.dart';
+import 'package:woosh/services/enhanced_offline_service.dart';
+import 'package:woosh/services/logout_checklist_service.dart';
+import 'package:woosh/services/order_status_tracking_service.dart';
+import 'package:woosh/services/daily_activity_report_service.dart';
+import 'package:woosh/services/enhanced_geofencing_service.dart';
+import 'package:woosh/services/route_plan_locking_service.dart';
+import 'package:woosh/services/account_balance_service.dart';
+import 'package:woosh/services/enhanced_manager_dashboard_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -124,8 +134,30 @@ Future<void> _initializeNonCriticalServices() async {
       // Initialize enhanced services
       await EnhancedJourneyPlanService.initialize();
 
-      // Initialize offline sync service
+      // Initialize performance monitoring first
+      Get.put(PerformanceMonitorService());
+
+      // Initialize enhanced session management
+      Get.put(EnhancedSessionService());
+
+      // Initialize enhanced offline service
+      Get.put(EnhancedOfflineService());
+
+      // Initialize original offline sync service
       Get.put(OfflineSyncService());
+
+      // Initialize workflow services
+      Get.put(LogoutChecklistService());
+      Get.put(OrderStatusTrackingService());
+      Get.put(DailyActivityReportService());
+
+      // Initialize location and routing services
+      Get.put(EnhancedGeofencingService());
+      Get.put(RoutePlanLockingService());
+
+      // Initialize balance and dashboard services
+      Get.put(AccountBalanceService());
+      Get.put(EnhancedManagerDashboardService());
 
       // Initialize progressive login service
       Get.put(ProgressiveLoginService());
