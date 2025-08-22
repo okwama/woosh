@@ -44,10 +44,11 @@ NestJS + Fastify:     ~70-100MB (Better than Express!)
 
 ### **Recommended Folder Structure**
 ```
-woosh-api/
+woosh-field-sales-api/
 ├── src/
 │   ├── woosh.module.ts                  # Woosh root module
 │   ├── main.ts                          # Woosh API entry point
+│   ├── woosh.controller.ts              # Woosh main controller
 │   │
 │   ├── core/                            # Core functionality
 │   │   ├── config/                      # Configuration
@@ -738,8 +739,12 @@ export class DatabaseModule {}
 
 ### **Project Overview**
 ```
-Project Name: Field Sales Management App (Clean Architecture)
-Version: 2.0.0 (Complete Rewrite)
+Project Name: Woosh Field Sales Management App (Clean Architecture)
+App Name: Woosh
+Bundle ID (iOS): com.woosh.fieldsales
+Package Name (Android): com.woosh.fieldsales
+Firebase Project: woosh-field-sales
+Version: 2.0.0+1 (Complete Rewrite)
 Platform: Flutter (Mobile) + NestJS (Backend)
 Timeline: 12-16 weeks
 Team Size: 3-5 developers (2 Flutter, 2 Backend, 1 DevOps)
@@ -1122,19 +1127,27 @@ Operational:
 
 ### **Development Investment**
 ```
-Team Composition:
+Woosh App Development Team:
 - 2 Flutter Developers: $120,000 (3 months)
 - 2 NestJS Developers: $130,000 (3 months)  
 - 1 DevOps Engineer: $80,000 (2 months)
 - 1 Project Manager: $60,000 (4 months)
-- Total: $390,000
+- Total Development: $390,000
 
-Infrastructure Costs:
-- Cloud hosting: $2,000/month
-- Database: $1,500/month
+Woosh Infrastructure Costs:
+- Cloud hosting (AWS/GCP): $2,000/month
+- Database (PostgreSQL + Redis): $1,500/month
 - CDN & Storage: $500/month
-- Monitoring: $300/month
-- Total: $4,300/month
+- Firebase (Push notifications, Analytics): $200/month
+- Monitoring & Logging: $300/month
+- Total Infrastructure: $4,500/month
+
+Woosh App Store Deployment:
+- iOS App Store Developer Account: $99/year
+- Google Play Developer Account: $25 one-time
+- App Store Optimization (ASO): $2,000 one-time
+- App review and submission: $1,000 one-time
+- Total Deployment: $3,124 first year, $99/year ongoing
 ```
 
 ### **Expected Returns**
@@ -1186,8 +1199,183 @@ Mitigation:
 
 ---
 
+---
+
+## 🚀 **Woosh Deployment Configuration**
+
+### **Environment Variables (.env)**
+```bash
+# Woosh API Configuration
+NODE_ENV=production
+PORT=3000
+API_VERSION=v2
+
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=woosh_user
+DB_PASSWORD=secure_password
+DB_NAME=woosh_field_sales
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=redis_password
+
+# JWT Configuration
+JWT_SECRET=woosh_super_secret_jwt_key_2024
+JWT_REFRESH_SECRET=woosh_refresh_secret_key_2024
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Firebase Configuration
+FIREBASE_PROJECT_ID=woosh-field-sales
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk@woosh-field-sales.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# External Services
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+SENDGRID_API_KEY=your_sendgrid_api_key
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_S3_BUCKET=woosh-field-sales-uploads
+
+# App Configuration
+FRONTEND_URL=https://app.woosh.com
+ADMIN_PANEL_URL=https://admin.woosh.com
+API_URL=https://api.woosh.com/v2
+```
+
+### **Package.json Configuration**
+```json
+{
+  "name": "woosh-field-sales-api",
+  "version": "2.0.0",
+  "description": "Woosh Field Sales Management API",
+  "author": "Woosh Development Team",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate",
+    "migration:run": "typeorm-ts-node-commonjs migration:run",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-fastify": "^10.0.0",
+    "@nestjs/typeorm": "^10.0.0",
+    "@nestjs/jwt": "^10.0.0",
+    "@nestjs/passport": "^10.0.0",
+    "@nestjs/swagger": "^7.0.0",
+    "@nestjs/websockets": "^10.0.0",
+    "@nestjs/platform-socket.io": "^10.0.0",
+    "typeorm": "^0.3.17",
+    "pg": "^8.11.0",
+    "redis": "^4.6.0",
+    "bcrypt": "^5.1.0",
+    "class-validator": "^0.14.0",
+    "class-transformer": "^0.5.1"
+  }
+}
+```
+
+### **Docker Configuration**
+```dockerfile
+# Dockerfile
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+FROM node:18-alpine AS production
+WORKDIR /app
+
+# Create woosh user for security
+RUN addgroup -g 1001 -S woosh && \
+    adduser -S woosh -u 1001
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY . .
+
+RUN npm run build
+
+# Set ownership and switch to woosh user
+RUN chown -R woosh:woosh /app
+USER woosh
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:prod"]
+
+# docker-compose.yml for Woosh
+version: '3.8'
+services:
+  woosh-api:
+    build: .
+    container_name: woosh-field-sales-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=woosh-postgres
+      - REDIS_HOST=woosh-redis
+    depends_on:
+      - woosh-postgres
+      - woosh-redis
+    networks:
+      - woosh-network
+
+  woosh-postgres:
+    image: postgres:15
+    container_name: woosh-database
+    environment:
+      POSTGRES_DB: woosh_field_sales
+      POSTGRES_USER: woosh_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - woosh_postgres_data:/var/lib/postgresql/data
+    networks:
+      - woosh-network
+
+  woosh-redis:
+    image: redis:7-alpine
+    container_name: woosh-cache
+    volumes:
+      - woosh_redis_data:/data
+    networks:
+      - woosh-network
+
+networks:
+  woosh-network:
+    driver: bridge
+
+volumes:
+  woosh_postgres_data:
+  woosh_redis_data:
+```
+
+---
+
 **Architecture Proposal Date**: December 2024  
-**Recommended Timeline**: 12-16 weeks  
-**Technology Stack**: Flutter + NestJS + PostgreSQL + Redis  
+**App Name**: Woosh Field Sales  
+**Bundle ID (iOS)**: com.woosh.fieldsales  
+**Package Name (Android)**: com.woosh.fieldsales  
+**Firebase Project**: woosh-field-sales  
+**API URL**: https://api.woosh.com/v2  
+**Implementation Timeline**: 12-16 weeks  
 **Performance Target**: 60-80% improvement over current system  
 **ROI**: 200-300% within first year

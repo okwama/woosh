@@ -51,6 +51,11 @@ name: woosh
 description: "High-performance field sales management application"
 version: 2.0.0+1  # New clean architecture version
 
+# App Bundle Configuration
+# iOS Bundle ID: com.woosh.fieldsales
+# Android Package: com.woosh.fieldsales
+# Firebase Project: woosh-field-sales
+
 # Core Framework  
 flutter: ^3.24.0
 dart: ^3.6.0
@@ -89,6 +94,113 @@ intl: ^0.20.2                 # Keep - Internationalization
 # Development
 flutter_lints: ^5.0.0         # Keep - Linting
 build_runner: ^2.4.8          # Keep - Code generation
+
+# Testing
+mockito: ^5.4.0               # Add - Mocking for tests
+flutter_test:                 # Keep - Testing framework
+  sdk: flutter
+
+# Firebase Integration
+firebase_core: ^3.6.0         # Add - Firebase core
+firebase_messaging: ^15.1.3   # Add - Push notifications
+firebase_analytics: ^11.3.3   # Add - Analytics
+firebase_crashlytics: ^4.1.3  # Add - Crash reporting
+
+# Performance Monitoring
+firebase_performance: ^0.10.0 # Add - Performance monitoring
+sentry_flutter: ^8.9.0        # Add - Error tracking
+```
+
+### **Complete Woosh pubspec.yaml**
+```yaml
+name: woosh
+description: "High-performance field sales management application"
+publish_to: 'none' # Prevent accidental publishing
+
+version: 2.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Core UI
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.5
+
+  # State Management & Navigation
+  get: ^4.6.5
+  get_storage: ^2.1.1
+
+  # Network & API
+  dio: ^5.8.0
+  retrofit: ^4.0.0
+  json_annotation: ^4.8.0
+  connectivity_plus: ^6.1.4
+
+  # Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.5
+
+  # Location & Maps
+  geolocator: ^13.0.3
+  geocoding: ^2.1.1
+  google_maps_flutter: ^2.5.0
+
+  # UI Components
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  pull_to_refresh: ^2.0.0
+  flutter_animate: ^4.2.0
+  percent_indicator: ^4.2.3
+
+  # Utilities
+  permission_handler: ^11.0.1
+  intl: ^0.20.2
+  image_picker: ^1.1.2
+  file_picker: ^9.2.1
+  url_launcher: ^6.2.5
+  package_info_plus: ^8.0.2
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+  firebase_analytics: ^11.3.3
+  firebase_crashlytics: ^4.1.3
+  firebase_performance: ^0.10.0
+
+  # Performance & Monitoring
+  sentry_flutter: ^8.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.8
+  hive_generator: ^2.0.1
+  retrofit_generator: ^8.0.0
+  json_serializable: ^6.7.0
+  mockito: ^5.4.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/logos/
+
+  fonts:
+    - family: WooshSans
+      fonts:
+        - asset: assets/fonts/WooshSans-Regular.ttf
+        - asset: assets/fonts/WooshSans-Bold.ttf
+          weight: 700
 ```
 
 ### **Backend (NestJS - Recommended for Performance)**
@@ -217,12 +329,24 @@ lib/
 │       ├── api_response.dart
 │       └── pagination.dart
 │
-├── config/                       # App configuration
-│   ├── app_config.dart
-│   ├── environment.dart
-│   └── dependency_injection.dart
+├── config/                       # Woosh app configuration
+│   ├── woosh_app_config.dart
+│   ├── woosh_environment.dart
+│   ├── woosh_dependency_injection.dart
+│   └── woosh_firebase_config.dart
 │
-└── main.dart                     # App entry point
+└── main.dart                     # Woosh app entry point
+
+# Platform-specific configuration files:
+android/
+├── app/
+│   └── build.gradle              # Android package: com.woosh.fieldsales
+└── gradle.properties
+
+ios/
+├── Runner/
+│   └── Info.plist               # iOS Bundle ID: com.woosh.fieldsales
+└── Runner.xcodeproj/
 ```
 
 ---
@@ -275,6 +399,12 @@ class WooshApp extends StatelessWidget {
       initialRoute: WooshRoutes.splash,
       getPages: WooshRoutes.routes,
       debugShowCheckedModeBanner: false,
+      // App configuration
+      defaultTransition: Transition.cupertino,
+      transitionDuration: Duration(milliseconds: 300),
+      // Localization ready
+      locale: Get.deviceLocale,
+      fallbackLocale: Locale('en', 'US'),
     );
   }
 }
@@ -1857,10 +1987,63 @@ class DependencyInjection {
 
 ## 🎨 **UI/UX Best Practices**
 
+### **Woosh App Configuration**
+```dart
+// lib/config/woosh_app_config.dart
+class WooshAppConfig {
+  static const String appName = 'Woosh';
+  static const String appDescription = 'Field Sales Management Application';
+  static const String version = '2.0.0+1';
+  
+  // Bundle IDs
+  static const String iosBundleId = 'com.woosh.fieldsales';
+  static const String androidPackage = 'com.woosh.fieldsales';
+  
+  // Firebase Configuration
+  static const String firebaseProjectId = 'woosh-field-sales';
+  static const String firebaseApiKey = 'your-firebase-api-key';
+  
+  // API Configuration
+  static const String apiBaseUrl = 'https://api.woosh.com/v2';
+  static const String websocketUrl = 'wss://api.woosh.com/ws';
+  
+  // App Store Configuration
+  static const String appStoreId = '1234567890'; // To be assigned
+  static const String playStoreId = 'com.woosh.fieldsales';
+}
+
+// android/app/build.gradle
+android {
+    namespace 'com.woosh.fieldsales'
+    compileSdkVersion 34
+    
+    defaultConfig {
+        applicationId "com.woosh.fieldsales"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "2.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+}
+
+// ios/Runner/Info.plist
+<key>CFBundleIdentifier</key>
+<string>com.woosh.fieldsales</string>
+<key>CFBundleName</key>
+<string>Woosh</string>
+<key>CFBundleDisplayName</key>
+<string>Woosh Field Sales</string>
+<key>CFBundleVersion</key>
+<string>1</string>
+<key>CFBundleShortVersionString</key>
+<string>2.0.0</string>
+```
+
 ### **Theme Management**
 ```dart
-// lib/core/themes/app_theme.dart
-class AppTheme {
+// lib/core/themes/woosh_theme.dart
+class WooshTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -2124,7 +2307,119 @@ Scalability: Enterprise-ready architecture
 
 ---
 
+---
+
+## 📱 **Woosh App Store Configuration**
+
+### **iOS App Store Setup**
+```xml
+<!-- ios/Runner/Info.plist -->
+<key>CFBundleIdentifier</key>
+<string>com.woosh.fieldsales</string>
+<key>CFBundleName</key>
+<string>Woosh</string>
+<key>CFBundleDisplayName</key>
+<string>Woosh Field Sales</string>
+<key>CFBundleVersion</key>
+<string>1</string>
+<key>CFBundleShortVersionString</key>
+<string>2.0.0</string>
+
+<!-- App Store Connect Configuration -->
+App Name: Woosh Field Sales
+Bundle ID: com.woosh.fieldsales
+SKU: woosh-field-sales-2024
+Primary Language: English
+Category: Business
+Subcategory: Sales & Marketing
+```
+
+### **Android Play Store Setup**
+```gradle
+// android/app/build.gradle
+android {
+    namespace 'com.woosh.fieldsales'
+    compileSdkVersion 34
+    
+    defaultConfig {
+        applicationId "com.woosh.fieldsales"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "2.0.0"
+    }
+    
+    signingConfigs {
+        release {
+            keyAlias 'woosh-key'
+            keyPassword 'your-key-password'
+            storeFile file('woosh-keystore.jks')
+            storePassword 'your-store-password'
+        }
+    }
+}
+
+// Play Console Configuration
+App Name: Woosh Field Sales
+Package Name: com.woosh.fieldsales
+Category: Business
+Content Rating: Everyone
+Target Audience: Business professionals
+```
+
+### **Firebase Configuration**
+```dart
+// lib/config/woosh_firebase_config.dart
+class WooshFirebaseConfig {
+  static const String projectId = 'woosh-field-sales';
+  static const String appId = 'com.woosh.fieldsales';
+  
+  // iOS Configuration
+  static const String iosApiKey = 'your-ios-api-key';
+  static const String iosAppId = '1:123456789:ios:abcdef123456';
+  
+  // Android Configuration  
+  static const String androidApiKey = 'your-android-api-key';
+  static const String androidAppId = '1:123456789:android:abcdef123456';
+  
+  // Messaging
+  static const String fcmSenderId = '123456789';
+  static const String fcmServerKey = 'your-fcm-server-key';
+}
+
+// google-services.json (Android)
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "woosh-field-sales",
+    "storage_bucket": "woosh-field-sales.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:abcdef123456",
+        "android_client_info": {
+          "package_name": "com.woosh.fieldsales"
+        }
+      }
+    }
+  ]
+}
+
+// GoogleService-Info.plist (iOS)
+<key>CLIENT_ID</key>
+<string>123456789-abcdef.apps.googleusercontent.com</string>
+<key>BUNDLE_ID</key>
+<string>com.woosh.fieldsales</string>
+<key>PROJECT_ID</key>
+<string>woosh-field-sales</string>
+```
+
+---
+
 **Architecture Proposal Date**: December 2024  
-**Implementation Timeline**: 8-10 weeks  
+**App Name**: Woosh Field Sales  
+**Bundle ID**: com.woosh.fieldsales  
+**Implementation Timeline**: 12-16 weeks  
 **ROI**: 300-400% improvement in development efficiency  
-**Recommendation**: Implement incrementally starting with critical modules
+**Recommendation**: Implement clean architecture for scalable, high-performance field sales solution
