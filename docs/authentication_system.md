@@ -1,483 +1,381 @@
-# Authentication & Refresh Token System Documentation
+# Authentication System Documentation
 
 ## Overview
 
-This API implements a secure JWT-based authentication system with automatic token refresh capabilities. The system uses a dual-token approach with short-lived access tokens and long-lived refresh tokens, providing both security and user convenience.
+The Woosh authentication system provides secure, progressive login functionality with comprehensive session management, token refresh, and offline capabilities. The system is built with security best practices and supports multiple authentication states.
 
-## Architecture
+## 🔐 Authentication Features
 
-### Token Types
+### Progressive Login System
+- **Multi-step Authentication** - Stepwise login process with validation at each stage
+- **Token-based Security** - JWT tokens with automatic refresh capabilities
+- **Offline Authentication** - Cached credentials for offline access
+- **Session Persistence** - Secure local storage of authentication state
 
-1. **Access Token**
-   - **Lifetime**: 9 hours (32,400 seconds)
-   - **Purpose**: Used for API authentication
-   - **Storage**: Client-side GetStorage + Server database
-   - **Type**: `access`
+### Security Features
+- **Password Encryption** - Secure password hashing and storage
+- **Token Refresh** - Automatic token renewal to maintain sessions
+- **Session Timeout** - Configurable session expiration
+- **Account Lockout** - Protection against brute force attacks
+- **Device Registration** - Trusted device management
 
-2. **Refresh Token**
-   - **Lifetime**: 7 days
-   - **Purpose**: Used to obtain new access tokens
-   - **Storage**: Client-side GetStorage + Server database
-   - **Type**: `refresh`
+## 🚀 User Flows
 
-### Database Schema
+### 1. User Registration (Sign Up)
 
-```sql
--- Token table structure
-model Token {
-  id          Int       @id @default(autoincrement())
-  token       String    -- The actual JWT token
-  salesRepId  Int       -- User ID
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime  -- Token expiration timestamp
-  blacklisted Boolean   @default(false) -- Token revocation flag
-  lastUsedAt  DateTime? -- Last usage timestamp
-  tokenType   String    @default("access") -- "access" or "refresh"
-  user        SalesRep  @relation(fields: [salesRepId], references: [id], onDelete: Cascade)
-}
+#### Flow Overview
+```
+Start → Enter Details → Validation → Account Creation → Welcome → Home Dashboard
 ```
 
-## Authentication Flow
+#### Step-by-Step Process
 
-### 1. User Login
+**Step 1: Initial Registration**
+- User selects "Sign Up" from login screen
+- Form fields include:
+  - Full Name (required)
+  - Email Address (required, validated)
+  - Phone Number (required)
+  - Password (required, strength validation)
+  - Confirm Password (required, must match)
+  - Employee ID (optional)
+  - Department (dropdown selection)
 
-**Endpoint**: `POST /api/auth/login`
+**Step 2: Validation**
+- Real-time email format validation
+- Password strength requirements:
+  - Minimum 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one number
+  - At least one special character
+- Phone number format validation
+- Employee ID verification (if provided)
 
-**Process**:
-1. Validate phoneNumber and password
-2. Check if user exists and account is active
-3. Verify password using bcrypt
-4. Generate new access and refresh tokens
-5. Store tokens in database
-6. Return user data and tokens
+**Step 3: Account Creation**
+- API call to create user account
+- Email verification sent (if required)
+- Account activation process
+- Initial profile setup
 
-**Request**:
-```json
-{
-  "phoneNumber": "1234567890",
-  "password": "password123"
-}
+**Step 4: Welcome Flow**
+- Registration success confirmation
+- Initial app tour (optional)
+- Permission requests (location, camera, etc.)
+- Default settings configuration
+
+### 2. User Login
+
+#### Flow Overview
+```
+Start → Credentials → Validation → Token Generation → Session Setup → Dashboard
 ```
 
-**Response**:
-```json
-{
-  "success": true,
-  "salesRep": {
-    "id": 1,
-    "name": "John Doe",
-    "phoneNumber": "1234567890",
-    "email": "john@example.com",
-    "role": "SALES_REP"
-  },
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 32400
-}
+#### Step-by-Step Process
+
+**Step 1: Login Form**
+- Username/Email field (required)
+- Password field (required)
+- "Remember Me" option
+- "Forgot Password" link
+- Biometric login option (if enabled)
+
+**Step 2: Progressive Authentication**
+- Initial credential validation
+- Multi-factor authentication (if enabled)
+- Device verification
+- Session token generation
+
+**Step 3: Session Establishment**
+- JWT token storage
+- Refresh token setup
+- User preferences loading
+- Permission verification
+
+**Step 4: Dashboard Access**
+- Home screen navigation
+- Initial data synchronization
+- Background services initialization
+
+### 3. Session Management
+
+#### Active Session Monitoring
+- **Heartbeat Checks** - Regular session validation
+- **Activity Tracking** - User interaction monitoring
+- **Automatic Refresh** - Token renewal before expiration
+- **Graceful Logout** - Clean session termination
+
+#### Session Persistence
+- **Local Storage** - Secure credential caching
+- **Cross-Device Sync** - Session state synchronization
+- **Offline Continuity** - Maintained sessions without connectivity
+- **Recovery Mechanisms** - Session restoration after app restart
+
+### 4. Password Management
+
+#### Password Reset Flow
+```
+Forgot Password → Email/Phone Verification → Reset Code → New Password → Confirmation
 ```
 
-### 2. Token Refresh
+**Step 1: Reset Request**
+- User clicks "Forgot Password"
+- Email or phone number entry
+- Security question (if configured)
 
-**Endpoint**: `POST /api/auth/refresh`
+**Step 2: Verification**
+- Reset code sent via email/SMS
+- Code entry and validation
+- Time-limited validity (15 minutes)
 
-**Process**:
-1. Validate refresh token from request body
-2. Verify JWT signature and expiration
-3. Check if token exists in database and is not blacklisted
-4. Generate new access token
-5. Keep existing refresh token
-6. Update lastUsedAt timestamp
-7. Return new access token
+**Step 3: Password Update**
+- New password entry
+- Confirmation field
+- Strength validation
+- Security requirements met
 
-**Request**:
-```json
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
+**Step 4: Completion**
+- Password update confirmation
+- Automatic login option
+- Security notification sent
+
+#### Password Change (Authenticated)
+```
+Current Password → New Password → Confirmation → Update → Success
 ```
 
-**Response**:
-```json
-{
-  "success": true,
-  "accessToken": "new_access_token",
-  "expiresIn": 32400
-}
+### 5. Account Security
+
+#### Security Settings
+- **Two-Factor Authentication** - SMS/Email based 2FA
+- **Biometric Authentication** - Fingerprint/Face ID
+- **Device Management** - Trusted device list
+- **Session History** - Login activity tracking
+- **Security Notifications** - Suspicious activity alerts
+
+#### Account Deletion
+```
+Security Verification → Confirmation → Data Export → Account Removal → Confirmation
 ```
 
-### 3. User Logout
+**Step 1: Security Check**
+- Password re-entry required
+- 2FA verification (if enabled)
+- Identity confirmation
 
-**Endpoint**: `POST /api/auth/logout`
+**Step 2: Data Handling**
+- Data export option
+- Deletion confirmation
+- Legal compliance notices
 
-**Process**:
-1. Blacklist all tokens (both access and refresh) for the user
-2. Return success message
+**Step 3: Account Removal**
+- Complete data deletion
+- Session termination
+- Notification confirmation
 
-**Headers**: `Authorization: Bearer <accessToken>`
+## 🛠️ Technical Implementation
 
-**Response**:
-```json
-{
-  "success": true,
-  "message": "Logged out successfully"
-}
-```
+### Authentication Controllers
 
-## Flutter Client Implementation
-
-### 1. TokenService (`lib/services/token_service.dart`)
-
-**Purpose**: Centralized token management using GetStorage
-
-**Storage Keys**:
-- `access_token` - Current JWT access token
-- `refresh_token` - Long-lived refresh token
-- `token_expiry` - ISO 8601 timestamp of token expiration
-
-**Core Methods**:
+#### AuthController (`lib/controllers/auth_controller.dart`)
 ```dart
-// Store tokens after login
-static Future<void> storeTokens({
-  required String accessToken,
-  required String refreshToken,
-  int? expiresIn,
-}) async
-
-// Get access token
-static String? getAccessToken()
-
-// Get refresh token
-static String? getRefreshToken()
-
-// Check if token is expired
-static bool isTokenExpired()
-
-// Clear all tokens
-static Future<void> clearTokens() async
-
-// Check if user is authenticated
-static bool isAuthenticated()
+class AuthController extends GetxController {
+  // Core authentication methods
+  Future<bool> login(String email, String password)
+  Future<bool> register(UserRegistration registration)
+  Future<void> logout()
+  Future<bool> refreshToken()
+  
+  // Session management
+  bool get isAuthenticated
+  User? get currentUser
+  String? get authToken
+}
 ```
 
-### 2. ApiService Authentication (`lib/services/api_service.dart`)
+### Services Integration
 
-**Login Implementation**:
+#### Progressive Login Service (`lib/services/progressive_login_service.dart`)
+- **Multi-step Authentication** - Handles complex login flows
+- **Token Management** - JWT token handling and refresh
+- **Offline Support** - Cached authentication for offline use
+- **Security Validation** - Multi-layer security checks
+
+#### Token Service (`lib/services/token_service.dart`)
+- **Token Storage** - Secure local token management
+- **Refresh Logic** - Automatic token renewal
+- **Expiration Handling** - Token lifecycle management
+- **Security Monitoring** - Token integrity validation
+
+### Data Models
+
+#### User Model (`lib/models/user_model.dart`)
 ```dart
-Future<Map<String, dynamic>> login(String phoneNumber, String password) async {
-  try {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'phoneNumber': phoneNumber,
-        'password': password,
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-
-      // Store tokens using TokenService
-      await TokenService.storeTokens(
-        accessToken: data['accessToken'],
-        refreshToken: data['refreshToken'],
-        expiresIn: data['expiresIn'],
-      );
-
-      // Store user data
-      final box = GetStorage();
-      box.write('salesRep', data['salesRep']);
-
-      return {
-        'success': true,
-        'accessToken': data['accessToken'],
-        'refreshToken': data['refreshToken'],
-        'salesRep': data['salesRep']
-      };
-    }
-  } catch (e) {
-    return {
-      'success': false,
-      'message': 'Network error occurred',
-    };
-  }
+class User {
+  String id;
+  String name;
+  String email;
+  String phone;
+  String? employeeId;
+  String department;
+  DateTime createdAt;
+  DateTime lastLoginAt;
+  bool isActive;
+  UserRole role;
 }
 ```
 
-**Token Refresh Implementation**:
+#### Session Model (`lib/models/session_model.dart`)
 ```dart
-static Future<bool> refreshAccessToken() async {
-  try {
-    final refreshToken = TokenService.getRefreshToken();
-    if (refreshToken == null) {
-      return false;
-    }
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/refresh'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'refreshToken': refreshToken}),
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-
-      // Store new access token while keeping refresh token
-      await TokenService.storeTokens(
-        accessToken: data['accessToken'],
-        refreshToken: refreshToken, // Keep existing refresh token
-        expiresIn: data['expiresIn'],
-      );
-
-      return true;
-    }
-
-    return false;
-  } catch (e) {
-    return false;
-  }
+class Session {
+  String sessionId;
+  String userId;
+  String accessToken;
+  String refreshToken;
+  DateTime expiresAt;
+  DateTime createdAt;
+  String deviceInfo;
+  bool isActive;
 }
 ```
 
-**Automatic Header Preparation**:
+### Security Implementation
+
+#### Secure Storage
+- **Hive Encryption** - Local database encryption
+- **Token Encryption** - JWT token secure storage
+- **Keychain Integration** - Platform-specific secure storage
+- **Biometric Protection** - Hardware security integration
+
+#### Network Security
+- **HTTPS Only** - Encrypted API communication
+- **Certificate Pinning** - Man-in-the-middle protection
+- **Request Signing** - API request integrity
+- **Rate Limiting** - Brute force protection
+
+## 📱 User Interface Components
+
+### Login Screen (`lib/pages/login/login_page.dart`)
+- **Responsive Design** - Adapts to different screen sizes
+- **Brand Consistency** - Woosh brand colors and typography
+- **Accessibility** - Screen reader and keyboard navigation support
+- **Error Handling** - Clear error messages and recovery options
+
+### Registration Screen (`lib/pages/login/sign_page.dart`)
+- **Form Validation** - Real-time input validation
+- **Progress Indicators** - Visual feedback during registration
+- **Help Text** - Contextual assistance for form fields
+- **Success Feedback** - Registration completion confirmation
+
+### Profile Management (`lib/pages/profile/profile.dart`)
+- **Account Settings** - Comprehensive profile management
+- **Security Options** - Password change and 2FA setup
+- **Session History** - Login activity and device management
+- **Account Actions** - Logout and account deletion options
+
+## 🔧 Configuration
+
+### Authentication Settings
+```yaml
+# config/auth_config.yaml
+authentication:
+  session_timeout: 3600  # 1 hour
+  token_refresh_threshold: 300  # 5 minutes before expiry
+  max_login_attempts: 5
+  lockout_duration: 1800  # 30 minutes
+  password_requirements:
+    min_length: 8
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special_chars: true
+```
+
+### API Endpoints
 ```dart
-static Future<Map<String, String>> _headers([String? additionalContentType]) async {
-  try {
-    final token = _getAuthToken();
-    
-    // Check if token needs refresh before making request
-    if (await _shouldRefreshToken()) {
-      final refreshed = await _refreshToken();
-      if (!refreshed) {
-        await logout();
-        throw Exception("Session expired. Please log in again.");
-      }
-    }
-
-    return {
-      'Content-Type': additionalContentType ?? 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  } catch (e) {
-    rethrow;
-  }
-}
+// Authentication endpoints
+const String LOGIN_ENDPOINT = '/api/auth/login';
+const String REGISTER_ENDPOINT = '/api/auth/register';
+const String REFRESH_ENDPOINT = '/api/auth/refresh';
+const String LOGOUT_ENDPOINT = '/api/auth/logout';
+const String RESET_PASSWORD_ENDPOINT = '/api/auth/reset-password';
 ```
 
-### 3. SessionService Integration (`lib/services/session_service.dart`)
+## 🚨 Error Handling
 
-```dart
-class SessionService {
-  static const String baseUrl = '${Config.baseUrl}/api';
+### Common Error Scenarios
+1. **Invalid Credentials** - Clear error message with retry option
+2. **Network Connectivity** - Offline mode activation
+3. **Session Expired** - Automatic refresh or re-login prompt
+4. **Account Locked** - Lockout notification with recovery options
+5. **Server Errors** - Graceful degradation with retry mechanisms
 
-  static Future<Map<String, String>> _getAuthHeaders() async {
-    final headers = {'Content-Type': 'application/json'};
+### Error Recovery
+- **Automatic Retry** - Network request retry with exponential backoff
+- **Offline Fallback** - Cached credential validation
+- **User Guidance** - Clear instructions for error resolution
+- **Support Integration** - Easy access to help and support
 
-    // Check if token is expired and refresh if needed
-    if (TokenService.isTokenExpired()) {
-      final refreshed = await ApiService.refreshAccessToken();
-      if (!refreshed) {
-        throw Exception('Authentication required');
-      }
-    }
+## 📊 Analytics & Monitoring
 
-    final accessToken = TokenService.getAccessToken();
-    if (accessToken != null) {
-      headers['Authorization'] = 'Bearer $accessToken';
-    }
+### Authentication Metrics
+- **Login Success Rate** - Authentication success tracking
+- **Session Duration** - Average session length monitoring
+- **Error Frequency** - Authentication error analysis
+- **Security Events** - Suspicious activity detection
 
-    return headers;
-  }
-}
-```
+### User Behavior
+- **Login Patterns** - Time-based login analysis
+- **Feature Usage** - Post-authentication feature adoption
+- **Session Activity** - User engagement during sessions
+- **Retention Metrics** - User return rate analysis
 
-## Error Handling
+## 🔄 Offline Functionality
 
-### Authentication Errors
+### Offline Authentication
+- **Cached Credentials** - Secure local credential storage
+- **Biometric Fallback** - Hardware-based authentication
+- **Session Persistence** - Maintained authentication state
+- **Sync on Reconnect** - Automatic session validation when online
 
-| Error Code | HTTP Status | Description |
-|------------|-------------|-------------|
-| `AUTH_FAILED` | 401 | Invalid credentials |
-| `TOKEN_EXPIRED` | 401 | Access token has expired |
-| `INVALID_TOKEN` | 401 | Invalid or malformed token |
-| `TOKEN_REFRESH_FAILED` | 401 | Failed to refresh tokens |
+### Data Synchronization
+- **Authentication State** - Session status synchronization
+- **User Profile** - Profile data updates when connected
+- **Security Events** - Offline security event queuing
+- **Conflict Resolution** - Handling concurrent authentication changes
 
-### Common Error Responses
+## 🔒 Security Best Practices
 
-```json
-{
-  "success": false,
-  "error": "Invalid credentials",
-  "code": "AUTH_FAILED"
-}
-```
+### Implementation Guidelines
+1. **Never store plain text passwords**
+2. **Use secure token storage mechanisms**
+3. **Implement proper session timeout**
+4. **Monitor for suspicious activities**
+5. **Regular security audits and updates**
 
-```json
-{
-  "success": false,
-  "error": "Access token expired. Please refresh your token.",
-  "code": "TOKEN_EXPIRED"
-}
-```
+### Compliance Considerations
+- **Data Privacy** - GDPR and CCPA compliance
+- **Password Policies** - Industry standard requirements
+- **Audit Logging** - Comprehensive security event logging
+- **Regulatory Compliance** - Industry-specific security standards
 
-### Flutter Error Handling
-```dart
-static void handleNetworkError(dynamic error) {
-  String errorMessage = "Unable to connect to the server";
-
-  if (error.toString().contains('SocketException') ||
-      error.toString().contains('XMLHttpRequest error') ||
-      error.toString().contains('Connection timeout')) {
-    errorMessage = "You're offline. Please check your internet connection.";
-  } else if (error.toString().contains('TimeoutException')) {
-    errorMessage = "Request timed out. Please try again.";
-  } else if (error.toString().contains('500')) {
-    errorMessage = "Server error. Please try again later.";
-  }
-
-  OfflineToastService.showOfflineToast(
-    message: errorMessage,
-    duration: const Duration(seconds: 4),
-    onRetry: () {
-      Get.back();
-    },
-  );
-}
-```
-
-## Security Features
-
-### 1. Token Validation
-- **Access Token Validation**: Validated on every API request
-- **Refresh Token Validation**: Validated only during refresh attempts
-- **Server-side Blacklisting**: Both tokens can be invalidated server-side
-- **Local Expiration Tracking**: Prevents unnecessary API calls with expired tokens
-
-### 2. Token Storage Security
-- **GetStorage**: Uses Flutter's secure storage solution
-- **Token Separation**: Access and refresh tokens stored separately
-- **Automatic Cleanup**: Expired tokens are automatically cleared
-- **Logout Cleanup**: All tokens cleared on logout
-
-### 3. Concurrent Request Handling
-- **Refresh Lock**: Prevents multiple simultaneous refresh attempts
-- **Request Queuing**: Concurrent requests wait for refresh to complete
-- **Race Condition Prevention**: Ensures only one refresh operation at a time
-
-### 4. Error Recovery
-- **Graceful Degradation**: Failed refreshes result in clean logout
-- **User Feedback**: Clear error messages for authentication issues
-- **Automatic Redirect**: Seamless transition to login on auth failure
-
-## Usage Examples
-
-### Protecting Routes
-
-```dart
-// Check authentication before accessing protected routes
-if (!TokenService.isAuthenticated()) {
-  Get.offAllNamed('/login');
-  return;
-}
-```
-
-### Client-Side Implementation
-
-```dart
-// Login
-final loginResponse = await ApiService().login(phoneNumber, password);
-if (loginResponse['success'] == true) {
-  // Tokens are automatically stored by TokenService
-  Get.offAllNamed('/home');
-} else {
-  // Handle login error
-  showError(loginResponse['message']);
-}
-
-// API calls with automatic refresh
-try {
-  final clients = await ApiService.fetchClients(limit: 10);
-  // Handle successful response
-} catch (e) {
-  // Handle error (automatic refresh already attempted)
-  handleNetworkError(e);
-}
-```
-
-## Best Practices
-
-### 1. Token Storage
-- Store tokens securely using GetStorage
-- Never expose tokens in URLs
-- Clear tokens on logout
-
-### 2. Error Handling
-- Handle token expiration gracefully
-- Implement retry logic for failed requests
-- Provide clear error messages to users
-
-### 3. Security
-- Use HTTPS in production
-- Implement rate limiting
-- Monitor for suspicious activity
-- Regular token cleanup
-
-### 4. Performance
-- Minimize database queries
-- Use efficient token validation
-- Implement caching where appropriate
-
-## Troubleshooting
+## 📞 Troubleshooting
 
 ### Common Issues
+1. **Cannot Login** - Check credentials, network, and server status
+2. **Session Expires Quickly** - Verify token refresh settings
+3. **Forgot Password Not Working** - Check email/SMS delivery
+4. **Biometric Login Fails** - Hardware and permission verification
+5. **Account Locked** - Contact admin or wait for lockout expiry
 
-1. **Token Expired Errors**
-   - Check if refresh token is valid
-   - Ensure proper token storage
-   - Verify automatic refresh is working
+### Support Resources
+- **User Guide** - Step-by-step authentication help
+- **FAQ Section** - Common authentication questions
+- **Contact Support** - Direct support for authentication issues
+- **System Status** - Real-time authentication service status
 
-2. **Network Connectivity Issues**
-   - System falls back to JWT-only validation
-   - Check database connectivity
-   - Monitor token storage operations
+---
 
-3. **Authentication Failures**
-   - Verify user credentials
-   - Check account status
-   - Ensure proper API endpoints
-
-### Debug Information
-
-Enable debug logging by setting environment variables:
-```bash
-DEBUG=auth:*
-NODE_ENV=development
-```
-
-## API Endpoints Summary
-
-| Method | Endpoint | Authentication | Description |
-|--------|----------|----------------|-------------|
-| POST | `/api/auth/login` | None | User login |
-| POST | `/api/auth/refresh` | None | Token refresh |
-| POST | `/api/auth/logout` | Required | User logout |
-
-## Environment Variables
-
-```bash
-JWT_SECRET=your_jwt_secret_key_here
-DATABASE_URL=your_database_connection_string
-NODE_ENV=production
-```
-
-## Database Migrations
-
-The token system requires the following database tables:
-- `SalesRep` - User accounts
-- `Token` - Token storage and management
-
-Run migrations to ensure proper schema:
-```bash
-npx prisma migrate dev
-npx prisma generate
-``` 
+**Last Updated**: December 2024  
+**Version**: 1.0.7+1  
+**Applies to**: All platforms (Android, iOS, Web, Desktop) 
