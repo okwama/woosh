@@ -1,116 +1,138 @@
 # JourneyPlan User Navigation Flow
 
 ## Overview
-This document outlines the user navigation flow for the JourneyPlan system, designed for implementation with the Repository Pattern. It focuses on screen transitions, user interactions, and navigation logic.
+This document outlines the user navigation flow specifically for the **JourneyPlan feature**, designed for implementation with the Repository Pattern. It focuses on the complete journey planning and execution workflow.
 
-## Navigation Architecture
+## JourneyPlan Navigation Architecture
 
 ### Repository Pattern Integration
 ```
-Presentation Layer (UI) → Use Cases → Repository Interface → Data Sources
+JourneyPlan UI → JourneyPlan Use Cases → JourneyPlan Repository → Data Sources (API/Local)
 ```
 
-## User Navigation Flow
+## JourneyPlan User Navigation Flow
 
-### 1. App Launch & Authentication
+### 1. Entry Points to JourneyPlan
 
-#### 1.1 Initial Flow
+#### 1.1 From Dashboard
 ```
-App Launch
-├── SplashScreen (2 seconds)
-├── Check Authentication Status
-│   ├── If Authenticated → HomePage
-│   └── If Not Authenticated → LoginPage
-```
-
-#### 1.2 Login Navigation
-```
-LoginPage
-├── Enter credentials (phone + password)
-├── Validate → Loading state
-├── Success → HomePage
-└── Failure → Show error, stay on LoginPage
+HomePage
+├── Journey Plans Menu Tile (with badge count)
+├── Session Validation Check
+│   ├── If Not Clocked In → Session Required Dialog
+│   └── If Clocked In → JourneyPlansLoadingScreen
 ```
 
-### 2. Main Dashboard Navigation
-
-#### 2.1 HomePage Structure
+#### 1.2 Session Validation Flow
 ```
-HomePage (Main Dashboard)
-├── Header: App title + sync indicators
-├── User Profile Section:
-│   ├── Name, phone, session status
-│   └── Tap → ProfilePage
-├── Navigation Grid (2x6):
-│   ├── Journey Plans (session-restricted)
-│   ├── View Clients
-│   ├── Notice Board (with badge count)
-│   ├── Add/Edit Orders
-│   ├── View Orders
-│   ├── Tasks/Warnings (with badge count)
-│   ├── Leave Applications
-│   ├── Uplift Sales
-│   ├── Uplift Sales History
-│   ├── Product Returns
-│   ├── Asset Requests
-│   └── [Future menu items]
+Session Check:
+├── Clock Status Validation
+├── If Session Inactive:
+│   ├── Show "Session Required" Dialog
+│   ├── Options:
+│   │   ├── Cancel → Stay on HomePage
+│   │   └── Start Session → Navigate to ProfilePage
+│   └── After Clock-In → Auto-navigate to JourneyPlans
+└── If Session Active → Direct access to JourneyPlans
 ```
 
-#### 2.2 Session-Based Navigation
-```
-Journey Plans Access:
-├── Check Clock Status
-├── If Not Clocked In:
-│   ├── Show "Session Required" dialog
-│   ├── Option to navigate to ProfilePage
-│   └── Auto-navigate to JourneyPlans after clock-in
-└── If Clocked In:
-    └── Navigate to JourneyPlansLoadingScreen
-```
+### 2. JourneyPlan List Management
 
-### 3. Journey Plan Navigation Flow
-
-#### 3.1 Journey Plans List Navigation
+#### 2.1 Loading Screen Navigation
 ```
 JourneyPlansLoadingScreen
-├── Preload data (clients + journey plans)
-├── Show loading indicator
-└── Navigate to JourneyPlansPage
-
-JourneyPlansPage
-├── Header: Search + Filter + Sort controls
-├── Active Visit Banner (if exists)
-├── Journey Plans List:
-│   ├── Each item shows: Client, Date, Status, Actions
-│   ├── Tap item → JourneyView
-│   ├── Long press → Context menu (Edit/Delete)
-│   └── Status-based action buttons
-├── Floating Action Button → CreateJourneyPlanPage
-├── Pull-to-refresh functionality
-└── Infinite scroll pagination
+├── Show "Loading Journey Plans..." indicator
+├── Preload Data:
+│   ├── Fetch journey plans from repository
+│   ├── Fetch clients from repository
+│   └── Handle loading errors gracefully
+└── Navigate to JourneyPlansPage (with preloaded data)
 ```
 
-#### 3.2 Journey Plan Creation Navigation
+#### 2.2 Journey Plans List Navigation
+```
+JourneyPlansPage
+├── App Bar:
+│   ├── Title: "Journey Plans"
+│   ├── Sort button (ascending/descending)
+│   └── Refresh button
+├── Filter Controls:
+│   ├── Status filter dropdown (All/Pending/In Progress/Completed)
+│   ├── Date picker filter
+│   └── Search bar (debounced)
+├── Active Visit Banner:
+│   ├── Shows current in-progress journey
+│   ├── Tap → Navigate to JourneyView
+│   └── Visible only when active visit exists
+├── Journey Plans List:
+│   ├── Card-based layout
+│   ├── Each card shows:
+│   │   ├── Client name and address
+│   │   ├── Date and time
+│   │   ├── Status badge with color
+│   │   └── Action buttons (status-dependent)
+│   ├── Card Actions:
+│   │   ├── Tap → Navigate to JourneyView
+│   │   ├── Long press → Context menu
+│   │   └── Status-specific buttons
+├── List Interactions:
+│   ├── Pull-to-refresh → Reload from repository
+│   ├── Infinite scroll → Load more pages
+│   └── Empty state → "No journey plans" message
+├── Floating Action Button:
+│   ├── "+" button → Navigate to CreateJourneyPlanPage
+│   └── Only visible when session is active
+└── Navigation Options:
+    ├── Back → HomePage
+    ├── Create → CreateJourneyPlanPage
+    └── View Journey → JourneyView
+```
+
+### 3. Journey Plan Creation Flow
+
+#### 3.1 Create Journey Navigation
 ```
 CreateJourneyPlanPage
-├── Prerequisites Check:
-│   ├── Clock-in status validation
-│   └── Show warning if not clocked in
-├── Form Sections:
-│   ├── Date/Time picker
-│   ├── Client search & selection
-│   ├── Route selection (dropdown)
-│   └── Notes (optional)
-├── Client Selection Flow:
-│   ├── Search input with debouncing
-│   ├── Filtered results with pagination
-│   ├── Smart search (name + address)
-│   └── Select client → Enable submit
-├── Submit → API call → Success/Error handling
-└── Navigation:
-    ├── Success → Back to JourneyPlansPage
-    ├── Cancel → Back to JourneyPlansPage
-    └── Error → Stay with error message
+├── App Bar:
+│   ├── Title: "Create Journey Plan"
+│   ├── Back button → JourneyPlansPage
+│   └── Save button (enabled when form valid)
+├── Prerequisites Validation:
+│   ├── Check clock-in status
+│   ├── If not clocked in:
+│   │   ├── Show warning banner
+│   │   ├── Disable form submission
+│   │   └── Option to go back and clock in
+├── Form Navigation:
+│   ├── Date/Time Selection:
+│   │   ├── Date picker → Calendar dialog
+│   │   └── Time picker → Time dialog
+│   ├── Client Selection:
+│   │   ├── Search input (with debouncing)
+│   │   ├── Filtered client list
+│   │   ├── Pagination (20 per page)
+│   │   ├── Tap client → Select and highlight
+│   │   └── Smart search (name + address matching)
+│   ├── Route Selection:
+│   │   ├── Dropdown with available routes
+│   │   └── Auto-select if user has default route
+│   └── Notes Section:
+│       ├── Optional text input
+│       └── Character limit indicator
+├── Form Validation:
+│   ├── Required fields: Date, Client
+│   ├── Real-time validation feedback
+│   └── Submit button state management
+├── Submission Flow:
+│   ├── Tap Save → Loading indicator
+│   ├── Repository call → Create journey plan
+│   ├── Success → Navigate back to JourneyPlansPage
+│   ├── Error → Show error dialog, stay on page
+│   └── Offline → Save locally, show offline indicator
+└── Exit Options:
+    ├── Back button → Confirm unsaved changes
+    ├── Save → Submit and navigate back
+    └── Cancel → Discard and navigate back
 ```
 
 ### 4. Journey Execution Navigation
